@@ -34,8 +34,8 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParseResult;
 import picocli.CommandLine.Spec;
+import com.adeptum.paula.audio.AudioBackend;
 import com.adeptum.paula.audio.AudioException;
-import com.adeptum.paula.audio.JavaSoundSink;
 import com.adeptum.paula.cli.BuildInfo;
 import com.adeptum.paula.cli.FormatsCommand;
 import com.adeptum.paula.cli.InfoCommand;
@@ -65,6 +65,9 @@ public final class Paula implements Runnable {
     @Option(names = {"-b", "--buffer"}, paramLabel = "FRAMES", defaultValue = "2048", description = "Audio buffer size in frames (default: ${DEFAULT-VALUE}).")
     private int bufferFrames;
 
+    @Option(names = {"-o", "--output"}, paramLabel = "BACKEND", defaultValue = "auto", description = "Audio backend: ${COMPLETION-CANDIDATES} (default: ${DEFAULT-VALUE}).")
+    private AudioBackend output;
+
     @Parameters(paramLabel = "FILE", arity = "0..*", description = "Module files to play, in order.")
     private List<Path> files = List.of();
 
@@ -80,6 +83,7 @@ public final class Paula implements Runnable {
     public static CommandLine commandLine() {
         return new CommandLine(new Paula())
                 .setColorScheme(Theme.helpColors())
+                .setCaseInsensitiveEnumValuesAllowed(true)
                 .setExecutionExceptionHandler(Paula::printError);
     }
 
@@ -94,7 +98,7 @@ public final class Paula implements Runnable {
             spec.commandLine().usage(spec.commandLine().getOut());
             return;
         }
-        try (PlaybackEngine engine = new PlaybackEngine(new JavaSoundSink(), sampleRate, bufferFrames);
+        try (PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TerminalUi ui = new TerminalUi()) {
             new PlayerSession(new Playlist(files), ModuleLoaderRegistry.withBuiltInLoaders(),
                     (module, rate) -> new SilenceRenderer(PLACEHOLDER_SONG_LENGTH, rate), engine, ui).run();

@@ -26,17 +26,17 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
+/**
+ * Plays through Java Sound. Only usable on a JVM; the native executable has no Java Sound providers.
+ */
 public final class JavaSoundSink implements AudioSink {
-
-    private static final int CHANNELS = 2;
-    private static final int BYTES_PER_FRAME = CHANNELS * Short.BYTES;
 
     private SourceDataLine line;
     private byte[] bytes = new byte[0];
 
     @Override
     public void open(int sampleRate) throws AudioException {
-        final AudioFormat format = new AudioFormat(sampleRate, Short.SIZE, CHANNELS, true, false);
+        final AudioFormat format = new AudioFormat(sampleRate, Short.SIZE, Pcm.CHANNELS, true, false);
         try {
             line = AudioSystem.getSourceDataLine(format);
             line.open(format);
@@ -48,15 +48,8 @@ public final class JavaSoundSink implements AudioSink {
 
     @Override
     public void write(short[] interleavedStereo, int frames) {
-        final int byteCount = frames * BYTES_PER_FRAME;
-        if (bytes.length < byteCount) {
-            bytes = new byte[byteCount];
-        }
-        for (int i = 0; i < frames * CHANNELS; i++) {
-            bytes[i * 2] = (byte) interleavedStereo[i];
-            bytes[i * 2 + 1] = (byte) (interleavedStereo[i] >> 8);
-        }
-        line.write(bytes, 0, byteCount);
+        bytes = Pcm.toLittleEndian(interleavedStereo, frames, bytes);
+        line.write(bytes, 0, frames * Pcm.BYTES_PER_FRAME);
     }
 
     @Override
