@@ -36,6 +36,7 @@
     <lombok.version>1.18.42</lombok.version>
     <slf4j.version>2.0.17</slf4j.version>
     <junit.version>5.12.2</junit.version>
+    <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
   </properties>
 
   <dependencies>
@@ -46,8 +47,14 @@
     </dependency>
     <dependency>
       <groupId>org.jline</groupId>
-      <artifactId>jline</artifactId>
+      <artifactId>jline-terminal</artifactId>
       <version>${jline.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jline</groupId>
+      <artifactId>jline-terminal-jni</artifactId>
+      <version>${jline.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>org.fusesource.jansi</groupId>
@@ -102,7 +109,8 @@
         <configuration>
           <toolchains>
             <jdk>
-              <version>${maven.compiler.release}</version>
+              <version>[${maven.compiler.release},)</version>
+              <vendor>graalvm</vendor>
             </jdk>
           </toolchains>
         </configuration>
@@ -135,36 +143,31 @@
         <version>3.5.5</version>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
-        <version>3.6.0</version>
+        <groupId>org.graalvm.buildtools</groupId>
+        <artifactId>native-maven-plugin</artifactId>
+        <version>${native-maven-plugin.version}</version>
+        <extensions>true</extensions>
         <executions>
           <execution>
+            <id>build-native</id>
             <phase>package</phase>
             <goals>
-              <goal>shade</goal>
+              <goal>compile-no-fork</goal>
             </goals>
-            <configuration>
-              <createDependencyReducedPom>false</createDependencyReducedPom>
-              <transformers>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>com.adeptum.paula.Paula</mainClass>
-                </transformer>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-              </transformers>
-              <filters>
-                <filter>
-                  <artifact>*:*</artifact>
-                  <excludes>
-                    <exclude>META-INF/*.SF</exclude>
-                    <exclude>META-INF/*.DSA</exclude>
-                    <exclude>META-INF/*.RSA</exclude>
-                  </excludes>
-                </filter>
-              </filters>
-            </configuration>
           </execution>
         </executions>
+        <configuration>
+          <enforceToolchain>true</enforceToolchain>
+          <imageName>paula</imageName>
+          <mainClass>com.adeptum.paula.Paula</mainClass>
+          <metadataRepository>
+            <enabled>false</enabled>
+          </metadataRepository>
+          <buildArgs>
+            <buildArg>--no-fallback</buildArg>
+            <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+          </buildArgs>
+        </configuration>
       </plugin>
     </plugins>
   </build>
