@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.archive;
 
+import com.adeptum.paula.archive.lzx.LzxExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -36,7 +37,7 @@ import java.util.function.Predicate;
 public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
-    private static final List<ArchiveExtractor> EXTRACTORS = List.of(new ZipExtractor(), new LhaExtractor());
+    private static final List<ArchiveExtractor> EXTRACTORS = List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor());
 
     private Archives() {
     }
@@ -57,7 +58,7 @@ public final class Archives {
         return extractor.isPresent();
     }
 
-    static Path target(Path into, String entryName) throws IOException {
+    public static Path target(Path into, String entryName) throws IOException {
         final Path target = into.resolve(entryName.replace('\\', '/')).normalize();
         if (!target.startsWith(into)) {
             throw new IOException("Refusing archive entry " + entryName);
@@ -66,7 +67,7 @@ public final class Archives {
         return target;
     }
 
-    static boolean startsWith(byte[] head, byte[] magic) {
+    public static boolean startsWith(byte[] head, byte[] magic) {
         return head.length >= magic.length && Arrays.equals(head, 0, magic.length, magic, 0, magic.length);
     }
 
