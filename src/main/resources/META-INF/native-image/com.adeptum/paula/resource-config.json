@@ -4,5 +4,8 @@
       {"pattern": "\\Qpaula-build.properties\\E"},
       {"pattern": "\\Qsimplelogger.properties\\E"}
     ]
-  }
+  },
+  "bundles": [
+    {"name": "org.eclipse.parsson.messages"}
+  ]
 }
