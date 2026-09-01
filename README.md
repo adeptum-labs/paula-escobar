@@ -14,8 +14,10 @@ scene.org, ModArchive or Modland and played on the spot.
 Tracker modules are decoded and mixed by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which covers ProTracker, NoiseTracker,
 FastTracker II, Scream Tracker, Impulse Tracker, Farandole and MultiTracker
-files among others. Its jar is vendored under `lib/` as a small Maven
-repository because no current release is published to Maven Central.
+files among others. Commodore 64 SID tunes play through the libsidplay2
+port with reSID chip emulation that JavaMod bundles. Its jar is vendored
+under `lib/` as a small Maven repository because no current release is
+published to Maven Central.
 
 ## Building
 
@@ -84,7 +86,7 @@ The browser starts with the party series, opens into the parties by year,
 then into every music competition of that party and finally into the ranked
 entries. Entries in streaming or executable music competitions are shown
 dimmed because Paula cannot play them, but they stay in the list so the
-results are complete. Playing an entry queues the rest of the competition
+results are complete. C64 competitions play through the SID emulation. Playing an entry queues the rest of the competition
 after it in ranked order, so `n` walks through the results.
 
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
@@ -96,6 +98,15 @@ Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
 still used when the network is down, and downloaded modules are kept for good.
 Delete the directory to start over.
+
+### SID tunes
+
+A SID tune never ends on its own, so Paula plays it for the length listed
+in the High Voltage SID Collection's song length database. That database
+(`Songlengths.md5`, about five megabytes) is downloaded into the cache the
+first time a SID is played, refreshed monthly and kept when offline; tunes
+it does not know play for three minutes. The start subtune is played and the
+player shows the author and release credits from the file.
 
 ### Audio output
 
@@ -116,6 +127,7 @@ disturbs the player screen.
 | `com.adeptum.paula.cli`          | `info` and `formats` subcommands, version provider          |
 | `com.adeptum.paula.module`       | module model, loader interface and loader registry          |
 | `com.adeptum.paula.module.javamod` | loads tracker modules through JavaMod                     |
+| `com.adeptum.paula.module.sid`   | SID loader and renderer, HVSC song lengths                  |
 | `com.adeptum.paula.audio`        | `AudioSink`, the audio backends and PCM encoding            |
 | `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
