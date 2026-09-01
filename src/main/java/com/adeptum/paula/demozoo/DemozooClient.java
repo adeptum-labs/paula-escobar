@@ -63,33 +63,47 @@ public final class DemozooClient {
         this.clock = clock;
     }
 
+    private interface Parser<T> {
+        T parse(byte[] body) throws IOException;
+    }
+
     public PartySeries series(int id) throws IOException {
-        return DemozooJson.series(fetch(SERIES, id));
+        return fetch(SERIES, id, DemozooJson::series);
     }
 
     public List<Competition> competitions(int partyId) throws IOException {
-        return DemozooJson.competitions(fetch(PARTIES, partyId));
+        return fetch(PARTIES, partyId, DemozooJson::competitions);
     }
 
     public Production production(int id) throws IOException {
-        return DemozooJson.production(fetch(PRODUCTIONS, id));
+        return fetch(PRODUCTIONS, id, DemozooJson::production);
     }
 
-    private byte[] fetch(String resource, int id) throws IOException {
+    /**
+     * A response is only cached once it has parsed, and a cached file that no longer parses is thrown away so a
+     * corrupt file cannot block a resource until it expires.
+     */
+    private <T> T fetch(String resource, int id, Parser<T> parser) throws IOException {
         final Path cached = cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX);
         if (isFresh(cached)) {
-            return Files.readAllBytes(cached);
+            try {
+                return parser.parse(Files.readAllBytes(cached));
+            } catch (IOException e) {
+                log.warn("Discarding unreadable cache file {}: {}", cached, e.getMessage());
+                Files.deleteIfExists(cached);
+            }
         }
         try {
             final byte[] body = http.get(API.resolve(resource + "/" + id + JSON_FORMAT)).body();
+            final T parsed = parser.parse(body);
             cache.writeAtomically(cached, body);
-            return body;
+            return parsed;
         } catch (IOException e) {
             if (!Files.exists(cached)) {
                 throw e;
             }
             log.warn("Using cached {} {} after a failed fetch: {}", resource, id, e.getMessage());
-            return Files.readAllBytes(cached);
+            return parser.parse(Files.readAllBytes(cached));
         }
     }
 

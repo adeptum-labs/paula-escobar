@@ -89,6 +89,24 @@ class DemozooClientTest {
     }
 
     @Test
+    void discardsAndRefetchesAnUnreadableCacheFile(@TempDir Path dir) throws IOException {
+        http.put(SERIES_URL, DemozooJsonTest.SERIES);
+        client(dir).series(2);
+        Files.writeString(dir.resolve("api/party_series/2.json"), "{");
+
+        assertEquals("Assembly", client(dir).series(2).name());
+        assertEquals(2, http.requests());
+        assertEquals(DemozooJsonTest.SERIES, Files.readString(dir.resolve("api/party_series/2.json")));
+    }
+
+    @Test
+    void doesNotCacheAMalformedResponse(@TempDir Path dir) {
+        http.put(SERIES_URL, "{");
+        assertThrows(IOException.class, () -> client(dir).series(2));
+        assertFalse(Files.exists(dir.resolve("api/party_series/2.json")));
+    }
+
+    @Test
     void failsWithoutCacheWhenOffline(@TempDir Path dir) {
         http.goOffline();
         assertThrows(IOException.class, () -> client(dir).series(2));
