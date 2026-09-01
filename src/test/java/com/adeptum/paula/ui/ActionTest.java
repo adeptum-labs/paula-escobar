@@ -44,4 +44,18 @@ class ActionTest {
         assertEquals(Action.NONE, Action.forKey('x'));
         assertEquals(Action.NONE, Action.forKey(READ_TIMED_OUT));
     }
+
+    @Test
+    void mapsCursorSequencesToSeekActions() {
+        assertEquals(Action.SEEK_FORWARD, Action.forEscapeSequence("[C"));
+        assertEquals(Action.SEEK_BACKWARD, Action.forEscapeSequence("[D"));
+        assertEquals(Action.SEEK_FORWARD, Action.forEscapeSequence("OC"));
+        assertEquals(Action.SEEK_BACKWARD, Action.forEscapeSequence("OD"));
+    }
+
+    @Test
+    void unknownEscapeSequencesAreIgnored() {
+        assertEquals(Action.NONE, Action.forEscapeSequence("[A"));
+        assertEquals(Action.NONE, Action.forEscapeSequence(""));
+    }
 }

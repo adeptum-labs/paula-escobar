@@ -61,6 +61,57 @@ class PlaybackEngineTest {
         }
     }
 
+    @Test
+    void seekMovesTheRendererRelativeToItsPosition() throws AudioException {
+        final SeekRecordingRenderer renderer = new SeekRecordingRenderer(Duration.ofSeconds(4));
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(renderer);
+
+            engine.seek(Duration.ofSeconds(5));
+            assertEquals(Duration.ofSeconds(9), renderer.lastTarget);
+
+            engine.seek(Duration.ofSeconds(-5));
+            assertEquals(Duration.ofSeconds(-1), renderer.lastTarget);
+        }
+    }
+
+    @Test
+    void seekingWithoutASongIsIgnored() throws AudioException {
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.seek(Duration.ofSeconds(5));
+
+            assertEquals(PlaybackState.STOPPED, engine.state());
+        }
+    }
+
+    /**
+     * Renders endlessly from a fixed position so the seek target does not depend on how far the pump has run.
+     */
+    private static final class SeekRecordingRenderer implements Renderer {
+
+        private final Duration position;
+        private volatile Duration lastTarget;
+
+        private SeekRecordingRenderer(Duration position) {
+            this.position = position;
+        }
+
+        @Override
+        public int render(short[] interleavedStereo) {
+            return interleavedStereo.length / 2;
+        }
+
+        @Override
+        public Duration position() {
+            return position;
+        }
+
+        @Override
+        public void seek(Duration target) {
+            lastTarget = target;
+        }
+    }
+
     private static final class RecordingSink implements AudioSink {
 
         private int frames;

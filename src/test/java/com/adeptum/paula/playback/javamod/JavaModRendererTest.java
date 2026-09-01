@@ -55,6 +55,28 @@ class JavaModRendererTest {
     }
 
     @Test
+    void seekSkipsAheadAndKeepsRendering(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        renderer.seek(Duration.ofSeconds(1));
+
+        final Duration position = renderer.position();
+        assertTrue(position.compareTo(Duration.ofSeconds(1)) >= 0, "seek should reach the requested second, was " + position);
+        assertTrue(position.compareTo(Duration.ofMillis(1100)) < 0, "seek should stop at the first tick past it, was " + position);
+        assertEquals(FRAMES, renderer.render(buffer));
+    }
+
+    @Test
+    void seekingBeforeTheStartClampsToZero(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+
+        renderer.seek(Duration.ofSeconds(-5));
+
+        assertEquals(Duration.ZERO, renderer.position());
+    }
+
+    @Test
     void reducesThirtyTwoBitSamplesToSixteenBitWithClamping() {
         assertEquals(0, JavaModRenderer.toPcm16(0));
         assertEquals(1, JavaModRenderer.toPcm16(1 << 16));

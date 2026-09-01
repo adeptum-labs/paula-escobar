@@ -22,7 +22,7 @@
 package com.adeptum.paula.ui;
 
 public enum Action {
-    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS;
+    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD;
 
     private static final int ESCAPE = 27;
 
@@ -32,6 +32,18 @@ public enum Action {
             case ' ' -> TOGGLE_PAUSE;
             case 'n', 'N' -> NEXT;
             case 'p', 'P' -> PREVIOUS;
+            default -> NONE;
+        };
+    }
+
+    /**
+     * Maps an escape sequence without its leading escape; cursor keys arrive as CSI while an application mode
+     * terminal sends the SS3 form instead.
+     */
+    public static Action forEscapeSequence(String sequence) {
+        return switch (sequence) {
+            case "[C", "OC" -> SEEK_FORWARD;
+            case "[D", "OD" -> SEEK_BACKWARD;
             default -> NONE;
         };
     }

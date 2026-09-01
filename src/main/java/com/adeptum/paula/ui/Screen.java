@@ -53,6 +53,7 @@ public final class Screen {
         instrumentLines(meta, lines);
         lines.add(AttributedString.EMPTY);
         lines.add(line(b -> b.style(Theme.KEY).append("space").style(Theme.LABEL).append(" pause  ")
+                .style(Theme.KEY).append("←/→").style(Theme.LABEL).append(" seek  ")
                 .style(Theme.KEY).append("n").style(Theme.LABEL).append(" next  ")
                 .style(Theme.KEY).append("p").style(Theme.LABEL).append(" previous  ")
                 .style(Theme.KEY).append("q").style(Theme.LABEL).append(" quit")));

@@ -52,4 +52,9 @@ public final class SilenceRenderer implements Renderer {
     public Duration position() {
         return Duration.ofMillis(renderedFrames * 1000 / sampleRate);
     }
+
+    @Override
+    public void seek(Duration target) {
+        renderedFrames = Math.clamp(target.toMillis() * sampleRate / 1000, 0, totalFrames);
+    }
 }

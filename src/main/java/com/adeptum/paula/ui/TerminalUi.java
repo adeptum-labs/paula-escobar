@@ -32,6 +32,10 @@ import org.jline.utils.InfoCmp.Capability;
  */
 public final class TerminalUi implements AutoCloseable {
 
+    private static final int ESCAPE = 27;
+    private static final int SEQUENCE_LENGTH = 2;
+    private static final long SEQUENCE_TIMEOUT_MILLIS = 50;
+
     private final Terminal terminal;
     private final Display display;
 
@@ -45,7 +49,24 @@ public final class TerminalUi implements AutoCloseable {
     }
 
     public Action poll(long timeoutMillis) throws IOException {
-        return Action.forKey(terminal.reader().read(timeoutMillis));
+        final int key = terminal.reader().read(timeoutMillis);
+        return key == ESCAPE ? escapedAction() : Action.forKey(key);
+    }
+
+    /**
+     * Nothing following the escape within the short window means the user pressed escape itself rather than a
+     * cursor key.
+     */
+    private Action escapedAction() throws IOException {
+        final StringBuilder sequence = new StringBuilder();
+        for (int i = 0; i < SEQUENCE_LENGTH; i++) {
+            final int key = terminal.reader().read(SEQUENCE_TIMEOUT_MILLIS);
+            if (key < 0) {
+                break;
+            }
+            sequence.append((char) key);
+        }
+        return sequence.isEmpty() ? Action.forKey(ESCAPE) : Action.forEscapeSequence(sequence.toString());
     }
 
     public void draw(PlayerView view) {

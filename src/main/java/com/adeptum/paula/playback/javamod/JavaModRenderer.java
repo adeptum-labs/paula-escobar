@@ -73,6 +73,15 @@ public final class JavaModRenderer implements Renderer {
         return Duration.ofMillis(renderedFrames * 1000 / sampleRate);
     }
 
+    /**
+     * JavaMod replays the song from the start without mixing and reports how far it actually got, which is the
+     * first tick at or past the target.
+     */
+    @Override
+    public void seek(Duration target) {
+        renderedFrames = mixer.seek(target.toMillis());
+    }
+
     static short toPcm16(long sample) {
         return (short) Math.clamp((sample + ROUNDING) >> BITS_TO_DROP, Short.MIN_VALUE, Short.MAX_VALUE);
     }

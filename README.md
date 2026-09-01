@@ -50,12 +50,13 @@ paula --help
 
 Keys while playing:
 
-| Key     | Action         |
-|---------|----------------|
-| `space` | pause / resume |
-| `n`     | next track     |
-| `p`     | previous track |
-| `q`     | quit           |
+| Key     | Action                  |
+|---------|-------------------------|
+| `space` | pause / resume          |
+| `←` `→` | seek five seconds       |
+| `n`     | next track              |
+| `p`     | previous track          |
+| `q`     | quit                    |
 
 ### Audio output
 

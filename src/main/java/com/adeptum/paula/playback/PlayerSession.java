@@ -23,6 +23,7 @@ package com.adeptum.paula.playback;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -38,6 +39,7 @@ import com.adeptum.paula.ui.TerminalUi;
 public final class PlayerSession {
 
     private static final long REDRAW_INTERVAL_MILLIS = 100;
+    private static final Duration SEEK_STEP = Duration.ofSeconds(5);
 
     private final Playlist playlist;
     private final ModuleLoaderRegistry loaders;
@@ -77,6 +79,14 @@ public final class PlayerSession {
             }
             case PREVIOUS -> {
                 advance(false);
+                yield true;
+            }
+            case SEEK_FORWARD -> {
+                engine.seek(SEEK_STEP);
+                yield true;
+            }
+            case SEEK_BACKWARD -> {
+                engine.seek(SEEK_STEP.negated());
                 yield true;
             }
             case NONE -> true;

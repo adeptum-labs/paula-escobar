@@ -43,6 +43,7 @@ public final class PlaybackEngine implements AutoCloseable {
     private final AudioSink sink;
     private final int sampleRate;
     private final short[] buffer;
+    private final Object rendererLock = new Object();
 
     private volatile PlaybackState state = STOPPED;
     private volatile Renderer renderer;
@@ -85,6 +86,18 @@ public final class PlaybackEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * The renderer belongs to the pump thread, so a seek borrows it between two buffers instead of racing it.
+     */
+    public void seek(Duration delta) {
+        synchronized (rendererLock) {
+            final Renderer current = renderer;
+            if (current != null) {
+                current.seek(current.position().plus(delta));
+            }
+        }
+    }
+
     public synchronized void stop() {
         state = STOPPED;
         if (pump != null) {
@@ -112,7 +125,7 @@ public final class PlaybackEngine implements AutoCloseable {
                 sleepQuietly();
                 continue;
             }
-            final int frames = renderer.render(buffer);
+            final int frames = renderNextFrames();
             if (frames == 0) {
                 state = FINISHED;
                 log.debug("Renderer finished at {}", renderer.position());
@@ -121,6 +134,12 @@ public final class PlaybackEngine implements AutoCloseable {
             if (!writeToSink(frames)) {
                 return;
             }
+        }
+    }
+
+    private int renderNextFrames() {
+        synchronized (rendererLock) {
+            return renderer.render(buffer);
         }
     }
 

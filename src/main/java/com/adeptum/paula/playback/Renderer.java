@@ -34,4 +34,9 @@ public interface Renderer {
     int render(short[] interleavedStereo);
 
     Duration position();
+
+    /**
+     * Moves playback to the given position, clamped to the song; a target beyond the end leaves the song finished.
+     */
+    void seek(Duration target);
 }
