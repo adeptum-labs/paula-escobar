@@ -46,6 +46,7 @@ import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playback.DaemonExecutors;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
@@ -123,7 +124,7 @@ public final class Paula implements Runnable {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
             final DemozooClient demozoo = new DemozooClient(http, cache);
-            final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders();
+            final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(new SongLengths(http, cache));
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
             final Browser browser = new Browser(demozoo, browsing);
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver), browser).run();

@@ -84,6 +84,28 @@ class ScreenTest {
     }
 
     @Test
+    void showsCreditsForFormatsWithoutInstruments() {
+        final PlayerView sid = PlayerView.builder()
+                .module(new TestModule(Path.of("tune.sid"), ModuleMetadata.builder()
+                        .title("Commando")
+                        .format(new ModuleFormat("sid", "PSID", Set.of("sid")))
+                        .channels(3)
+                        .songLength(1)
+                        .credits(List.of("Rob Hubbard", "1985 Elite"))
+                        .build()))
+                .trackLabel("tune.sid")
+                .state(PlaybackState.PLAYING)
+                .position(Duration.ZERO)
+                .track(1)
+                .trackCount(1)
+                .build();
+
+        final List<String> lines = render(sid, HEIGHT);
+        assertTrue(lines.contains("Rob Hubbard"));
+        assertTrue(lines.contains("1985 Elite"));
+    }
+
+    @Test
     void clipsLinesToTerminalWidth() {
         assertTrue(Screen.render(view, 10, HEIGHT).stream().allMatch(line -> line.columnLength() <= 10));
     }

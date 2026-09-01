@@ -26,27 +26,30 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.javamod.JavaModLoader;
+import com.adeptum.paula.module.sid.SidLoader;
+import com.adeptum.paula.module.sid.SongLengths;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ModuleLoaderRegistryTest {
 
-    private final ModuleLoaderRegistry registry = ModuleLoaderRegistry.withBuiltInLoaders();
+    private final ModuleLoaderRegistry registry = ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none());
 
     @Test
     void listsBuiltInFormats() {
-        assertEquals(List.of(JavaModLoader.FORMAT), registry.formats());
+        assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT), registry.formats());
     }
 
     @Test
     void findsLoaderByFileName() {
         assertTrue(registry.loaderFor(Path.of("x.mod")).isPresent());
-        assertTrue(registry.loaderFor(Path.of("x.sid")).isEmpty());
+        assertTrue(registry.loaderFor(Path.of("x.sid")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());
     }
 
     @Test
     void loadingUnknownFormatFails() {
-        assertThrows(UnsupportedModuleException.class, () -> registry.load(Path.of("x.sid")));
+        assertThrows(UnsupportedModuleException.class, () -> registry.load(Path.of("x.xyz")));
     }
 }

@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.testing.TestModules;
+import com.adeptum.paula.testing.TestSids;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Path;
@@ -71,8 +72,23 @@ class PaulaTest {
     }
 
     @Test
+    void formatsListsSidTunes() {
+        assertEquals(0, cli.execute("formats"));
+        assertTrue(out.toString().contains("SID"));
+        assertTrue(out.toString().contains(".sid"));
+    }
+
+    @Test
+    void infoPrintsSidCredits(@TempDir Path dir) throws Exception {
+        assertEquals(0, cli.execute("info", TestSids.writePsid(dir).toString()));
+        assertTrue(out.toString().startsWith(TestSids.NAME));
+        assertTrue(out.toString().contains(TestSids.AUTHOR));
+        assertTrue(out.toString().contains(TestSids.RELEASED));
+    }
+
+    @Test
     void infoOnUnsupportedFileFails() {
-        assertEquals(1, cli.execute("info", "missing.sid"));
-        assertEquals("Error: Unsupported module format: missing.sid", err.toString().strip());
+        assertEquals(1, cli.execute("info", "missing.xyz"));
+        assertEquals("Error: Unsupported module format: missing.xyz", err.toString().strip());
     }
 }

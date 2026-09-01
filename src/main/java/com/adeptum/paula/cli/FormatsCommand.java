@@ -27,6 +27,7 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Spec;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SongLengths;
 
 @Command(name = "formats", description = "List the supported module formats.")
 public final class FormatsCommand implements Runnable {
@@ -36,7 +37,7 @@ public final class FormatsCommand implements Runnable {
 
     @Override
     public void run() {
-        ModuleLoaderRegistry.withBuiltInLoaders().formats().forEach(this::print);
+        ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()).formats().forEach(this::print);
     }
 
     private void print(ModuleFormat format) {

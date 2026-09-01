@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
 import java.io.IOException;
@@ -58,7 +59,7 @@ class TrackResolverTest {
 
     private TrackResolver resolver(Path dir) {
         final CacheDirectory cache = new CacheDirectory(dir);
-        return new TrackResolver(new DemozooClient(http, cache), http, cache, ModuleLoaderRegistry.withBuiltInLoaders());
+        return new TrackResolver(new DemozooClient(http, cache), http, cache, ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()));
     }
 
     @Test

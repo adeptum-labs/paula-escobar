@@ -32,6 +32,7 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.ModuleMetadata;
+import com.adeptum.paula.module.sid.SongLengths;
 
 @Command(name = "info", description = "Show metadata for a module file.")
 public final class InfoCommand implements Runnable {
@@ -45,7 +46,7 @@ public final class InfoCommand implements Runnable {
     @Override
     public void run() {
         try {
-            print(ModuleLoaderRegistry.withBuiltInLoaders().load(file).metadata());
+            print(ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()).load(file).metadata());
         } catch (IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         }
@@ -58,6 +59,7 @@ public final class InfoCommand implements Runnable {
         out.println(colors.text("@|faint Format:  |@" + meta.format().name()));
         out.println(colors.text("@|faint Channels:|@" + meta.channels()));
         out.println(colors.text("@|faint Length:  |@" + meta.songLength() + " positions"));
+        meta.credits().forEach(out::println);
         for (int i = 0; i < meta.instruments().size(); i++) {
             out.println(colors.text(String.format("@|faint %02d|@ %s", i + 1, meta.instruments().get(i))));
         }

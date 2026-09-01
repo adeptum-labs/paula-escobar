@@ -85,6 +85,7 @@ public final class Screen {
         lines.add(line(b -> b.style(Theme.LABEL).append("Status  ").style(Theme.STATUS).append(view.state().name())
                 .style(Theme.LABEL).append("  ").style(Theme.ACCENT).append(clock(view.position()))));
         lines.add(AttributedString.EMPTY);
+        meta.credits().forEach(credit -> lines.add(line(b -> b.style(Theme.VALUE).append(credit))));
         instrumentLines(meta, lines);
     }
 

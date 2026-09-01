@@ -22,6 +22,8 @@
 package com.adeptum.paula.module;
 
 import com.adeptum.paula.module.javamod.JavaModLoader;
+import com.adeptum.paula.module.sid.SidLoader;
+import com.adeptum.paula.module.sid.SongLengths;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -35,8 +37,8 @@ public final class ModuleLoaderRegistry {
         this.loaders = List.copyOf(loaders);
     }
 
-    public static ModuleLoaderRegistry withBuiltInLoaders() {
-        return new ModuleLoaderRegistry(List.of(new JavaModLoader()));
+    public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
+        return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths)));
     }
 
     public List<ModuleFormat> formats() {
