@@ -86,7 +86,8 @@ The browser starts with the party series, opens into the parties by year,
 then into every music competition of that party and finally into the ranked
 entries. Entries in streaming or executable music competitions are shown
 dimmed because Paula cannot play them, but they stay in the list so the
-results are complete. C64 competitions play through the SID emulation. Playing an entry queues the rest of the competition
+results are complete. C64 competitions play through the SID emulation.
+Playing an entry queues the rest of the competition
 after it in ranked order, so `n` walks through the results.
 
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
