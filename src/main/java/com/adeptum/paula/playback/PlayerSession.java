@@ -159,10 +159,13 @@ public final class PlayerSession {
     private boolean play(TrackLoader.Loaded loaded) throws IOException {
         try {
             module = loaders.load(loaded.path());
+            engine.play(module.createRenderer(engine.sampleRate()));
         } catch (IOException e) {
             return skip(loaded.track(), e);
+        } catch (RuntimeException e) {
+            log.error("The decoder failed to start", e);
+            return skip(loaded.track(), new IOException("Decoder failed: " + e, e));
         }
-        engine.play(module.createRenderer(engine.sampleRate()));
         status = null;
         playedAnything = true;
         return true;

@@ -2,7 +2,8 @@
   "resources": {
     "includes": [
       {"pattern": "\\Qpaula-build.properties\\E"},
-      {"pattern": "\\Qsimplelogger.properties\\E"}
+      {"pattern": "\\Qsimplelogger.properties\\E"},
+      {"pattern": "de/quippy/sidplay/resid_builder/resid/WAVE.*"}
     ]
   },
   "bundles": [
