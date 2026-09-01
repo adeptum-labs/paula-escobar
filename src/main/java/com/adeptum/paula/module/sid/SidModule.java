@@ -19,31 +19,21 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.module;
+package com.adeptum.paula.module.sid;
 
-import java.util.List;
-import lombok.Builder;
+import com.adeptum.paula.module.Module;
+import com.adeptum.paula.module.ModuleMetadata;
+import com.adeptum.paula.playback.Renderer;
+import java.nio.file.Path;
+import java.time.Duration;
 
 /**
- * What a module tells about itself. Credits are free-form lines such as author and release, shown where a
- * format has no instrument names to list.
+ * A SID file with the subtune that plays and how long it plays for.
  */
-@Builder
-public record ModuleMetadata(
-        String title,
-        ModuleFormat format,
-        int channels,
-        int songLength,
-        List<String> instruments,
-        List<String> credits) {
+public record SidModule(Path source, ModuleMetadata metadata, byte[] file, int subtune, Duration length) implements Module {
 
-    public ModuleMetadata {
-        title = title == null ? "" : title;
-        instruments = instruments == null ? List.of() : List.copyOf(instruments);
-        credits = credits == null ? List.of() : List.copyOf(credits);
-    }
-
-    public String displayTitle() {
-        return title.isBlank() ? "<untitled>" : title;
+    @Override
+    public Renderer createRenderer(int sampleRate) {
+        return new SidRenderer(file, subtune, length, sampleRate);
     }
 }

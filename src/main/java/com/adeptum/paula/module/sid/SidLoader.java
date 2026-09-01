@@ -1,0 +1,109 @@
+/*
+ * Paula is a terminal music player for demoscene and chip music.
+ * Copyright © 2026 Adeptum AB, Org.nr 559494-1824.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Website: https://www.adeptum.se
+ * Contact: info@adeptum.se
+ */
+
+package com.adeptum.paula.module.sid;
+
+import com.adeptum.paula.module.Module;
+import com.adeptum.paula.module.ModuleFormat;
+import com.adeptum.paula.module.ModuleLoader;
+import com.adeptum.paula.module.ModuleMetadata;
+import com.adeptum.paula.module.UnsupportedModuleException;
+import de.quippy.sidplay.libsidplay.components.sidtune.SidTune;
+import de.quippy.sidplay.libsidplay.components.sidtune.SidTuneInfo;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * Loads Commodore 64 SID tunes through the libsidplay2 port bundled with JavaMod.
+ */
+public final class SidLoader implements ModuleLoader {
+
+    public static final ModuleFormat FORMAT = new ModuleFormat("sid", "Commodore 64 SID (libsidplay2)", Set.of("sid", "psid", "rsid"));
+
+    private static final int VOICES_PER_CHIP = 3;
+    private static final int NAME = 0;
+    private static final int AUTHOR = 1;
+    private static final int RELEASED = 2;
+
+    private final SongLengths lengths;
+
+    public SidLoader(SongLengths lengths) {
+        this.lengths = lengths;
+    }
+
+    @Override
+    public ModuleFormat format() {
+        return FORMAT;
+    }
+
+    @Override
+    public boolean supports(Path path) {
+        final String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return FORMAT.extensions().contains(name.substring(name.lastIndexOf('.') + 1));
+    }
+
+    @Override
+    public Module load(Path path) throws IOException {
+        final byte[] file = Files.readAllBytes(path);
+        final SidTune tune;
+        try {
+            tune = tune(file);
+        } catch (RuntimeException e) {
+            throw new UnsupportedModuleException(path, "not a SID file");
+        }
+        if (!tune.getStatus()) {
+            throw new UnsupportedModuleException(path, tune.getInfo().statusString);
+        }
+        final SidTuneInfo info = tune.getInfo();
+        final int subtune = Math.max(1, info.startSong);
+        return new SidModule(path, metadata(info), file, subtune, lengths.lengthOf(file, subtune));
+    }
+
+    static SidTune tune(byte[] file) {
+        final short[] unsigned = new short[file.length];
+        for (int i = 0; i < file.length; i++) {
+            unsigned[i] = (short) (file[i] & 0xFF);
+        }
+        return new SidTune(unsigned, file.length);
+    }
+
+    private static ModuleMetadata metadata(SidTuneInfo info) {
+        final String[] strings = info.infoString == null ? new String[0] : info.infoString;
+        final int chips = info.sidChipBase2 > 0 ? 2 : 1;
+        return ModuleMetadata.builder()
+                .title(string(strings, NAME))
+                .format(new ModuleFormat(FORMAT.id(), Objects.requireNonNullElse(info.formatString, "SID"), FORMAT.extensions()))
+                .channels(VOICES_PER_CHIP * chips)
+                .songLength(info.songs)
+                .credits(Arrays.stream(new String[] {string(strings, AUTHOR), string(strings, RELEASED)}).filter(s -> !s.isBlank()).toList())
+                .build();
+    }
+
+    private static String string(String[] strings, int index) {
+        return index < strings.length && strings[index] != null ? strings[index].strip() : "";
+    }
+}
