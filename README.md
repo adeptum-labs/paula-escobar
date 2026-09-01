@@ -73,7 +73,7 @@ Keys while browsing:
 | `PgUp` `PgDn`       | move a page                              |
 | `Home` `End`        | jump to the first or last line           |
 | `enter` `→`         | open the line, or play an entry          |
-| `backspace` `←` `esc` | go back one level                      |
+| `backspace` `←` `esc` | go back one level (`esc` at the top quits) |
 | `b`                 | switch to the player                     |
 | `space`             | pause / resume what is playing           |
 | `q`                 | quit                                     |
@@ -90,10 +90,10 @@ after it in ranked order, so `n` walks through the results.
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
 fetched from scene.org when Demozoo knows the party release there, otherwise
 from ModArchive or Modland. Zip, LHA and Amiga LZX archives are unpacked and
-the first module inside is played.
+the first module inside, in name order, is played.
 
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
-when that variable is set): Demozoo answers are refreshed after a week but
+when that variable holds an absolute path): Demozoo answers are refreshed after a week but
 still used when the network is down, and downloaded modules are kept for good.
 Delete the directory to start over.
 
