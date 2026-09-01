@@ -24,6 +24,7 @@ package com.adeptum.paula;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.fusesource.jansi.AnsiConsole;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -35,11 +36,15 @@ import picocli.CommandLine.ParseResult;
 import picocli.CommandLine.Spec;
 import com.adeptum.paula.audio.AudioBackend;
 import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.cli.BuildInfo;
 import com.adeptum.paula.cli.FormatsCommand;
 import com.adeptum.paula.cli.InfoCommand;
+import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.HttpFetcher;
+import com.adeptum.paula.demozoo.JdkHttpFetcher;
+import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
-import com.adeptum.paula.module.UnsupportedModuleException;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
 import com.adeptum.paula.playback.TrackLoader;
@@ -47,13 +52,14 @@ import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
+import com.adeptum.paula.ui.Browser;
 import com.adeptum.paula.ui.TerminalUi;
 import com.adeptum.paula.ui.Theme;
 
 @Command(name = "paula",
         mixinStandardHelpOptions = true,
         versionProvider = BuildInfo.class,
-        description = "Terminal music player for demoscene and chip music.",
+        description = "Terminal music player for demoscene and chip music. Without files it opens the party browser.",
         subcommands = {InfoCommand.class, FormatsCommand.class})
 public final class Paula implements Runnable {
 
@@ -95,24 +101,40 @@ public final class Paula implements Runnable {
 
     @Override
     public void run() {
-        if (files.isEmpty()) {
-            spec.commandLine().usage(spec.commandLine().getOut());
-            return;
+        final Optional<Playlist> playlist = files.isEmpty() ? Optional.empty() : Optional.of(new Playlist(localTracks()));
+        final TerminalUi ui;
+        try {
+            ui = new TerminalUi();
+        } catch (IOException | IllegalStateException e) {
+            if (playlist.isEmpty()) {
+                spec.commandLine().usage(spec.commandLine().getOut());
+                return;
+            }
+            throw new ExecutionException(spec.commandLine(), "Paula needs a terminal: " + e.getMessage(), e);
         }
-        try (PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
-                TerminalUi ui = new TerminalUi();
+        try (ui;
+                PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
-            final List<Track> tracks = files.stream().<Track>map(LocalTrack::new).toList();
-            new PlayerSession(new Playlist(tracks), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui, loader, Paula::pathOf).run();
+            final CacheDirectory cache = CacheDirectory.resolve();
+            final HttpFetcher http = JdkHttpFetcher.paula();
+            final DemozooClient demozoo = new DemozooClient(http, cache);
+            final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders();
+            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
+            final Browser browser = new Browser(demozoo, loader.executor());
+            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver), browser).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         }
     }
 
-    private static Path pathOf(Track track) throws IOException {
+    private List<Track> localTracks() {
+        return files.stream().<Track>map(LocalTrack::new).toList();
+    }
+
+    private static Path resolve(Track track, TrackResolver resolver) throws IOException {
         return switch (track) {
             case LocalTrack local -> local.path();
-            case DemozooTrack remote -> throw new UnsupportedModuleException(Path.of(remote.label()), "remote tracks need the browser");
+            case DemozooTrack remote -> resolver.resolve(remote.entry());
         };
     }
 }

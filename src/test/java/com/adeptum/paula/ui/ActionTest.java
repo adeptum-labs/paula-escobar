@@ -38,6 +38,8 @@ class ActionTest {
         assertEquals(Action.PREVIOUS, Action.of(Key.of('p')));
         assertEquals(Action.SEEK_FORWARD, Action.of(Key.of(Key.Special.RIGHT)));
         assertEquals(Action.SEEK_BACKWARD, Action.of(Key.of(Key.Special.LEFT)));
+        assertEquals(Action.BROWSE, Action.of(Key.of('b')));
+        assertEquals(Action.BROWSE, Action.of(Key.of('B')));
     }
 
     @Test

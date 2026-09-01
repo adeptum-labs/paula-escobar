@@ -45,7 +45,7 @@ public final class TerminalUi implements AutoCloseable {
     private final Display display;
 
     public TerminalUi() throws IOException {
-        terminal = TerminalBuilder.builder().system(true).build();
+        terminal = TerminalBuilder.builder().system(true).dumb(false).build();
         display = new Display(terminal, true);
         terminal.enterRawMode();
         terminal.puts(Capability.enter_ca_mode);
