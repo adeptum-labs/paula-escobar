@@ -15,7 +15,8 @@ mvn package
 ```
 
 produces `target/paula.jar`, an executable jar with all dependencies.
-Java 17 or newer is required.
+Java 21 or newer is required. The build selects a JDK 21 through Maven
+toolchains, so `~/.m2/toolchains.xml` must provide one.
 
 ## Usage
 
