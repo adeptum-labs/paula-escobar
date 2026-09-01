@@ -191,6 +191,7 @@
           </metadataRepository>
           <buildArgs>
             <buildArg>--no-fallback</buildArg>
+            <buildArg>--enable-url-protocols=https</buildArg>
             <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
           </buildArgs>
