@@ -1,0 +1,8 @@
+{
+  "resources": {
+    "includes": [
+      {"pattern": "\\Qpaula-build.properties\\E"},
+      {"pattern": "\\Qsimplelogger.properties\\E"}
+    ]
+  }
+}
