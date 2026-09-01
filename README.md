@@ -6,6 +6,11 @@ line and JLine draws a full-screen, colour player view. The build produces a
 native executable with GraalVM, so there is no JVM to start and no jar to
 carry around.
 
+Paula plays local files, but it also opens the party archives: the music
+competitions of The Party, Assembly and Mekka & Symposium can be browsed year
+by year straight from the player, and any placed entry is downloaded from
+scene.org, ModArchive or Modland and played on the spot.
+
 Tracker modules are decoded and mixed by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which covers ProTracker, NoiseTracker,
 FastTracker II, Scream Tracker, Impulse Tracker, Farandole and MultiTracker
@@ -42,6 +47,7 @@ without building the native image.
 ## Usage
 
 ```
+paula                        browse the party archives
 paula song.mod another.mod   play the files in order
 paula info song.mod          print metadata
 paula formats                list supported formats
@@ -56,7 +62,40 @@ Keys while playing:
 | `←` `→` | seek five seconds       |
 | `n`     | next track              |
 | `p`     | previous track          |
+| `b`     | switch to the browser   |
 | `q`     | quit                    |
+
+Keys while browsing:
+
+| Key                 | Action                                   |
+|---------------------|------------------------------------------|
+| `↑` `↓`             | move the cursor                          |
+| `PgUp` `PgDn`       | move a page                              |
+| `Home` `End`        | jump to the first or last line           |
+| `enter` `→`         | open the line, or play an entry          |
+| `backspace` `←` `esc` | go back one level                      |
+| `b`                 | switch to the player                     |
+| `space`             | pause / resume what is playing           |
+| `q`                 | quit                                     |
+
+### Browsing demo parties
+
+The browser starts with the party series, opens into the parties by year,
+then into every music competition of that party and finally into the ranked
+entries. Entries in streaming or executable music competitions are shown
+dimmed because Paula cannot play them, but they stay in the list so the
+results are complete. Playing an entry queues the rest of the competition
+after it in ranked order, so `n` walks through the results.
+
+Party data comes from [Demozoo](https://demozoo.org). The entry itself is
+fetched from scene.org when Demozoo knows the party release there, otherwise
+from ModArchive or Modland. Zip, LHA and Amiga LZX archives are unpacked and
+the first module inside is played.
+
+Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
+when that variable is set): Demozoo answers are refreshed after a week but
+still used when the network is down, and downloaded modules are kept for good.
+Delete the directory to start over.
 
 ### Audio output
 
@@ -78,10 +117,14 @@ disturbs the player screen.
 | `com.adeptum.paula.module`       | module model, loader interface and loader registry          |
 | `com.adeptum.paula.module.javamod` | loads tracker modules through JavaMod                     |
 | `com.adeptum.paula.audio`        | `AudioSink`, the audio backends and PCM encoding            |
-| `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine` and the interactive session    |
+| `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
-| `com.adeptum.paula.playlist`     | playlist navigation                                         |
-| `com.adeptum.paula.ui`           | screen rendering, key mapping, theme and JLine terminal     |
+| `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
+| `com.adeptum.paula.demozoo`      | Demozoo API model, cached client and track resolution       |
+| `com.adeptum.paula.archive`      | zip and LHA extraction, format detection by magic bytes     |
+| `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
+| `com.adeptum.paula.cache`        | the XDG cache directory                                     |
+| `com.adeptum.paula.ui`           | player and browser screens, key mapping, theme, JLine terminal |
 
 Adding a format means implementing `ModuleLoader`, returning a `Module`
 whose `createRenderer` produces the audio, and registering the loader in
@@ -95,3 +138,10 @@ Resources the native image must carry are listed in
 Copyright © 2026 Adeptum AB. Licensed under the GNU General Public License,
 version 3 or later. See [LICENSE](LICENSE). JavaMod is copyright Daniel
 Becker and licensed under the GNU General Public License, version 3.
+
+LHA archives are read with the LHA Library for Java, copyright Michel
+Ishizuka, distributed under the BSD 2-Clause License reproduced in
+[lib/JLHA-LICENSE.txt](lib/JLHA-LICENSE.txt). The LZX decoder follows the
+implementation in [XADMaster](https://github.com/MacPaw/XADMaster), copyright
+MacPaw Inc., licensed under the GNU Lesser General Public License version 2.1
+or later and used under the GPL as that licence permits.
