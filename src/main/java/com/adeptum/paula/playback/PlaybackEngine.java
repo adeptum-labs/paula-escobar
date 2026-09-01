@@ -118,7 +118,20 @@ public final class PlaybackEngine implements AutoCloseable {
                 log.debug("Renderer finished at {}", renderer.position());
                 return;
             }
+            if (!writeToSink(frames)) {
+                return;
+            }
+        }
+    }
+
+    private boolean writeToSink(int frames) {
+        try {
             sink.write(buffer, frames);
+            return true;
+        } catch (RuntimeException e) {
+            log.error("Audio output failed, giving up on the current song", e);
+            state = FINISHED;
+            return false;
         }
     }
 
