@@ -84,6 +84,7 @@ class PaulaTest {
         assertTrue(out.toString().startsWith(TestSids.NAME));
         assertTrue(out.toString().contains(TestSids.AUTHOR));
         assertTrue(out.toString().contains(TestSids.RELEASED));
+        assertTrue(out.toString().contains("Length:  2 subtunes"));
     }
 
     @Test

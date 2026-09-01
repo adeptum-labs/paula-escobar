@@ -47,6 +47,7 @@ class SidLoaderTest {
         assertTrue(loader.supports(Path.of("b.PSID")));
         assertTrue(loader.supports(Path.of("c.rsid")));
         assertFalse(loader.supports(Path.of("d.mod")));
+        assertFalse(loader.supports(Path.of("sid")), "a bare name is not an extension");
         assertEquals("sid", loader.format().id());
     }
 
@@ -59,6 +60,7 @@ class SidLoaderTest {
         assertTrue(meta.format().name().contains("PSID"), meta.format().name());
         assertEquals(3, meta.channels());
         assertEquals(TestSids.SUBTUNES, meta.songLength());
+        assertEquals("subtunes", meta.lengthUnit());
         assertEquals(List.of(TestSids.AUTHOR, TestSids.RELEASED), meta.credits());
         assertEquals(List.of(), meta.instruments());
         assertEquals(dir.resolve("test.sid"), module.source());

@@ -25,8 +25,8 @@ import java.util.List;
 import lombok.Builder;
 
 /**
- * What a module tells about itself. Credits are free-form lines such as author and release, shown where a
- * format has no instrument names to list.
+ * What a module tells about itself. The song length is counted in the format's own unit, positions for tracker
+ * modules and subtunes for SID files; credits are free-form lines such as author and release.
  */
 @Builder
 public record ModuleMetadata(
@@ -34,16 +34,24 @@ public record ModuleMetadata(
         ModuleFormat format,
         int channels,
         int songLength,
+        String lengthUnit,
         List<String> instruments,
         List<String> credits) {
 
+    private static final String POSITIONS = "positions";
+
     public ModuleMetadata {
         title = title == null ? "" : title;
+        lengthUnit = lengthUnit == null ? POSITIONS : lengthUnit;
         instruments = instruments == null ? List.of() : List.copyOf(instruments);
         credits = credits == null ? List.of() : List.copyOf(credits);
     }
 
     public String displayTitle() {
         return title.isBlank() ? "<untitled>" : title;
+    }
+
+    public String displayLength() {
+        return songLength + " " + lengthUnit;
     }
 }

@@ -32,14 +32,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Loads Commodore 64 SID tunes through the libsidplay2 port bundled with JavaMod.
  */
+@Slf4j
 public final class SidLoader implements ModuleLoader {
 
     public static final ModuleFormat FORMAT = new ModuleFormat("sid", "Commodore 64 SID (libsidplay2)", Set.of("sid", "psid", "rsid"));
@@ -48,6 +48,8 @@ public final class SidLoader implements ModuleLoader {
     private static final int NAME = 0;
     private static final int AUTHOR = 1;
     private static final int RELEASED = 2;
+    private static final String SUBTUNES = "subtunes";
+    private static final String DEFAULT_FORMAT_NAME = "SID";
 
     private final SongLengths lengths;
 
@@ -62,8 +64,7 @@ public final class SidLoader implements ModuleLoader {
 
     @Override
     public boolean supports(Path path) {
-        final String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return FORMAT.extensions().contains(name.substring(name.lastIndexOf('.') + 1));
+        return FORMAT.extensions().contains(ModuleFormat.extensionOf(path.getFileName().toString()));
     }
 
     @Override
@@ -73,6 +74,7 @@ public final class SidLoader implements ModuleLoader {
         try {
             tune = tune(file);
         } catch (RuntimeException e) {
+            log.debug("The SID engine rejected {}", path, e);
             throw new UnsupportedModuleException(path, "not a SID file");
         }
         if (!tune.getStatus()) {
@@ -96,9 +98,10 @@ public final class SidLoader implements ModuleLoader {
         final int chips = info.sidChipBase2 > 0 ? 2 : 1;
         return ModuleMetadata.builder()
                 .title(string(strings, NAME))
-                .format(new ModuleFormat(FORMAT.id(), Objects.requireNonNullElse(info.formatString, "SID"), FORMAT.extensions()))
+                .format(new ModuleFormat(FORMAT.id(), Objects.requireNonNullElse(info.formatString, DEFAULT_FORMAT_NAME), FORMAT.extensions()))
                 .channels(VOICES_PER_CHIP * chips)
                 .songLength(info.songs)
+                .lengthUnit(SUBTUNES)
                 .credits(Arrays.stream(new String[] {string(strings, AUTHOR), string(strings, RELEASED)}).filter(s -> !s.isBlank()).toList())
                 .build();
     }

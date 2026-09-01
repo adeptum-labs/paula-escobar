@@ -32,10 +32,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,12 +45,14 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Song lengths from the High Voltage SID Collection, keyed by the MD5 of the whole SID file. The database is
- * fetched into the cache on first use and parsed once; tunes it does not know play for a default length.
+ * fetched into the cache on first use and parsed once; tunes it does not know play for a default length, and a
+ * failed load is retried after a pause instead of being remembered for the rest of the run.
  */
 @Slf4j
 public final class SongLengths {
 
     public static final Duration DEFAULT_LENGTH = Duration.ofMinutes(3);
+    public static final Duration RETRY_BACKOFF = Duration.ofMinutes(5);
 
     private static final URI DATABASE = URI.create("https://hvsc.c64.org/download/C64Music/DOCUMENTS/Songlengths.md5");
     private static final String CACHE_SEGMENT = "hvsc";
@@ -58,11 +62,14 @@ public final class SongLengths {
     private static final Pattern TIME = Pattern.compile("(\\d+):(\\d{2})(?:\\.(\\d{1,3}))?");
     private static final String MD5 = "MD5";
 
-    private final Supplier<Map<String, List<Duration>>> loader;
+    private final Supplier<Optional<Map<String, List<Duration>>>> loader;
+    private final Clock clock;
     private Map<String, List<Duration>> database;
+    private Instant retryAfter = Instant.MIN;
 
-    private SongLengths(Supplier<Map<String, List<Duration>>> loader) {
+    private SongLengths(Supplier<Optional<Map<String, List<Duration>>>> loader, Clock clock) {
         this.loader = loader;
+        this.clock = clock;
     }
 
     public SongLengths(HttpFetcher http, CacheDirectory cache) {
@@ -70,19 +77,26 @@ public final class SongLengths {
     }
 
     SongLengths(HttpFetcher http, CacheDirectory cache, Duration ttl, Clock clock) {
-        this(() -> load(http, cache, ttl, clock));
+        this(() -> load(http, cache, ttl, clock), clock);
     }
 
     /**
      * For commands that only inspect files and must never touch the network.
      */
     public static SongLengths none() {
-        return new SongLengths(Map::of);
+        return new SongLengths(() -> Optional.of(Map.of()), Clock.systemUTC());
     }
 
     public Duration lengthOf(byte[] sidFile, int subtune) {
         final List<Duration> durations = database().getOrDefault(md5(sidFile), List.of());
         return subtune >= 1 && subtune <= durations.size() ? durations.get(subtune - 1) : DEFAULT_LENGTH;
+    }
+
+    /**
+     * Loads the database now, so a caller on a background thread can spare the interactive thread the work.
+     */
+    public void prime() {
+        database();
     }
 
     static Map<String, List<Duration>> parse(String database) {
@@ -105,18 +119,21 @@ public final class SongLengths {
     }
 
     private synchronized Map<String, List<Duration>> database() {
-        if (database == null) {
-            database = loader.get();
+        if (database == null && !clock.instant().isBefore(retryAfter)) {
+            database = loader.get().orElse(null);
+            if (database == null) {
+                retryAfter = clock.instant().plus(RETRY_BACKOFF);
+            }
         }
-        return database;
+        return database == null ? Map.of() : database;
     }
 
-    private static Map<String, List<Duration>> load(HttpFetcher http, CacheDirectory cache, Duration ttl, Clock clock) {
+    private static Optional<Map<String, List<Duration>>> load(HttpFetcher http, CacheDirectory cache, Duration ttl, Clock clock) {
         try {
-            return parse(new String(databaseText(http, cache, ttl, clock), StandardCharsets.ISO_8859_1));
+            return Optional.of(parse(new String(databaseText(http, cache, ttl, clock), StandardCharsets.ISO_8859_1)));
         } catch (IOException e) {
             log.warn("No HVSC song length database, using the default length: {}", e.getMessage());
-            return Map.of();
+            return Optional.empty();
         }
     }
 

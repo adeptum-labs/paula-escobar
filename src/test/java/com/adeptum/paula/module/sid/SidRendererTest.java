@@ -22,6 +22,7 @@
 package com.adeptum.paula.module.sid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.playback.Renderer;
@@ -71,6 +72,25 @@ class SidRendererTest {
         renderer.seek(Duration.ofMillis(500));
         assertEquals(Duration.ofMillis(500), renderer.position());
         assertEquals(FRAMES, renderer.render(buffer));
+    }
+
+    @Test
+    void catchesUpAfterABackwardSeekWhileRendering() {
+        renderer.seek(Duration.ofMillis(1500));
+        renderer.seek(Duration.ofMillis(500));
+        assertEquals(Duration.ofMillis(500), renderer.position());
+
+        int buffers = 0;
+        while (renderer.render(buffer) > 0 && peak(buffer) < 500 && buffers < 50) {
+            buffers++;
+        }
+        assertTrue(peak(buffer) >= 500, "sound should return once the emulation has caught up");
+        assertEquals(Duration.ofMillis(500 + (buffers + 1) * FRAMES * 1000L / SAMPLE_RATE), renderer.position(), "silence rendered while catching up does not count");
+    }
+
+    @Test
+    void rejectsSampleRatesTheEngineCannotHandle() {
+        assertThrows(IllegalStateException.class, () -> new SidRenderer(TestSids.psid(), 1, LENGTH, 3000));
     }
 
     @Test

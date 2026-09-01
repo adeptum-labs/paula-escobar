@@ -21,11 +21,20 @@
 
 package com.adeptum.paula.module;
 
+import java.util.Locale;
 import java.util.Set;
 
 public record ModuleFormat(String id, String name, Set<String> extensions) {
 
     public ModuleFormat {
         extensions = Set.copyOf(extensions);
+    }
+
+    /**
+     * The lower-cased text after the last dot, or nothing when the name has no dot.
+     */
+    public static String extensionOf(String fileName) {
+        final int dot = fileName.lastIndexOf('.');
+        return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 }

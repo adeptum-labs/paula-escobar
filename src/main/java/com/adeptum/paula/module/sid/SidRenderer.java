@@ -27,10 +27,12 @@ import de.quippy.sidplay.libsidplay.common.ISID2Types;
 import de.quippy.sidplay.libsidplay.components.sidtune.SidTune;
 import de.quippy.sidplay.resid_builder.ReSIDBuilder;
 import java.time.Duration;
+import java.util.Arrays;
 
 /**
  * Emulates the C64 and its SID chip for one subtune. A SID tune never ends by itself, so playback stops at the
- * song length; seeking backwards restarts the emulation and fast-forwards, since there is no state to rewind.
+ * song length. There is no state to rewind, so a seek restarts the emulation when needed and then catches up in
+ * slices from the audio thread, playing silence meanwhile, rather than stalling whoever asked for the seek.
  */
 public final class SidRenderer implements Renderer {
 
@@ -42,6 +44,7 @@ public final class SidRenderer implements Renderer {
     private static final long FULL_VOLUME = 255;
     private static final String BUILDER_NAME = "ReSID";
     private static final int SCRATCH_FRAMES = 4096;
+    private static final int CATCH_UP_FRAMES_PER_BUFFER = 16384;
 
     private final byte[] file;
     private final int subtune;
@@ -49,6 +52,7 @@ public final class SidRenderer implements Renderer {
     private final long lengthFrames;
     private SIDPlay2 player;
     private long renderedFrames;
+    private long pendingFrames;
     private short[] raw = new short[0];
 
     public SidRenderer(byte[] file, int subtune, Duration length, int sampleRate) {
@@ -61,9 +65,14 @@ public final class SidRenderer implements Renderer {
 
     @Override
     public int render(short[] interleavedStereo) {
-        final int frames = (int) Math.min(interleavedStereo.length / CHANNELS, lengthFrames - renderedFrames);
+        catchUp();
+        final int frames = (int) Math.min(interleavedStereo.length / CHANNELS, lengthFrames - renderedFrames - pendingFrames);
         if (frames <= 0) {
             return 0;
+        }
+        if (pendingFrames > 0) {
+            Arrays.fill(interleavedStereo, 0, frames * CHANNELS, (short) 0);
+            return frames;
         }
         final int produced = emulate(frames);
         for (int i = 0; i < produced * CHANNELS; i++) {
@@ -74,7 +83,7 @@ public final class SidRenderer implements Renderer {
 
     @Override
     public Duration position() {
-        return Duration.ofMillis(renderedFrames * 1000 / sampleRate);
+        return Duration.ofMillis((renderedFrames + pendingFrames) * 1000 / sampleRate);
     }
 
     @Override
@@ -84,8 +93,18 @@ public final class SidRenderer implements Renderer {
             player = start();
             renderedFrames = 0;
         }
-        while (renderedFrames < targetFrames) {
-            emulate((int) Math.min(SCRATCH_FRAMES, targetFrames - renderedFrames));
+        pendingFrames = targetFrames - renderedFrames;
+    }
+
+    private void catchUp() {
+        long budget = CATCH_UP_FRAMES_PER_BUFFER;
+        while (pendingFrames > 0 && budget > 0) {
+            final int produced = emulate((int) Math.min(SCRATCH_FRAMES, Math.min(pendingFrames, budget)));
+            if (produced == 0) {
+                throw new IllegalStateException("The SID emulation made no progress");
+            }
+            pendingFrames -= produced;
+            budget -= produced;
         }
     }
 
@@ -120,11 +139,15 @@ public final class SidRenderer implements Renderer {
         config.rightVolume = FULL_VOLUME;
         final ReSIDBuilder builder = new ReSIDBuilder(BUILDER_NAME);
         builder.create(engine.info().maxsids);
+        if (!builder.bool()) {
+            throw new IllegalStateException("SID chip emulation unavailable: " + builder.error());
+        }
         builder.filter(true);
         builder.sampling(sampleRate);
         config.sidEmulation = builder;
-        engine.config(config);
-        engine.load(tune);
+        if (engine.config(config) < 0 || engine.load(tune) < 0) {
+            throw new IllegalStateException("SID engine rejected the configuration: " + engine.error());
+        }
         return engine;
     }
 }

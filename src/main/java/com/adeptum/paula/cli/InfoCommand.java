@@ -58,7 +58,7 @@ public final class InfoCommand implements Runnable {
         out.println(colors.text("@|bold,fg(cyan) " + meta.displayTitle() + "|@"));
         out.println(colors.text("@|faint Format:  |@" + meta.format().name()));
         out.println(colors.text("@|faint Channels:|@" + meta.channels()));
-        out.println(colors.text("@|faint Length:  |@" + meta.songLength() + " positions"));
+        out.println(colors.text("@|faint Length:  |@" + meta.displayLength()));
         meta.credits().forEach(out::println);
         for (int i = 0; i < meta.instruments().size(); i++) {
             out.println(colors.text(String.format("@|faint %02d|@ %s", i + 1, meta.instruments().get(i))));

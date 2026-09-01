@@ -76,6 +76,31 @@ class PlaybackEngineTest {
     }
 
     @Test
+    void aRendererThatThrowsEndsTheSongInsteadOfTheThread() throws AudioException {
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(new Renderer() {
+                @Override
+                public int render(short[] interleavedStereo) {
+                    throw new IllegalStateException("emulation broke");
+                }
+
+                @Override
+                public Duration position() {
+                    return Duration.ZERO;
+                }
+
+                @Override
+                public void seek(Duration target) {
+                }
+            });
+            engine.awaitEnd();
+
+            assertEquals(PlaybackState.FINISHED, engine.state());
+            assertEquals(0, sink.frames);
+        }
+    }
+
+    @Test
     void seekingWithoutASongIsIgnored() throws AudioException {
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
             engine.seek(Duration.ofSeconds(5));

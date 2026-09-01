@@ -79,7 +79,7 @@ public final class JavaModLoader implements ModuleLoader {
     @Override
     public boolean supports(Path path) {
         final String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return FORMAT.extensions().contains(extension(name)) || name.startsWith("mod.");
+        return FORMAT.extensions().contains(ModuleFormat.extensionOf(name)) || name.startsWith("mod.");
     }
 
     @Override
@@ -89,11 +89,6 @@ public final class JavaModLoader implements ModuleLoader {
         } catch (IOException e) {
             throw new UnsupportedModuleException(path, rootMessage(e));
         }
-    }
-
-    static String extension(String fileName) {
-        final int dot = fileName.lastIndexOf('.');
-        return dot < 0 ? "" : fileName.substring(dot + 1);
     }
 
     private static String rootMessage(Throwable error) {

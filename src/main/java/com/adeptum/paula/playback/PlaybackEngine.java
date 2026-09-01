@@ -139,7 +139,12 @@ public final class PlaybackEngine implements AutoCloseable {
 
     private int renderNextFrames() {
         synchronized (rendererLock) {
-            return renderer.render(buffer);
+            try {
+                return renderer.render(buffer);
+            } catch (RuntimeException e) {
+                log.error("The decoder failed, giving up on the current song", e);
+                return 0;
+            }
         }
     }
 

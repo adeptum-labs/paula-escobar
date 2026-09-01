@@ -80,7 +80,7 @@ public final class Screen {
         final ModuleMetadata meta = view.module().metadata();
         lines.add(field("Title   ", meta.displayTitle()));
         lines.add(field("File    ", view.module().source().getFileName().toString()));
-        lines.add(field("Format  ", meta.format().name() + ", " + meta.channels() + " channels, " + meta.songLength() + " positions"));
+        lines.add(field("Format  ", meta.format().name() + ", " + meta.channels() + " channels, " + meta.displayLength()));
         lines.add(field("Track   ", view.track() + " / " + view.trackCount() + "  " + view.trackLabel()));
         lines.add(line(b -> b.style(Theme.LABEL).append("Status  ").style(Theme.STATUS).append(view.state().name())
                 .style(Theme.LABEL).append("  ").style(Theme.ACCENT).append(clock(view.position()))));

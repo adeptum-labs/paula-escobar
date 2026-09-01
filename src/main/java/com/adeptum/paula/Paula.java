@@ -46,6 +46,7 @@ import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playback.DaemonExecutors;
 import com.adeptum.paula.playback.PlaybackEngine;
@@ -124,10 +125,11 @@ public final class Paula implements Runnable {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
             final DemozooClient demozoo = new DemozooClient(http, cache);
-            final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(new SongLengths(http, cache));
+            final SongLengths sidLengths = new SongLengths(http, cache);
+            final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
             final Browser browser = new Browser(demozoo, browsing);
-            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver), browser).run();
+            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
@@ -139,10 +141,15 @@ public final class Paula implements Runnable {
         return files.stream().<Track>map(LocalTrack::new).toList();
     }
 
-    private static Path resolve(Track track, TrackResolver resolver) throws IOException {
-        return switch (track) {
+    /**
+     * Runs on the loader thread, so the song length database is read there before a SID reaches the player.
+     */
+    private static Path resolve(Track track, TrackResolver resolver, ModuleLoaderRegistry loaders, SongLengths sidLengths) throws IOException {
+        final Path path = switch (track) {
             case LocalTrack local -> local.path();
             case DemozooTrack remote -> resolver.resolve(remote.entry());
         };
+        loaders.loaderFor(path).filter(SidLoader.class::isInstance).ifPresent(sid -> sidLengths.prime());
+        return path;
     }
 }

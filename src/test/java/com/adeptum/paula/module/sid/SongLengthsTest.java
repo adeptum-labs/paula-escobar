@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -106,5 +107,60 @@ class SongLengthsTest {
     void offlineWithoutACopyGivesTheDefault(@TempDir Path dir) {
         http.goOffline();
         assertEquals(SongLengths.DEFAULT_LENGTH, lengths(dir).lengthOf(TUNE, 1));
+    }
+
+    @Test
+    void retriesAFailedLoadAfterABackoff(@TempDir Path dir) {
+        final SteppingClock stepping = new SteppingClock(clock.instant());
+        final SongLengths lengths = new SongLengths(http, new CacheDirectory(dir), TTL, stepping);
+        http.goOffline();
+        assertEquals(SongLengths.DEFAULT_LENGTH, lengths.lengthOf(TUNE, 1));
+
+        http.goOnline();
+        http.put(DATABASE_URL, DATABASE);
+        assertEquals(SongLengths.DEFAULT_LENGTH, lengths.lengthOf(TUNE, 1), "no retry storm right after a failure");
+        assertEquals(1, http.requests());
+
+        stepping.advance(SongLengths.RETRY_BACKOFF.plusSeconds(1));
+        assertEquals(Duration.ofSeconds(182), lengths.lengthOf(TUNE, 1));
+        assertEquals(2, http.requests());
+    }
+
+    @Test
+    void primingLoadsTheDatabaseOnce(@TempDir Path dir) {
+        http.put(DATABASE_URL, DATABASE);
+        final SongLengths lengths = lengths(dir);
+        lengths.prime();
+        lengths.prime();
+        assertEquals(Duration.ofSeconds(182), lengths.lengthOf(TUNE, 1));
+        assertEquals(1, http.requests());
+    }
+
+    private static final class SteppingClock extends Clock {
+
+        private Instant now;
+
+        private SteppingClock(Instant now) {
+            this.now = now;
+        }
+
+        private void advance(Duration delta) {
+            now = now.plus(delta);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }

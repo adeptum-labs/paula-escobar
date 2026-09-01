@@ -90,7 +90,8 @@ class ScreenTest {
                         .title("Commando")
                         .format(new ModuleFormat("sid", "PSID", Set.of("sid")))
                         .channels(3)
-                        .songLength(1)
+                        .songLength(4)
+                        .lengthUnit("subtunes")
                         .credits(List.of("Rob Hubbard", "1985 Elite"))
                         .build()))
                 .trackLabel("tune.sid")
@@ -103,6 +104,7 @@ class ScreenTest {
         final List<String> lines = render(sid, HEIGHT);
         assertTrue(lines.contains("Rob Hubbard"));
         assertTrue(lines.contains("1985 Elite"));
+        assertTrue(lines.contains("Format  PSID, 3 channels, 4 subtunes"));
     }
 
     @Test

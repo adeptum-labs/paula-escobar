@@ -56,7 +56,7 @@ public record JavaModModule(
     }
 
     private static ModuleFormat format(Path source, de.quippy.javamod.multimedia.mod.loader.Module tracker) {
-        final String extension = JavaModLoader.extension(source.getFileName().toString().toLowerCase(Locale.ROOT));
+        final String extension = ModuleFormat.extensionOf(source.getFileName().toString());
         return new ModuleFormat(tracker.getModID().strip().toLowerCase(Locale.ROOT), tracker.getTrackerName().strip(), Set.of(extension));
     }
 
