@@ -33,6 +33,7 @@ public final class Theme {
     public static final AttributedStyle ACCENT = AttributedStyle.DEFAULT.foreground(AttributedStyle.MAGENTA);
     public static final AttributedStyle KEY = AttributedStyle.BOLD.foreground(AttributedStyle.YELLOW);
     public static final AttributedStyle STATUS = AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN);
+    public static final AttributedStyle DIMMED = LABEL;
 
     private Theme() {
     }
