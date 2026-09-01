@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>jp.gr.dangan</groupId>
+  <artifactId>jlha</artifactId>
+  <version>0.0.11</version>
+  <packaging>jar</packaging>
+
+  <name>LHA Library for Java</name>
+  <description>Pure Java reader and writer for LHA archives (lh0, lh1, lh4-lh7, lzs, lz5), built from the umjammer fork of Michel Ishizuka's library</description>
+  <url>https://github.com/umjammer/jlha</url>
+
+  <licenses>
+    <license>
+      <name>BSD 2-Clause License</name>
+      <url>https://github.com/umjammer/jlha/blob/0.0.11/LICENSE</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+</project>
