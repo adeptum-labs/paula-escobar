@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,40 @@ class LzxExtractorTest {
         final byte[] data = Files.readAllBytes(archive);
         data[data.length - 100] ^= 0x55;
         Files.write(archive, data);
+        assertThrows(IOException.class, () -> extractor.extract(archive, dir.resolve("out"), name -> true));
+    }
+
+    /**
+     * The first entry header starts at byte 10 and its CRC field sits 22 bytes into the header.
+     */
+    @Test
+    void checksTheCrcOfWantedEntriesOnly(@TempDir Path dir) throws Exception {
+        final Path archive = fixture("merged.lzx", dir);
+        final byte[] data = Files.readAllBytes(archive);
+        data[10 + 22] ^= 0x55;
+        Files.write(archive, data);
+
+        extractor.extract(archive, dir.resolve("out"), name -> name.endsWith(".info"));
+        assertEquals("cce5681cb812af6a7c106acd901902aa00a7173a", sha1(dir.resolve("out/Sector_7/s7-Heat.exe.info")));
+        assertThrows(IOException.class, () -> extractor.extract(archive, dir.resolve("all"), name -> true));
+    }
+
+    @Test
+    void mergedEntriesWithoutTheirDataAreAnError(@TempDir Path dir) throws Exception {
+        final Path archive = fixture("merged.lzx", dir);
+        final byte[] data = Files.readAllBytes(archive);
+        Files.write(archive, Arrays.copyOf(data, 10 + 31 + "Sector_7/ReadMe.060".length()));
+
+        assertThrows(IOException.class, () -> extractor.extract(archive, dir.resolve("out"), name -> true));
+    }
+
+    @Test
+    void corruptSizesFailWithAnIoException(@TempDir Path dir) throws Exception {
+        final Path archive = fixture("plain.lzx", dir);
+        final byte[] data = Files.readAllBytes(archive);
+        Arrays.fill(data, 10 + 2, 10 + 6, (byte) 0xFF);
+        Files.write(archive, data);
+
         assertThrows(IOException.class, () -> extractor.extract(archive, dir.resolve("out"), name -> true));
     }
 

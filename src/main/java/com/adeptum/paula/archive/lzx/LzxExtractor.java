@@ -65,7 +65,14 @@ public final class LzxExtractor implements ArchiveExtractor {
 
     @Override
     public void extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
-        final byte[] data = Files.readAllBytes(archive);
+        try {
+            extractGroups(Files.readAllBytes(archive), into, wanted);
+        } catch (RuntimeException e) {
+            throw new IOException("Corrupt LZX archive " + archive.getFileName() + ": " + e, e);
+        }
+    }
+
+    private static void extractGroups(byte[] data, Path into, Predicate<String> wanted) throws IOException {
         final ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).position(INFO_HEADER_LENGTH);
         final List<Entry> merged = new ArrayList<>();
         while (buffer.remaining() >= ENTRY_HEADER_LENGTH) {
@@ -80,6 +87,9 @@ public final class LzxExtractor implements ArchiveExtractor {
                 buffer.position(dataOffset + entry.packedSize());
                 merged.clear();
             }
+        }
+        if (!merged.isEmpty()) {
+            throw new IOException("Truncated LZX archive, no data for " + merged.get(merged.size() - 1).name());
         }
     }
 
@@ -103,7 +113,11 @@ public final class LzxExtractor implements ArchiveExtractor {
         final byte[] name = new byte[nameLength];
         buffer.get(name);
         buffer.position(buffer.position() + commentLength);
-        return new Entry(new String(name, NAMES), size, packedSize, method, crc);
+        final Entry entry = new Entry(new String(name, NAMES), size, packedSize, method, crc);
+        if (size < 0 || packedSize < 0) {
+            throw new IOException("Corrupt size in LZX entry " + entry.name());
+        }
+        return entry;
     }
 
     private static void writeGroup(byte[] data, int offset, List<Entry> group, Path into, Predicate<String> wanted) throws IOException {
@@ -121,8 +135,8 @@ public final class LzxExtractor implements ArchiveExtractor {
         for (final Entry entry : group) {
             final byte[] content = Arrays.copyOfRange(unpacked, position, position + entry.size());
             position += entry.size();
-            verifyCrc(entry, content);
             if (wanted.test(entry.name())) {
+                verifyCrc(entry, content);
                 Files.write(Archives.target(into, entry.name()), content);
             }
         }

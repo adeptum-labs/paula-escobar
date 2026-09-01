@@ -24,6 +24,7 @@ package com.adeptum.paula.archive;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,7 +70,7 @@ public final class LhaExtractor implements ArchiveExtractor {
                         throw new IOException("Truncated LHA entry " + name + " in " + archive.getFileName());
                     }
                 }
-                compressed.skip(Long.MAX_VALUE);
+                compressed.transferTo(OutputStream.nullOutputStream());
             }
         } catch (RuntimeException e) {
             throw new IOException("Corrupt LHA archive " + archive.getFileName() + ": " + e, e);

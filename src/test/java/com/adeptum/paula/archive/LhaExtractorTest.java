@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,6 +62,20 @@ class LhaExtractorTest {
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(into.resolve("music/tune.mod")));
         assertArrayEquals(README, Files.readAllBytes(into.resolve("last.mod")));
         assertFalse(Files.exists(into.resolve("readme.txt")));
+    }
+
+    @Test
+    void extractsEntriesAfterALargeUnwantedOne(@TempDir Path dir) throws IOException {
+        final byte[] large = new byte[64 * 1024];
+        new Random(7).nextBytes(large);
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("readme.txt", large);
+        entries.put("tune.mod", TestModules.proTracker());
+        final Path archive = Files.write(dir.resolve("a.lha"), TestArchives.lha(entries, "-lh5-"));
+
+        extractor.extract(archive, dir.resolve("out"), name -> name.endsWith(".mod"));
+
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(dir.resolve("out/tune.mod")));
     }
 
     @Test
