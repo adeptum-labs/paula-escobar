@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>de.quippy</groupId>
+  <artifactId>javamod</artifactId>
+  <version>3.9.7</version>
+  <name>JavaMod</name>
+  <description>Pure Java player for tracker modules, SID, OPL and more, by Daniel Becker</description>
+  <url>https://github.com/quippy-git/javamod</url>
+  <licenses>
+    <license>
+      <name>GNU General Public License v3.0</name>
+      <url>https://www.gnu.org/licenses/gpl-3.0.txt</url>
+    </license>
+  </licenses>
+</project>

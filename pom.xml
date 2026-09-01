@@ -30,6 +30,7 @@
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <javamod.version>3.9.7</javamod.version>
     <picocli.version>4.7.7</picocli.version>
     <jline.version>3.30.16</jline.version>
     <jansi.version>2.4.3</jansi.version>
@@ -39,7 +40,20 @@
     <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>project-libs</id>
+      <name>Libraries vendored in lib/</name>
+      <url>file://${project.basedir}/lib</url>
+    </repository>
+  </repositories>
+
   <dependencies>
+    <dependency>
+      <groupId>de.quippy</groupId>
+      <artifactId>javamod</artifactId>
+      <version>${javamod.version}</version>
+    </dependency>
     <dependency>
       <groupId>info.picocli</groupId>
       <artifactId>picocli</artifactId>
@@ -165,6 +179,7 @@
           </metadataRepository>
           <buildArgs>
             <buildArg>--no-fallback</buildArg>
+            <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
           </buildArgs>
         </configuration>
