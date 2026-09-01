@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import org.fusesource.jansi.AnsiConsole;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -45,6 +46,7 @@ import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.playback.DaemonExecutors;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
 import com.adeptum.paula.playback.TrackLoader;
@@ -62,6 +64,8 @@ import com.adeptum.paula.ui.Theme;
         description = "Terminal music player for demoscene and chip music. Without files it opens the party browser.",
         subcommands = {InfoCommand.class, FormatsCommand.class})
 public final class Paula implements Runnable {
+
+    private static final String BROWSER_THREAD = "paula-browser";
 
     @Spec
     private CommandSpec spec;
@@ -112,6 +116,7 @@ public final class Paula implements Runnable {
             }
             throw new ExecutionException(spec.commandLine(), "Paula needs a terminal: " + e.getMessage(), e);
         }
+        final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
         try (ui;
                 PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
@@ -120,10 +125,12 @@ public final class Paula implements Runnable {
             final DemozooClient demozoo = new DemozooClient(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders();
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
-            final Browser browser = new Browser(demozoo, loader.executor());
+            final Browser browser = new Browser(demozoo, browsing);
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver), browser).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
+        } finally {
+            browsing.shutdownNow();
         }
     }
 

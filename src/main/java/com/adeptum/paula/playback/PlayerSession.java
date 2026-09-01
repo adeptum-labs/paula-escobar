@@ -138,7 +138,7 @@ public final class PlayerSession {
      */
     private void requestCurrent() {
         engine.stop();
-        status = LOADING + playlist.current().label();
+        module = null;
         loader.request(playlist.current(), resolver);
     }
 
@@ -168,10 +168,17 @@ public final class PlayerSession {
         return true;
     }
 
+    /**
+     * The failure stays on the status line while the next track loads, and follows the user into the browser.
+     */
     private boolean skip(Track track, IOException error) throws IOException {
         log.warn("Skipping {}: {}", track.label(), error.getMessage());
         status = error.getMessage();
-        if (advance(true) || returnToBrowser()) {
+        if (advance(true)) {
+            return true;
+        }
+        if (returnToBrowser()) {
+            browser.report(status);
             return true;
         }
         if (!playedAnything) {
@@ -208,7 +215,14 @@ public final class PlayerSession {
                 .position(engine.position())
                 .track(playlist == null ? 0 : playlist.position())
                 .trackCount(playlist == null ? 0 : playlist.size())
-                .status(status)
+                .status(statusLine())
                 .build();
+    }
+
+    private String statusLine() {
+        if (status != null) {
+            return status;
+        }
+        return loader.loading() ? LOADING + playlist.current().label() : null;
     }
 }

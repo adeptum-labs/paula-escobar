@@ -29,18 +29,10 @@ public final class Playlist {
     private int index;
 
     public Playlist(List<Track> entries) {
-        this(entries, 0);
-    }
-
-    public Playlist(List<Track> entries, int start) {
         if (entries.isEmpty()) {
             throw new IllegalArgumentException("A playlist needs at least one entry");
         }
-        if (start < 0 || start >= entries.size()) {
-            throw new IllegalArgumentException("Start " + start + " is outside a playlist of " + entries.size());
-        }
         this.entries = List.copyOf(entries);
-        this.index = start;
     }
 
     public Track current() {

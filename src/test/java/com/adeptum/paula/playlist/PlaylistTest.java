@@ -55,20 +55,7 @@ class PlaylistTest {
     }
 
     @Test
-    void canStartAtALaterEntry() {
-        final Playlist fromSecond = new Playlist(List.of(A, B), 1);
-        assertEquals(B, fromSecond.current());
-        assertEquals(2, fromSecond.position());
-        assertFalse(fromSecond.next());
-    }
-
-    @Test
     void rejectsEmptyList() {
         assertThrows(IllegalArgumentException.class, () -> new Playlist(List.of()));
-    }
-
-    @Test
-    void rejectsStartOutsideTheList() {
-        assertThrows(IllegalArgumentException.class, () -> new Playlist(List.of(A), 1));
     }
 }

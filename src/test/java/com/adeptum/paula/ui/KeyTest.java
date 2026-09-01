@@ -66,6 +66,7 @@ class KeyTest {
     @Test
     void ignoresModifiersAndUnknownSequences() {
         assertEquals(Key.of(Key.Special.RIGHT), Key.forEscapeSequence("[1;5C"));
+        assertEquals(Key.of(Key.Special.RIGHT), Key.forEscapeSequence("[1;13C"));
         assertEquals(Key.NONE, Key.forEscapeSequence("[Z"));
         assertEquals(Key.NONE, Key.forEscapeSequence(""));
     }

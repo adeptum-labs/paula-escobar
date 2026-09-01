@@ -31,6 +31,8 @@ import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import org.jline.utils.AttributedString;
@@ -197,6 +199,65 @@ class BrowserTest {
         assertTrue(render().contains("No music competitions"));
         press(Key.Special.ENTER);
         assertEquals(Optional.empty(), browser.takeSelection());
+    }
+
+    @Test
+    void dropsAFetchThatLandsAfterBackingOut(@TempDir Path dir) {
+        final Deque<Runnable> queued = new ArrayDeque<>();
+        final Browser deferred = new Browser(new DemozooClient(http, new CacheDirectory(dir)), queued::add);
+        http.put(SERIES_URL, SERIES);
+        http.put(PARTY_URL, PARTY);
+        deferred.handle(Key.of(Key.Special.ENTER));
+        queued.pop().run();
+        deferred.tick();
+        deferred.handle(Key.of(Key.Special.DOWN));
+        deferred.handle(Key.of(Key.Special.ENTER));
+        deferred.handle(Key.of(Key.Special.BACKSPACE));
+        queued.pop().run();
+        deferred.tick();
+
+        assertTrue(deferred.atRoot());
+        assertFalse(deferred.render(WIDTH, HEIGHT).stream().map(AttributedString::toString).anyMatch(line -> line.contains("Loading")));
+    }
+
+    @Test
+    void showsUnexpectedAnswersAndClearsErrorsOnBack() {
+        http.put(SERIES_URL, "{\"id\":19,\"name\":\"The Party\",\"parties\":[{\"name\":\"no id\"}]}");
+        press(Key.Special.ENTER);
+        browser.tick();
+        assertTrue(render().stream().anyMatch(line -> line.contains("Demozoo response")));
+
+        http.put(SERIES_URL, SERIES);
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.BACKSPACE);
+        assertFalse(render().stream().anyMatch(line -> line.contains("Demozoo response")));
+    }
+
+    @Test
+    void showsMessagesReportedByThePlayerUntilTheNextMove() {
+        browser.report("No playable file in x.zip for Funkyeeh");
+        assertTrue(render().stream().anyMatch(line -> line.contains("No playable file")));
+        press(Key.Special.DOWN);
+        assertTrue(render().stream().anyMatch(line -> line.contains("No playable file")), "moving the cursor keeps the message");
+        press(Key.Special.LEFT);
+        assertFalse(render().stream().anyMatch(line -> line.contains("No playable file")), "leaving a level clears it");
+    }
+
+    @Test
+    void startsThePlaylistAtTheChosenLineEvenWhenEntriesRepeat() {
+        http.put(SERIES_URL, SERIES);
+        http.put(PARTY_URL, PARTY.replace("\"position\":4", "\"position\":4,\"ranking\":\"4\",\"production\":{\"id\":14,\"title\":\"Fourth\",\"author_nicks\":[{\"name\":\"D\"}],\"types\":[{\"id\":29}]}},{\"position\":4"));
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.ENTER);
+        press(Key.Special.END);
+        press(Key.Special.ENTER);
+
+        assertEquals(1, browser.takeSelection().orElseThrow().size());
     }
 
     @Test

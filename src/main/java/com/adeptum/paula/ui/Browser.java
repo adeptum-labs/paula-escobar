@@ -36,9 +36,11 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.stream.IntStream;
 import org.jline.utils.AttributedString;
 
 /**
@@ -84,7 +86,7 @@ public final class Browser {
         }
     }
 
-    private record EntryItem(CompoItem compo, CompoEntry entry) implements Item {
+    private record EntryItem(CompoItem compo, CompoEntry entry, int index) implements Item {
 
         @Override
         public String label() {
@@ -189,10 +191,18 @@ public final class Browser {
         }
         try {
             levels.push(pending.join());
-        } catch (CompletionException e) {
-            error = e.getCause().getMessage();
+        } catch (CompletionException | CancellationException e) {
+            final Throwable cause = e.getCause() == null ? e : e.getCause();
+            error = cause.getMessage() == null ? cause.toString() : cause.getMessage();
         }
         pending = null;
+    }
+
+    /**
+     * Shows a message from the player, for example why a chosen entry could not be played.
+     */
+    public void report(String message) {
+        error = message;
     }
 
     public Optional<Playlist> takeSelection() {
@@ -233,10 +243,15 @@ public final class Browser {
         });
     }
 
+    /**
+     * A fetch still in flight belongs to the level being left, so its answer is dropped when it arrives.
+     */
     private void back() {
         if (!atRoot()) {
             levels.pop();
         }
+        pending = null;
+        error = null;
     }
 
     private void load(String title, String emptyText, Loader loader) {
@@ -258,7 +273,8 @@ public final class Browser {
     }
 
     private static List<Item> entryItems(CompoItem compo) {
-        return compo.compo().entries().stream().<Item>map(entry -> new EntryItem(compo, entry)).toList();
+        final List<CompoEntry> entries = compo.compo().entries();
+        return IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i)).toList();
     }
 
     /**
@@ -267,9 +283,9 @@ public final class Browser {
      */
     private static Playlist playlistFrom(EntryItem chosen) {
         final List<CompoEntry> entries = chosen.compo().compo().entries();
-        final List<Track> tracks = entries.subList(entries.indexOf(chosen.entry()), entries.size()).stream()
-                .filter(entry -> entry.equals(chosen.entry()) || entry.likelyPlayable())
-                .<Track>map(entry -> new DemozooTrack(entry, chosen.compo().compoLabel()))
+        final List<Track> tracks = IntStream.range(chosen.index(), entries.size())
+                .filter(i -> i == chosen.index() || entries.get(i).likelyPlayable())
+                .<Track>mapToObj(i -> new DemozooTrack(entries.get(i), chosen.compo().compoLabel()))
                 .toList();
         return new Playlist(tracks);
     }

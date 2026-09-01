@@ -71,7 +71,7 @@ public final class CacheDirectory {
      * Writes next to the target and moves into place so an interrupted write can never be mistaken for a cached file.
      */
     public void writeAtomically(Path file, byte[] content) throws IOException {
-        final Path part = file.resolveSibling(file.getFileName() + PART_SUFFIX);
+        final Path part = Files.createTempFile(file.getParent(), file.getFileName().toString(), PART_SUFFIX);
         Files.write(part, content);
         Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }

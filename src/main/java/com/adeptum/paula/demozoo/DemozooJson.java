@@ -50,26 +50,43 @@ public final class DemozooJson {
     private DemozooJson() {
     }
 
+    private interface Parser<T> {
+        T parse(JsonObject object);
+    }
+
     public static PartySeries series(byte[] body) throws IOException {
-        final JsonObject series = read(body);
-        final List<Party> parties = objects(series, "parties")
-                .map(party -> new Party(party.getInt("id"), party.getString("name", ""), party.getString("start_date", "")))
-                .sorted(Comparator.comparing(Party::startDate))
-                .toList();
-        return new PartySeries(series.getInt("id"), series.getString("name", ""), parties);
+        return parse(body, series -> {
+            final List<Party> parties = objects(series, "parties")
+                    .map(party -> new Party(party.getInt("id"), party.getString("name", ""), party.getString("start_date", "")))
+                    .sorted(Comparator.comparing(Party::startDate))
+                    .toList();
+            return new PartySeries(series.getInt("id"), series.getString("name", ""), parties);
+        });
     }
 
     public static List<Competition> competitions(byte[] body) throws IOException {
-        return objects(read(body), "competitions")
+        return parse(body, party -> objects(party, "competitions")
                 .filter(competition -> MUSIC.equals(object(competition, "production_type").getString("supertype", "")))
                 .map(DemozooJson::competition)
-                .toList();
+                .toList());
     }
 
     public static Production production(byte[] body) throws IOException {
-        final JsonObject production = read(body);
-        return new Production(production.getInt("id"), production.getString("title", ""),
-                links(production, "download_links"), links(production, "external_links"));
+        return parse(body, production -> new Production(production.getInt("id"), production.getString("title", ""),
+                links(production, "download_links"), links(production, "external_links")));
+    }
+
+    /**
+     * Fields Demozoo always sends are read without null checks; a payload missing them is reported as bad data
+     * rather than escaping as an unchecked exception.
+     */
+    private static <T> T parse(byte[] body, Parser<T> parser) throws IOException {
+        final JsonObject object = read(body);
+        try {
+            return parser.parse(object);
+        } catch (RuntimeException e) {
+            throw new IOException("Unexpected Demozoo response: " + e, e);
+        }
     }
 
     private static Competition competition(JsonObject competition) {

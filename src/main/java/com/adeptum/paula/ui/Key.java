@@ -36,7 +36,7 @@ public record Key(Special special, char character) {
     private static final int BACKSPACE_CODE = 8;
     private static final int DELETE_CODE = 127;
     private static final int ESCAPE_CODE = 27;
-    private static final String MODIFIER_PARAMETER = "^\\[1;\\d";
+    private static final String MODIFIER_PARAMETER = "^\\[1;\\d+";
 
     public static Key of(char character) {
         return new Key(Special.NONE, character);

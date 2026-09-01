@@ -99,6 +99,15 @@ class DemozooJsonTest {
         assertThrows(IOException.class, () -> DemozooJson.series(bytes("{")));
     }
 
+    @Test
+    void unexpectedShapesAreAnIoException() {
+        final IOException error = assertThrows(IOException.class,
+                () -> DemozooJson.series(bytes("{\"id\":2,\"name\":\"Assembly\",\"parties\":[{\"name\":\"no id\"}]}")));
+        assertTrue(error.getMessage().startsWith("Unexpected Demozoo response"));
+        assertThrows(IOException.class, () -> DemozooJson.competitions(bytes("{\"competitions\":[{\"production_type\":{\"supertype\":\"music\"}}]}")));
+        assertThrows(IOException.class, () -> DemozooJson.production(bytes("{\"title\":\"no id\"}")));
+    }
+
     static byte[] bytes(String json) {
         return json.getBytes(StandardCharsets.UTF_8);
     }

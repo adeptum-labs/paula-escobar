@@ -28,7 +28,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Resolves tracks to files off the interface thread. Only the newest request is ever reported, so a user who
@@ -60,15 +59,7 @@ public final class TrackLoader implements AutoCloseable {
     }
 
     public static TrackLoader background() {
-        return new TrackLoader(Executors.newSingleThreadExecutor(runnable -> {
-            final Thread thread = new Thread(runnable, THREAD_NAME);
-            thread.setDaemon(true);
-            return thread;
-        }));
-    }
-
-    public Executor executor() {
-        return executor;
+        return new TrackLoader(DaemonExecutors.singleThread(THREAD_NAME));
     }
 
     /**
