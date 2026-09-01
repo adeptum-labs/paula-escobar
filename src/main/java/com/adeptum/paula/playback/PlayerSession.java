@@ -27,7 +27,11 @@ import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.UnsupportedModuleException;
+import com.adeptum.paula.playlist.DemozooTrack;
+import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
+import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.Action;
 import com.adeptum.paula.ui.PlayerView;
 import com.adeptum.paula.ui.TerminalUi;
@@ -109,16 +113,23 @@ public final class PlayerSession {
     }
 
     private boolean loadCurrent() throws IOException {
-        final Path path = playlist.current();
+        final Track track = playlist.current();
         try {
-            module = loaders.load(path);
+            module = loaders.load(pathOf(track));
         } catch (IOException e) {
-            log.warn("Skipping {}: {}", path, e.getMessage());
+            log.warn("Skipping {}: {}", track.label(), e.getMessage());
             return false;
         }
         engine.play(module.createRenderer(engine.sampleRate()));
         ui.draw(view());
         return true;
+    }
+
+    private static Path pathOf(Track track) throws IOException {
+        return switch (track) {
+            case LocalTrack local -> local.path();
+            case DemozooTrack remote -> throw new UnsupportedModuleException(Path.of(remote.label()), "remote tracks need the browser");
+        };
     }
 
     private PlayerView view() {

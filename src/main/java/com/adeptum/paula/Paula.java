@@ -41,7 +41,9 @@ import com.adeptum.paula.cli.InfoCommand;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
+import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
+import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.TerminalUi;
 import com.adeptum.paula.ui.Theme;
 
@@ -96,7 +98,8 @@ public final class Paula implements Runnable {
         }
         try (PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TerminalUi ui = new TerminalUi()) {
-            new PlayerSession(new Playlist(files), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui).run();
+            final List<Track> tracks = files.stream().<Track>map(LocalTrack::new).toList();
+            new PlayerSession(new Playlist(tracks), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         }

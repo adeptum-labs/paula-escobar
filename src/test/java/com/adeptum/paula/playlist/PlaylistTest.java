@@ -32,11 +32,14 @@ import org.junit.jupiter.api.Test;
 
 class PlaylistTest {
 
-    private final Playlist playlist = new Playlist(List.of(Path.of("a.mod"), Path.of("b.mod")));
+    private static final Track A = new LocalTrack(Path.of("a.mod"));
+    private static final Track B = new LocalTrack(Path.of("b.mod"));
+
+    private final Playlist playlist = new Playlist(List.of(A, B));
 
     @Test
     void startsAtFirstEntry() {
-        assertEquals(Path.of("a.mod"), playlist.current());
+        assertEquals(A, playlist.current());
         assertEquals(1, playlist.position());
         assertEquals(2, playlist.size());
     }
@@ -44,15 +47,28 @@ class PlaylistTest {
     @Test
     void stepsForwardAndBackWithoutWrapping() {
         assertTrue(playlist.next());
-        assertEquals(Path.of("b.mod"), playlist.current());
+        assertEquals(B, playlist.current());
         assertFalse(playlist.next());
         assertTrue(playlist.previous());
         assertFalse(playlist.previous());
-        assertEquals(Path.of("a.mod"), playlist.current());
+        assertEquals(A, playlist.current());
+    }
+
+    @Test
+    void canStartAtALaterEntry() {
+        final Playlist fromSecond = new Playlist(List.of(A, B), 1);
+        assertEquals(B, fromSecond.current());
+        assertEquals(2, fromSecond.position());
+        assertFalse(fromSecond.next());
     }
 
     @Test
     void rejectsEmptyList() {
         assertThrows(IllegalArgumentException.class, () -> new Playlist(List.of()));
+    }
+
+    @Test
+    void rejectsStartOutsideTheList() {
+        assertThrows(IllegalArgumentException.class, () -> new Playlist(List.of(A), 1));
     }
 }
