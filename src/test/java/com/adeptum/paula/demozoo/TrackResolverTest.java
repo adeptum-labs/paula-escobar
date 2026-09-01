@@ -138,6 +138,32 @@ class TrackResolverTest {
     }
 
     @Test
+    void keepsServerFileNamesInsideTheCache(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.of("../../escaped.mod"));
+
+        assertEquals(dir.resolve("files/7/escaped.mod"), resolver(dir).resolve(ENTRY));
+    }
+
+    @Test
+    void namesDownloadsWithoutAnyFileName(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", "https://files.scene.org/view/parties/x/"));
+        http.put("https://archive.scene.org/pub/parties/x/", TestArchives.zip(Map.of("tune.mod", TestModules.proTracker())), Optional.empty());
+
+        assertEquals(dir.resolve("files/7/extracted/tune.mod"), resolver(dir).resolve(ENTRY));
+    }
+
+    @Test
+    void neverReusesADownloadedArchiveAsAModule(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestArchives.zip(Map.of("tune.mod", TestModules.proTracker())), Optional.of("archive.mod"));
+        final Path first = resolver(dir).resolve(ENTRY);
+
+        assertEquals(dir.resolve("files/7/extracted/tune.mod"), first);
+        assertEquals(first, resolver(dir).resolve(ENTRY));
+    }
+
+    @Test
     void failsClearlyWithoutDownloads(@TempDir Path dir) {
         http.put(PRODUCTION_URL, "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[],\"external_links\":[]}");
         final IOException error = assertThrows(IOException.class, () -> resolver(dir).resolve(ENTRY));

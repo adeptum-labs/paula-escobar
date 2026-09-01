@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Predicate;
 
 /**
  * Detects archives by their magic bytes, never by file name, and keeps extracted paths inside the target directory.
@@ -45,17 +44,6 @@ public final class Archives {
     public static Optional<ArchiveExtractor> detect(Path file) throws IOException {
         final byte[] head = head(file);
         return EXTRACTORS.stream().filter(extractor -> extractor.matches(head)).findFirst();
-    }
-
-    /**
-     * Returns false when the file is not an archive of a known format.
-     */
-    public static boolean extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
-        final Optional<ArchiveExtractor> extractor = detect(archive);
-        if (extractor.isPresent()) {
-            extractor.get().extract(archive, into, wanted);
-        }
-        return extractor.isPresent();
     }
 
     public static Path target(Path into, String entryName) throws IOException {

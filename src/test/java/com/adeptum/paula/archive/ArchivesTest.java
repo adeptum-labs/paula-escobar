@@ -49,14 +49,6 @@ class ArchivesTest {
     }
 
     @Test
-    void extractReportsWhetherTheFileWasAnArchive(@TempDir Path dir) throws IOException {
-        final Path zip = Files.write(dir.resolve("a.zip"), TestArchives.zip(Map.of("tune.mod", CONTENT)));
-        assertTrue(Archives.extract(zip, dir.resolve("out"), name -> true));
-        assertTrue(Files.exists(dir.resolve("out/tune.mod")));
-        assertFalse(Archives.extract(Files.write(dir.resolve("plain.mod"), CONTENT), dir.resolve("out2"), name -> true));
-    }
-
-    @Test
     void targetsStayInsideTheDirectory(@TempDir Path dir) throws IOException {
         assertEquals(dir.resolve("dir/file.mod"), Archives.target(dir, "dir\\file.mod"));
         assertTrue(Files.isDirectory(dir.resolve("dir")));

@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.demozoo;
 
+import com.adeptum.paula.archive.ArchiveExtractor;
 import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -32,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,6 +54,8 @@ public final class TrackResolver {
     private static final String MODARCHIVE_DOWNLOAD = "https://api.modarchive.org/downloads.php?moduleid=";
     private static final String FILES = "files";
     private static final String EXTRACTED = "extracted";
+    private static final String DEFAULT_NAME = "download";
+    private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
 
     private final DemozooClient demozoo;
     private final HttpFetcher http;
@@ -75,7 +79,7 @@ public final class TrackResolver {
         final Link link = preferredLink(production).orElseThrow(() -> new IOException("No download for " + entry.title()));
         final URI uri = downloadUri(link);
         final HttpFetcher.Response response = http.get(uri);
-        final Path download = directory.resolve(response.fileName().orElse(lastSegment(uri)));
+        final Path download = directory.resolve(fileName(response, uri));
         cache.writeAtomically(download, response.body());
         return playableFile(download, entry)
                 .orElseThrow(() -> new IOException("No playable file in " + download.getFileName() + " for " + entry.title()));
@@ -112,44 +116,57 @@ public final class TrackResolver {
         return matcher.find() ? matcher.group(1) : "";
     }
 
+    /**
+     * The server's suggestion and the URL are both untrusted, so only their last path element is ever used.
+     */
+    private static String fileName(HttpFetcher.Response response, URI uri) {
+        final String suggested = response.fileName().orElseGet(() -> lastSegment(uri));
+        final Path name = Path.of(suggested.replace('\\', '/')).getFileName();
+        return name == null || UNUSABLE_NAMES.contains(name.toString()) ? DEFAULT_NAME : name.toString();
+    }
+
     private static String lastSegment(URI uri) {
-        final String path = uri.getPath();
+        final String path = uri.getPath() == null ? "" : uri.getPath();
         return path.substring(path.lastIndexOf('/') + 1);
     }
 
     private Optional<Path> playableFile(Path download, CompoEntry entry) throws IOException {
-        if (Archives.detect(download).isEmpty()) {
+        final Optional<ArchiveExtractor> archive = Archives.detect(download);
+        if (archive.isEmpty()) {
             if (loaders.loaderFor(download).isPresent()) {
                 return Optional.of(download);
             }
             throw new IOException(download.getFileName() + " for " + entry.title() + " is not a module or archive");
         }
-        final Path extracted = download.resolveSibling(EXTRACTED);
-        Archives.extract(download, extracted, wantedEntry());
-        return firstPlayable(extracted);
+        archive.get().extract(download, download.resolveSibling(EXTRACTED), wantedEntry());
+        return firstPlayable(download.resolveSibling(EXTRACTED));
     }
 
     private Predicate<String> wantedEntry() {
         return name -> loaders.loaderFor(Path.of(name)).isPresent();
     }
 
+    /**
+     * Files are chosen by name order, skipping archives so a download that merely looks like a module by name is
+     * never handed to the loaders.
+     */
     private Optional<Path> firstPlayable(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
             return Optional.empty();
         }
         try (Stream<Path> files = Files.walk(directory)) {
             return files.filter(Files::isRegularFile)
-                    .filter(TrackResolver::hasContent)
                     .filter(file -> loaders.loaderFor(file).isPresent())
+                    .filter(TrackResolver::isPlainFile)
                     .min(Comparator.comparing(Path::toString));
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
     }
 
-    private static boolean hasContent(Path file) {
+    private static boolean isPlainFile(Path file) {
         try {
-            return Files.size(file) > 0;
+            return Files.size(file) > 0 && Archives.detect(file).isEmpty();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
