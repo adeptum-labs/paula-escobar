@@ -19,16 +19,17 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.module;
+package com.adeptum.paula.testing;
 
+import com.adeptum.paula.module.Module;
+import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.playback.Renderer;
 import java.nio.file.Path;
 
-public interface Module {
+public record TestModule(Path source, ModuleMetadata metadata) implements Module {
 
-    Path source();
-
-    ModuleMetadata metadata();
-
-    Renderer createRenderer(int sampleRate);
+    @Override
+    public Renderer createRenderer(int sampleRate) {
+        throw new UnsupportedOperationException("Test module has no audio");
+    }
 }

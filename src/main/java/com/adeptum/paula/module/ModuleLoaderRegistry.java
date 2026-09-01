@@ -21,11 +21,11 @@
 
 package com.adeptum.paula.module;
 
+import com.adeptum.paula.module.javamod.JavaModLoader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import com.adeptum.paula.module.protracker.ProTrackerLoader;
 
 public final class ModuleLoaderRegistry {
 
@@ -36,7 +36,7 @@ public final class ModuleLoaderRegistry {
     }
 
     public static ModuleLoaderRegistry withBuiltInLoaders() {
-        return new ModuleLoaderRegistry(List.of(new ProTrackerLoader()));
+        return new ModuleLoaderRegistry(List.of(new JavaModLoader()));
     }
 
     public List<ModuleFormat> formats() {

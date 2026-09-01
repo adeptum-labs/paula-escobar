@@ -41,16 +41,13 @@ public final class PlayerSession {
 
     private final Playlist playlist;
     private final ModuleLoaderRegistry loaders;
-    private final RendererFactory renderers;
     private final PlaybackEngine engine;
     private final TerminalUi ui;
     private Module module;
 
-    public PlayerSession(Playlist playlist, ModuleLoaderRegistry loaders, RendererFactory renderers,
-            PlaybackEngine engine, TerminalUi ui) {
+    public PlayerSession(Playlist playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui) {
         this.playlist = playlist;
         this.loaders = loaders;
-        this.renderers = renderers;
         this.engine = engine;
         this.ui = ui;
     }
@@ -109,7 +106,7 @@ public final class PlayerSession {
             log.warn("Skipping {}: {}", path, e.getMessage());
             return false;
         }
-        engine.play(renderers.rendererFor(module, engine.sampleRate()));
+        engine.play(module.createRenderer(engine.sampleRate()));
         ui.draw(view());
         return true;
     }

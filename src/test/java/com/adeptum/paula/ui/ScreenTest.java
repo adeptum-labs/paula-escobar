@@ -23,22 +23,23 @@ package com.adeptum.paula.ui;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleMetadata;
-import com.adeptum.paula.module.protracker.ProTrackerLoader;
-import com.adeptum.paula.module.protracker.ProTrackerModule;
 import com.adeptum.paula.playback.PlaybackState;
+import com.adeptum.paula.testing.TestModule;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import org.jline.utils.AttributedString;
 import org.junit.jupiter.api.Test;
 
 class ScreenTest {
 
     private final PlayerView view = PlayerView.builder()
-            .module(new ProTrackerModule(Path.of("dir", "space.mod"), ModuleMetadata.builder()
+            .module(new TestModule(Path.of("dir", "space.mod"), ModuleMetadata.builder()
                     .title("Space Debris")
-                    .format(ProTrackerLoader.FORMAT)
+                    .format(new ModuleFormat("mod", "ProTracker", Set.of("mod")))
                     .channels(4)
                     .songLength(42)
                     .instruments(List.of("kick", "snare"))
@@ -55,6 +56,7 @@ class ScreenTest {
 
         assertTrue(lines.contains("Title   Space Debris"));
         assertTrue(lines.contains("File    space.mod"));
+        assertTrue(lines.contains("Format  ProTracker, 4 channels, 42 positions"));
         assertTrue(lines.contains("Track   2 / 5"));
         assertTrue(lines.contains("Status  PLAYING  01:23"));
         assertTrue(lines.contains("01 kick"));

@@ -23,7 +23,6 @@ package com.adeptum.paula;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import org.fusesource.jansi.AnsiConsole;
 import picocli.CommandLine;
@@ -42,7 +41,6 @@ import com.adeptum.paula.cli.InfoCommand;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
-import com.adeptum.paula.playback.SilenceRenderer;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.ui.TerminalUi;
 import com.adeptum.paula.ui.Theme;
@@ -53,8 +51,6 @@ import com.adeptum.paula.ui.Theme;
         description = "Terminal music player for demoscene and chip music.",
         subcommands = {InfoCommand.class, FormatsCommand.class})
 public final class Paula implements Runnable {
-
-    private static final Duration PLACEHOLDER_SONG_LENGTH = Duration.ofSeconds(30);
 
     @Spec
     private CommandSpec spec;
@@ -100,8 +96,7 @@ public final class Paula implements Runnable {
         }
         try (PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TerminalUi ui = new TerminalUi()) {
-            new PlayerSession(new Playlist(files), ModuleLoaderRegistry.withBuiltInLoaders(),
-                    (module, rate) -> new SilenceRenderer(PLACEHOLDER_SONG_LENGTH, rate), engine, ui).run();
+            new PlayerSession(new Playlist(files), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         }

@@ -25,8 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.adeptum.paula.module.protracker.ProTrackerLoader;
+import com.adeptum.paula.module.javamod.JavaModLoader;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ModuleLoaderRegistryTest {
@@ -35,7 +36,7 @@ class ModuleLoaderRegistryTest {
 
     @Test
     void listsBuiltInFormats() {
-        assertEquals(java.util.List.of(ProTrackerLoader.FORMAT), registry.formats());
+        assertEquals(List.of(JavaModLoader.FORMAT), registry.formats());
     }
 
     @Test

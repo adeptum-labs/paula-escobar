@@ -24,10 +24,9 @@ package com.adeptum.paula;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.testing.TestModules;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,23 +55,19 @@ class PaulaTest {
     }
 
     @Test
-    void formatsListsProTracker() {
+    void formatsListsTrackerModules() {
         assertEquals(0, cli.execute("formats"));
-        assertTrue(out.toString().contains("ProTracker"));
+        assertTrue(out.toString().contains("Tracker modules"));
         assertTrue(out.toString().contains(".mod"));
+        assertTrue(out.toString().contains(".xm"));
     }
 
     @Test
     void infoPrintsModuleMetadata(@TempDir Path dir) throws Exception {
-        final Path file = dir.resolve("tune.mod");
-        final byte[] data = new byte[1084];
-        System.arraycopy("Hello".getBytes(StandardCharsets.ISO_8859_1), 0, data, 0, 5);
-        System.arraycopy("M.K.".getBytes(StandardCharsets.ISO_8859_1), 0, data, 1080, 4);
-        Files.write(file, data);
-
-        assertEquals(0, cli.execute("info", file.toString()));
-        assertTrue(out.toString().startsWith("Hello"));
+        assertEquals(0, cli.execute("info", TestModules.writeProTracker(dir).toString()));
+        assertTrue(out.toString().startsWith(TestModules.TITLE));
         assertTrue(out.toString().contains("Channels:4"));
+        assertTrue(out.toString().contains(TestModules.SAMPLE_NAME));
     }
 
     @Test
