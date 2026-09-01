@@ -36,6 +36,9 @@ import org.junit.jupiter.api.Test;
 
 class ScreenTest {
 
+    private static final int WIDTH = 80;
+    private static final int HEIGHT = 40;
+
     private final PlayerView view = PlayerView.builder()
             .module(new TestModule(Path.of("dir", "space.mod"), ModuleMetadata.builder()
                     .title("Space Debris")
@@ -44,6 +47,7 @@ class ScreenTest {
                     .songLength(42)
                     .instruments(List.of("kick", "snare"))
                     .build()))
+            .trackLabel("Assembly 1995 · 4 Channel Music  #1 Space Debris by Captain")
             .state(PlaybackState.PLAYING)
             .position(Duration.ofSeconds(83))
             .track(2)
@@ -52,19 +56,46 @@ class ScreenTest {
 
     @Test
     void showsTitleFileStatusAndInstruments() {
-        final List<String> lines = Screen.render(view, 80).stream().map(AttributedString::toString).toList();
+        final List<String> lines = render(view, HEIGHT);
 
         assertTrue(lines.contains("Title   Space Debris"));
         assertTrue(lines.contains("File    space.mod"));
         assertTrue(lines.contains("Format  ProTracker, 4 channels, 42 positions"));
-        assertTrue(lines.contains("Track   2 / 5"));
+        assertTrue(lines.contains("Track   2 / 5  Assembly 1995 · 4 Channel Music  #1 Space Debris by Captain"));
         assertTrue(lines.contains("Status  PLAYING  01:23"));
         assertTrue(lines.contains("01 kick"));
         assertTrue(lines.contains("02 snare"));
     }
 
     @Test
+    void showsAnIdleScreenWithoutAModule() {
+        final List<String> lines = render(PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO).build(), HEIGHT);
+
+        assertTrue(lines.contains("Nothing playing, press b to browse the party archives"));
+        assertTrue(lines.stream().anyMatch(line -> line.contains("b browse")));
+    }
+
+    @Test
+    void showsTheStatusLine() {
+        final PlayerView loading = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO)
+                .trackLabel("Funkyeeh").status("Loading Funkyeeh").build();
+
+        assertTrue(render(loading, HEIGHT).contains("Loading Funkyeeh"));
+    }
+
+    @Test
     void clipsLinesToTerminalWidth() {
-        assertTrue(Screen.render(view, 10).stream().allMatch(line -> line.columnLength() <= 10));
+        assertTrue(Screen.render(view, 10, HEIGHT).stream().allMatch(line -> line.columnLength() <= 10));
+    }
+
+    @Test
+    void clipsToTerminalHeightKeepingTheKeyBar() {
+        final List<String> lines = render(view, 5);
+        assertTrue(lines.size() <= 5);
+        assertTrue(lines.get(lines.size() - 1).contains("q quit"));
+    }
+
+    private static List<String> render(PlayerView view, int height) {
+        return Screen.render(view, WIDTH, height).stream().map(AttributedString::toString).toList();
     }
 }

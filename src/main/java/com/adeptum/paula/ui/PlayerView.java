@@ -26,11 +26,17 @@ import lombok.Builder;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.playback.PlaybackState;
 
+/**
+ * What the player screen shows. The module is absent until a track has loaded and the status line is absent
+ * unless something is being loaded or went wrong.
+ */
 @Builder
 public record PlayerView(
         Module module,
+        String trackLabel,
         PlaybackState state,
         Duration position,
         int track,
-        int trackCount) {
+        int trackCount,
+        String status) {
 }

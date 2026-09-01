@@ -22,8 +22,10 @@
 package com.adeptum.paula.ui;
 
 import java.io.IOException;
+import java.util.List;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.jline.utils.AttributedString;
 import org.jline.utils.Display;
 import org.jline.utils.InfoCmp.Capability;
 
@@ -93,9 +95,17 @@ public final class TerminalUi implements AutoCloseable {
         return value >= FIRST_FINAL_BYTE && value <= LAST_FINAL_BYTE;
     }
 
-    public void draw(PlayerView view) {
+    public int width() {
+        return terminal.getWidth();
+    }
+
+    public int height() {
+        return terminal.getHeight();
+    }
+
+    public void draw(List<AttributedString> lines) {
         display.resize(terminal.getHeight(), terminal.getWidth());
-        display.update(Screen.render(view, terminal.getWidth()), 0);
+        display.update(lines, 0);
     }
 
     @Override

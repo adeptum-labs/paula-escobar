@@ -39,8 +39,11 @@ import com.adeptum.paula.cli.BuildInfo;
 import com.adeptum.paula.cli.FormatsCommand;
 import com.adeptum.paula.cli.InfoCommand;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.UnsupportedModuleException;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
+import com.adeptum.paula.playback.TrackLoader;
+import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
@@ -97,11 +100,19 @@ public final class Paula implements Runnable {
             return;
         }
         try (PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
-                TerminalUi ui = new TerminalUi()) {
+                TerminalUi ui = new TerminalUi();
+                TrackLoader loader = TrackLoader.background()) {
             final List<Track> tracks = files.stream().<Track>map(LocalTrack::new).toList();
-            new PlayerSession(new Playlist(tracks), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui).run();
+            new PlayerSession(new Playlist(tracks), ModuleLoaderRegistry.withBuiltInLoaders(), engine, ui, loader, Paula::pathOf).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         }
+    }
+
+    private static Path pathOf(Track track) throws IOException {
+        return switch (track) {
+            case LocalTrack local -> local.path();
+            case DemozooTrack remote -> throw new UnsupportedModuleException(Path.of(remote.label()), "remote tracks need the browser");
+        };
     }
 }
