@@ -27,35 +27,23 @@ import org.junit.jupiter.api.Test;
 
 class ActionTest {
 
-    private static final int ESCAPE = 27;
-    private static final int READ_TIMED_OUT = -2;
-
     @Test
     void mapsKeysToActions() {
-        assertEquals(Action.QUIT, Action.forKey('q'));
-        assertEquals(Action.QUIT, Action.forKey(ESCAPE));
-        assertEquals(Action.TOGGLE_PAUSE, Action.forKey(' '));
-        assertEquals(Action.NEXT, Action.forKey('n'));
-        assertEquals(Action.PREVIOUS, Action.forKey('p'));
+        assertEquals(Action.QUIT, Action.of(Key.of('q')));
+        assertEquals(Action.QUIT, Action.of(Key.of('Q')));
+        assertEquals(Action.QUIT, Action.of(Key.of(Key.Special.ESCAPE)));
+        assertEquals(Action.QUIT, Action.of(Key.of(Key.Special.EOF)));
+        assertEquals(Action.TOGGLE_PAUSE, Action.of(Key.of(' ')));
+        assertEquals(Action.NEXT, Action.of(Key.of('n')));
+        assertEquals(Action.PREVIOUS, Action.of(Key.of('p')));
+        assertEquals(Action.SEEK_FORWARD, Action.of(Key.of(Key.Special.RIGHT)));
+        assertEquals(Action.SEEK_BACKWARD, Action.of(Key.of(Key.Special.LEFT)));
     }
 
     @Test
     void unknownKeysAndTimeoutsAreIgnored() {
-        assertEquals(Action.NONE, Action.forKey('x'));
-        assertEquals(Action.NONE, Action.forKey(READ_TIMED_OUT));
-    }
-
-    @Test
-    void mapsCursorSequencesToSeekActions() {
-        assertEquals(Action.SEEK_FORWARD, Action.forEscapeSequence("[C"));
-        assertEquals(Action.SEEK_BACKWARD, Action.forEscapeSequence("[D"));
-        assertEquals(Action.SEEK_FORWARD, Action.forEscapeSequence("OC"));
-        assertEquals(Action.SEEK_BACKWARD, Action.forEscapeSequence("OD"));
-    }
-
-    @Test
-    void unknownEscapeSequencesAreIgnored() {
-        assertEquals(Action.NONE, Action.forEscapeSequence("[A"));
-        assertEquals(Action.NONE, Action.forEscapeSequence(""));
+        assertEquals(Action.NONE, Action.of(Key.of('x')));
+        assertEquals(Action.NONE, Action.of(Key.of(Key.Special.TIMEOUT)));
+        assertEquals(Action.NONE, Action.of(Key.of(Key.Special.UP)));
     }
 }

@@ -33,7 +33,10 @@ import org.jline.utils.InfoCmp.Capability;
 public final class TerminalUi implements AutoCloseable {
 
     private static final int ESCAPE = 27;
-    private static final int SEQUENCE_LENGTH = 2;
+    private static final char CSI = '[';
+    private static final char SS3 = 'O';
+    private static final char FIRST_FINAL_BYTE = 0x40;
+    private static final char LAST_FINAL_BYTE = 0x7E;
     private static final long SEQUENCE_TIMEOUT_MILLIS = 50;
 
     private final Terminal terminal;
@@ -48,25 +51,46 @@ public final class TerminalUi implements AutoCloseable {
         terminal.flush();
     }
 
-    public Action poll(long timeoutMillis) throws IOException {
+    public Key poll(long timeoutMillis) throws IOException {
         final int key = terminal.reader().read(timeoutMillis);
-        return key == ESCAPE ? escapedAction() : Action.forKey(key);
+        return key == ESCAPE ? escapedKey() : Key.forByte(key);
     }
 
     /**
-     * Nothing following the escape within the short window means the user pressed escape itself rather than a
-     * cursor key.
+     * Nothing following the escape within the short window means the user pressed escape itself. A CSI sequence
+     * carries parameter and intermediate bytes before its final byte, an SS3 sequence is exactly one byte long and
+     * anything else is an alt chord Paula does not use.
      */
-    private Action escapedAction() throws IOException {
-        final StringBuilder sequence = new StringBuilder();
-        for (int i = 0; i < SEQUENCE_LENGTH; i++) {
-            final int key = terminal.reader().read(SEQUENCE_TIMEOUT_MILLIS);
-            if (key < 0) {
-                break;
-            }
-            sequence.append((char) key);
+    private Key escapedKey() throws IOException {
+        final int introducer = terminal.reader().read(SEQUENCE_TIMEOUT_MILLIS);
+        if (introducer < 0) {
+            return Key.of(Key.Special.ESCAPE);
         }
-        return sequence.isEmpty() ? Action.forKey(ESCAPE) : Action.forEscapeSequence(sequence.toString());
+        final StringBuilder sequence = new StringBuilder().append((char) introducer);
+        if (introducer == SS3) {
+            appendNext(sequence);
+        } else if (introducer == CSI) {
+            boolean more = appendNext(sequence);
+            while (more && !isFinalByte(sequence.charAt(sequence.length() - 1))) {
+                more = appendNext(sequence);
+            }
+        } else {
+            return Key.NONE;
+        }
+        return Key.forEscapeSequence(sequence.toString());
+    }
+
+    private boolean appendNext(StringBuilder sequence) throws IOException {
+        final int key = terminal.reader().read(SEQUENCE_TIMEOUT_MILLIS);
+        if (key < 0) {
+            return false;
+        }
+        sequence.append((char) key);
+        return true;
+    }
+
+    private static boolean isFinalByte(char value) {
+        return value >= FIRST_FINAL_BYTE && value <= LAST_FINAL_BYTE;
     }
 
     public void draw(PlayerView view) {

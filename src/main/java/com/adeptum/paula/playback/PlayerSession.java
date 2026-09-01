@@ -58,7 +58,7 @@ public final class PlayerSession {
         if (!loadCurrentOrSkip(true)) {
             throw new IOException("None of the playlist entries could be loaded, see paula.log");
         }
-        while (handle(ui.poll(REDRAW_INTERVAL_MILLIS))) {
+        while (handle(Action.of(ui.poll(REDRAW_INTERVAL_MILLIS)))) {
             if (engine.state() == PlaybackState.FINISHED && !advance(true)) {
                 return;
             }

@@ -24,26 +24,22 @@ package com.adeptum.paula.ui;
 public enum Action {
     NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD;
 
-    private static final int ESCAPE = 27;
-
-    public static Action forKey(int key) {
-        return switch (key) {
-            case 'q', 'Q', ESCAPE -> QUIT;
-            case ' ' -> TOGGLE_PAUSE;
-            case 'n', 'N' -> NEXT;
-            case 'p', 'P' -> PREVIOUS;
+    public static Action of(Key key) {
+        return switch (key.special()) {
+            case ESCAPE, EOF -> QUIT;
+            case RIGHT -> SEEK_FORWARD;
+            case LEFT -> SEEK_BACKWARD;
+            case NONE -> forCharacter(key.character());
             default -> NONE;
         };
     }
 
-    /**
-     * Maps an escape sequence without its leading escape; cursor keys arrive as CSI while an application mode
-     * terminal sends the SS3 form instead.
-     */
-    public static Action forEscapeSequence(String sequence) {
-        return switch (sequence) {
-            case "[C", "OC" -> SEEK_FORWARD;
-            case "[D", "OD" -> SEEK_BACKWARD;
+    private static Action forCharacter(char character) {
+        return switch (Character.toLowerCase(character)) {
+            case 'q' -> QUIT;
+            case ' ' -> TOGGLE_PAUSE;
+            case 'n' -> NEXT;
+            case 'p' -> PREVIOUS;
             default -> NONE;
         };
     }
