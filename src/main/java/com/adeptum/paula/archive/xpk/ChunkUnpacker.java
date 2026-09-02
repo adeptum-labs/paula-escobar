@@ -19,26 +19,14 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.archive;
+package com.adeptum.paula.archive.xpk;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.function.Predicate;
 
 /**
- * Unpacks one archive format. Entries are offered to the predicate by their name inside the archive, using forward
- * slashes, and wanted ones are written below the target directory under that same relative path.
+ * One XPK packer: chunks are independent, so each packed chunk unpacks on its own to exactly the declared size.
  */
-public interface ArchiveExtractor {
+interface ChunkUnpacker {
 
-    boolean matches(byte[] head);
-
-    void extract(Path archive, Path into, Predicate<String> wanted) throws IOException;
-
-    /**
-     * True for packers that wrap one file rather than a set of entries; the entry then carries the archive's own name.
-     */
-    default boolean wrapsSingleFile() {
-        return false;
-    }
+    byte[] unpack(byte[] packed, int rawSize) throws IOException;
 }

@@ -45,7 +45,7 @@ class DemozooClientTest {
     private static final Duration TTL = Duration.ofDays(7);
 
     private final FakeHttp http = new FakeHttp();
-    private Clock clock = Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC);
+    private Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
 
     private DemozooClient client(Path dir) {
         return new DemozooClient(http, new CacheDirectory(dir), TTL, clock);

@@ -138,8 +138,29 @@ public final class TrackResolver {
             }
             throw new IOException(download.getFileName() + " for " + entry.title() + " is not a module or archive");
         }
-        archive.get().extract(download, download.resolveSibling(EXTRACTED), wantedEntry());
-        return firstPlayable(download.resolveSibling(EXTRACTED));
+        final Path extracted = download.resolveSibling(EXTRACTED);
+        archive.get().extract(download, extracted, wantedEntry());
+        unwrapPackedFiles(extracted);
+        return firstPlayable(extracted);
+    }
+
+    /**
+     * Modules inside an archive may themselves be wrapped by a packer such as XPK; they are unpacked in place.
+     */
+    private void unwrapPackedFiles(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) {
+            return;
+        }
+        final List<Path> files;
+        try (Stream<Path> walk = Files.walk(directory)) {
+            files = walk.filter(Files::isRegularFile).filter(file -> loaders.loaderFor(file).isPresent()).toList();
+        }
+        for (final Path file : files) {
+            final Optional<ArchiveExtractor> wrapper = Archives.detect(file).filter(ArchiveExtractor::wrapsSingleFile);
+            if (wrapper.isPresent()) {
+                wrapper.get().extract(file, file.getParent(), name -> true);
+            }
+        }
     }
 
     private Predicate<String> wantedEntry() {

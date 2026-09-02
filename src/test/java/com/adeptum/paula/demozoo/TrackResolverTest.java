@@ -165,6 +165,29 @@ class TrackResolverTest {
     }
 
     @Test
+    void unwrapsPackedModulesInsideArchives(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("mod.tune", TestArchives.xpk(TestModules.proTracker(), "NUKE", 1000))), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(dir.resolve("files/7/extracted/mod.tune"), resolved);
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+        assertEquals(resolved, resolver(dir).resolve(ENTRY));
+    }
+
+    @Test
+    void unwrapsAPackedDirectDownload(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestArchives.xpk(TestModules.proTracker(), "NUKE", 1000), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(dir.resolve("files/7/extracted/funkyeeh.mod"), resolved);
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
     void failsClearlyWithoutDownloads(@TempDir Path dir) {
         http.put(PRODUCTION_URL, "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[],\"external_links\":[]}");
         final IOException error = assertThrows(IOException.class, () -> resolver(dir).resolve(ENTRY));

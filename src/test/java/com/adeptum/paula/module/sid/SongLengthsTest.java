@@ -55,7 +55,7 @@ class SongLengthsTest {
     private static final Duration TTL = Duration.ofDays(30);
 
     private final FakeHttp http = new FakeHttp();
-    private Clock clock = Clock.fixed(Instant.parse("2026-09-02T00:00:00Z"), ZoneOffset.UTC);
+    private Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
 
     private SongLengths lengths(Path dir) {
         return new SongLengths(http, new CacheDirectory(dir), TTL, clock);
