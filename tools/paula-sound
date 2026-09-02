@@ -28,19 +28,12 @@ usage() {
 Usage: paula-sound [paula arguments...]
 
 Starts Paula Escobar here and plays it out of the machine you have ssh'd in
-from, by pointing it at that machine's sound server over the network.
+from, over that machine's sound server. When the machine is not set up for
+it yet, the script says what to run there.
 
-The client needs to accept audio connections. Once, on the client:
-
-    pactl load-module module-native-protocol-tcp auth-ip-acl=<this host>
-
-or, to keep it across reboots with PipeWire, in
-~/.config/pipewire/pipewire-pulse.conf.d/10-tcp.conf:
-
-    pulse.cmd = [
-        { cmd = "load-module"
-          args = "module-native-protocol-tcp auth-ip-acl=<this host>" }
-    ]
+Playback goes through the PULSE backend, which talks to that sound server
+directly rather than through the ALSA configuration here. Pass --output to
+choose a different one.
 
 Environment:
     PAULA_SOUND_HOST   play on this host instead of the ssh client
@@ -68,11 +61,60 @@ case $client in
     *) server=tcp:$client:$port ;;
 esac
 
-if ! PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1; then
-    here=$(ip -4 route get "$client" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
-    die "no sound server answering on $server.
-Run this on $client, then try again:
-    pactl load-module module-native-protocol-tcp auth-ip-acl=${here:-<this host>}"
+here=$(ip -4 route get "$client" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+here=${here:-<this host>}
+load="pactl load-module module-native-protocol-tcp listen=$client auth-ip-acl=$here"
+
+silent() {
+    cat <<MESSAGE
+nothing is listening for audio on $client port $port.
+
+Run this on $client:
+
+    $load
+
+PipeWire's Pulse server takes auth-ip-acl but does not enforce it, so the
+firewall on $client is what keeps the port private: let $here reach port
+$port there and nobody else, because whoever reaches it can play sound.
+
+To keep it across reboots, put this in
+~/.config/pipewire/pipewire-pulse.conf.d/10-tcp.conf there and restart
+with 'systemctl --user restart pipewire pipewire-pulse wireplumber':
+
+    pulse.cmd = [
+        { cmd = "load-module"
+          args = "module-native-protocol-tcp listen=$client auth-ip-acl=$here" }
+    ]
+
+If it still does not answer, check on $client with 'ss -ltn | grep $port'
+that it listens there, and that the firewall lets $here through.
+MESSAGE
+}
+
+refused() {
+    cat <<MESSAGE
+$client answers on port $port but will not let us play.
+
+It wants to know us. Either load the module on $client with this host
+allowed:
+
+    $load
+
+or copy ~/.config/pulse/cookie from $client to this machine and point
+PULSE_COOKIE at the copy.
+MESSAGE
+}
+
+timeout 3 bash -c "exec 3<>/dev/tcp/${client//[\[\]]/}/$port" 2>/dev/null || die "$(silent)"
+PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1 || die "$(refused)"
+
+for argument in "$@"; do
+    case $argument in
+        -o|-o?*|--output|--output=*) backend_chosen=true ;;
+    esac
+done
+if [ -z "${backend_chosen-}" ] && command -v pacat >/dev/null; then
+    set -- --output PULSE "$@"
 fi
 
 paula=$(command -v paula || true)
