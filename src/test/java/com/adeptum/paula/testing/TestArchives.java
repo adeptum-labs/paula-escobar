@@ -36,6 +36,10 @@ import jp.gr.java_conf.dangan.util.lha.LhaOutputStream;
  */
 public final class TestArchives {
 
+    private static final int D64_LENGTH = 174848;
+    private static final int D64_DIRECTORY_TRACK = 18;
+    private static final int D64_BLOCK_DATA = 254;
+
     private TestArchives() {
     }
 
@@ -49,6 +53,64 @@ public final class TestArchives {
             }
         }
         return bytes.toByteArray();
+    }
+
+
+    /**
+     * Lays out a 35 track 1541 disk image: the programs go on track 17 as block chains and the directory on
+     * track 18 names them, the way a real disk holds them.
+     */
+    public static byte[] d64(Map<String, byte[]> programs) {
+        final byte[] image = new byte[D64_LENGTH];
+        final int directory = blockOffset(D64_DIRECTORY_TRACK, 1);
+        image[directory + 1] = (byte) 0xFF;
+        int track = 17;
+        int sector = 0;
+        int entry = 0;
+        for (final Map.Entry<String, byte[]> program : programs.entrySet()) {
+            final int at = directory + 2 + entry++ * 32;
+            image[at] = (byte) 0x82;
+            image[at + 1] = (byte) track;
+            image[at + 2] = (byte) sector;
+            final byte[] name = program.getKey().getBytes(StandardCharsets.US_ASCII);
+            for (int character = 0; character < 16; character++) {
+                image[at + 3 + character] = character < name.length ? name[character] : (byte) 0xA0;
+            }
+            sector = writeChain(image, track, sector, program.getValue());
+        }
+        return image;
+    }
+
+    private static int writeChain(byte[] image, int track, int firstSector, byte[] data) {
+        int sector = firstSector;
+        for (int written = 0; written < Math.max(1, data.length); sector++) {
+            final int at = blockOffset(track, sector);
+            final int chunk = Math.min(D64_BLOCK_DATA, data.length - written);
+            final boolean last = written + chunk >= data.length;
+            image[at] = (byte) (last ? 0 : track);
+            image[at + 1] = (byte) (last ? chunk + 1 : sector + 1);
+            System.arraycopy(data, written, image, at + 2, chunk);
+            written += chunk;
+        }
+        return sector;
+    }
+
+    private static int blockOffset(int track, int sector) {
+        int offset = 0;
+        for (int before = 1; before < track; before++) {
+            offset += sectorsOn(before) * 256;
+        }
+        return offset + sector * 256;
+    }
+
+    private static int sectorsOn(int track) {
+        if (track <= 17) {
+            return 21;
+        }
+        if (track <= 24) {
+            return 19;
+        }
+        return track <= 30 ? 18 : 17;
     }
 
     /**
