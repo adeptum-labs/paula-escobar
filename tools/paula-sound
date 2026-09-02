@@ -22,24 +22,22 @@
 set -euo pipefail
 
 port=${PAULA_SOUND_PORT:-4713}
+host=${PAULA_SOUND_HOST:-127.0.0.1}
+server=tcp:$host:$port
 
 usage() {
     cat <<'USAGE'
 Usage: paula-sound [paula arguments...]
 
-Starts Paula Escobar here and plays it out of the machine you have ssh'd in
-from, over that machine's sound server. When the machine is not set up for
-it yet, the script says what to run there.
-
-Playback goes through the PULSE backend, which talks to that sound server
-directly rather than through the ALSA configuration here. Pass --output to
-choose a different one.
+Starts Paula Escobar here and plays it out of the machine you are sitting
+at, through the tunnel that machine opens when it ssh's in. Nothing
+listens on the network at either end. When a piece is missing, the script
+says what to run where.
 
 Environment:
-    PAULA_SOUND_HOST   play on this host instead of the ssh client
-    PAULA_SOUND_PORT   port of the client's sound server (default 4713)
-    PULSE_COOKIE       cookie file, when the client authenticates by cookie
-                       rather than by address
+    PAULA_SOUND_PORT   both ends of the tunnel (default 4713)
+    PAULA_SOUND_HOST   reach the sound server here instead of through the
+                       tunnel
 USAGE
 }
 
@@ -52,61 +50,46 @@ case ${1-} in
     -h|--help) usage; exit 0 ;;
 esac
 
-client=${PAULA_SOUND_HOST:-${SSH_CLIENT-}}
-client=${client%% *}
-[ -n "$client" ] || die "no ssh client to play on; run this from an ssh session or set PAULA_SOUND_HOST"
-
-case $client in
-    *:*) server=tcp:[$client]:$port ;;
-    *) server=tcp:$client:$port ;;
-esac
-
-here=$(ip -4 route get "$client" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
-here=${here:-<this host>}
-load="pactl load-module module-native-protocol-tcp listen=$client auth-ip-acl=$here"
-
-silent() {
+no_tunnel() {
     cat <<MESSAGE
-nothing is listening for audio on $client port $port.
+nothing is answering on $server, so the tunnel is not open.
 
-Run this on $client:
+Connect from the machine you want to hear the music on like this:
 
-    $load
+    ssh -R $port:127.0.0.1:$port $(hostname)
 
-PipeWire's Pulse server takes auth-ip-acl but does not enforce it, so the
-firewall on $client is what keeps the port private: let $here reach port
-$port there and nobody else, because whoever reaches it can play sound.
+or put it in that machine's ~/.ssh/config, once and for all:
 
-To keep it across reboots, put this in
+    Host $(hostname)
+        RemoteForward $port 127.0.0.1:$port
+
+An ssh already holding the port keeps the new one from binding it; ssh
+says so when it happens, and the older session still carries the sound.
+MESSAGE
+}
+
+no_server() {
+    cat <<MESSAGE
+the tunnel to $server is open, but no sound server answers at the far end.
+
+Run this on the machine you are listening from:
+
+    pactl load-module module-native-protocol-tcp listen=127.0.0.1
+
+It listens on that machine's loopback only, where nothing but the tunnel
+reaches it. To keep it across reboots, put this in
 ~/.config/pipewire/pipewire-pulse.conf.d/10-tcp.conf there and restart
 with 'systemctl --user restart pipewire pipewire-pulse wireplumber':
 
     pulse.cmd = [
         { cmd = "load-module"
-          args = "module-native-protocol-tcp listen=$client auth-ip-acl=$here" }
+          args = "module-native-protocol-tcp listen=127.0.0.1" }
     ]
-
-If it still does not answer, check on $client with 'ss -ltn | grep $port'
-that it listens there, and that the firewall lets $here through.
 MESSAGE
 }
 
-refused() {
-    cat <<MESSAGE
-$client answers on port $port but will not let us play.
-
-It wants to know us. Either load the module on $client with this host
-allowed:
-
-    $load
-
-or copy ~/.config/pulse/cookie from $client to this machine and point
-PULSE_COOKIE at the copy.
-MESSAGE
-}
-
-timeout 3 bash -c "exec 3<>/dev/tcp/${client//[\[\]]/}/$port" 2>/dev/null || die "$(silent)"
-PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1 || die "$(refused)"
+timeout 3 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null || die "$(no_tunnel)"
+PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1 || die "$(no_server)"
 
 for argument in "$@"; do
     case $argument in
