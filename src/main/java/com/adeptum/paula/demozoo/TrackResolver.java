@@ -69,6 +69,7 @@ public final class TrackResolver {
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
     private static final int SHORTEST_NAME = 3;
+    private static final Set<String> ART = Set.of("diz", "nfo", "asc");
 
     private final DemozooClient demozoo;
     private final HttpFetcher http;
@@ -256,10 +257,14 @@ public final class TrackResolver {
 
     /**
      * Archives are taken out along with the modules, since a disk image or a further archive may hold what is
-     * being looked for.
+     * being looked for, and so is the text art a release was packed with.
      */
     private Predicate<String> wantedEntry() {
-        return name -> loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name);
+        return name -> loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name) || isArt(name);
+    }
+
+    private static boolean isArt(String name) {
+        return ART.contains(ModuleFormat.extensionOf(Path.of(name).getFileName().toString()));
     }
 
     /**

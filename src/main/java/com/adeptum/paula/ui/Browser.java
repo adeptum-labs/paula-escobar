@@ -26,6 +26,7 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Party;
+import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
@@ -171,12 +172,16 @@ public final class Browser {
     private static final int STRIP_BANDS = 16;
     private static final int PLACING_WIDTH = 3;
     private static final int CHROME_LINES = 6;
+    private static final int ART_LINES = 12;
+    private static final int FEWEST_ART_LINES = 3;
+    private static final int FEWEST_ROWS = 6;
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
             new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
 
     private final DemozooClient demozoo;
     private final Executor executor;
+    private final ReleaseArt art;
     private final Deque<Level> levels = new ArrayDeque<>();
     private final Map<Integer, Boolean> downloads = new ConcurrentHashMap<>();
     private CompletableFuture<Level> pending;
@@ -187,8 +192,13 @@ public final class Browser {
     private double[] nowPlayingSpectrum = new double[0];
 
     public Browser(DemozooClient demozoo, Executor executor) {
+        this(demozoo, executor, ReleaseArt.NONE);
+    }
+
+    public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art) {
         this.demozoo = demozoo;
         this.executor = executor;
+        this.art = art;
         levels.push(new Level(ROOT_TITLE, NOTHING_HERE, CuratedSeries.ALL.stream().<Item>map(SeriesItem::new).toList()));
     }
 
@@ -259,7 +269,8 @@ public final class Browser {
 
     public List<AttributedString> render(int width, int height) {
         final Level level = levels.peek();
-        pageSize = Math.max(1, height - CHROME_LINES);
+        final List<AttributedString> art = artLines(level, width, height);
+        pageSize = Math.max(1, height - CHROME_LINES - art.size());
         level.scrollTo(pageSize);
         final List<AttributedString> rows = new ArrayList<>();
         if (level.items.isEmpty()) {
@@ -270,6 +281,7 @@ public final class Browser {
         }
         final List<AttributedString> lines = new ArrayList<>();
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
+        lines.addAll(art);
         lines.addAll(Frame.box(breadcrumb(), rows, width, pageSize + 2));
         lines.add(statusLine());
         lines.add(nowPlayingLine(width));
@@ -388,6 +400,39 @@ public final class Browser {
             case "3" -> Palette.BRONZE;
             default -> fallback;
         };
+    }
+
+    /**
+     * The art a release was packed with is shown above the list while the cursor rests on it, so browsing a
+     * competition shows the banners the entrants drew for it. Only what has already been downloaded has any,
+     * and a screen too short to spare the room shows none.
+     */
+    private List<AttributedString> artLines(Level level, int width, int height) {
+        final int room = Math.min(ART_LINES, height - CHROME_LINES - FEWEST_ROWS);
+        if (room < FEWEST_ART_LINES) {
+            return List.of();
+        }
+        return level.selected()
+                .filter(EntryItem.class::isInstance)
+                .map(item -> ((EntryItem) item).entry().productionId())
+                .flatMap(art::of)
+                .map(lines -> centred(lines.stream().limit(room).toList(), width))
+                .orElseGet(List::of);
+    }
+
+    /**
+     * The block is moved across as a whole, since art centred line by line would lose its shape.
+     */
+    private static List<AttributedString> centred(List<String> art, int width) {
+        final int longest = art.stream().mapToInt(String::length).max().orElse(0);
+        final String indent = " ".repeat(Math.max(0, (width - longest) / 2));
+        return art.stream()
+                .map(line -> Screen.line(b -> b.style(Palette.SCOPE_QUIET).append(clipped(indent + line, width))))
+                .toList();
+    }
+
+    private static String clipped(String line, int width) {
+        return line.length() <= width ? line : line.substring(0, width);
     }
 
     private AttributedString statusLine() {

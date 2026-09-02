@@ -119,6 +119,14 @@ name order when none is. Modules wrapped by the
 Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
 SQSH packers, which is what tracker modules of the time were packed with.
 
+Party archives are often packed with a `file_id.diz` or an information file
+carrying a hand drawn banner for the competition. Where a release has one,
+it is shown above the list while the cursor rests on that entry, read in the
+code page it was drawn in — the box characters of the PC or the accented
+letters of the Amiga, whichever the file leans towards. Art shaped by
+terminal escapes is left alone, and entries whose archive carries none show
+nothing.
+
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
 still used when the network is down, and downloaded modules are kept for good.

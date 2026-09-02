@@ -45,6 +45,7 @@ class BrowserTest {
 
     private static final int WIDTH = 80;
     private static final int HEIGHT = 12;
+    private static final int TALL = 24;
     private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/19/?format=json";
     private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/5/?format=json";
     private static final String SERIES = """
@@ -71,10 +72,29 @@ class BrowserTest {
 
     private final FakeHttp http = new FakeHttp();
     private Browser browser;
+    private CacheDirectory cache;
 
     @BeforeEach
     void createBrowser(@TempDir Path dir) {
-        browser = new Browser(new DemozooClient(http, new CacheDirectory(dir)), Runnable::run);
+        cache = new CacheDirectory(dir);
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run);
+    }
+
+    @Test
+    void showsTheArtTheEntryWasPackedWith() {
+        final List<String> banner = List.of(".------------------.", "|  I.C.I.N.G 9.7   |", "`------------------'");
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, production -> Optional.of(banner));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        final List<String> lines = browser.render(WIDTH, TALL).stream().map(AttributedString::toString).toList();
+
+        assertTrue(lines.get(1).strip().equals(banner.getFirst()), "the art sits under the title bar");
+        assertTrue(lines.get(2).contains("I.C.I.N.G"));
+        assertTrue(lines.get(1).startsWith("   "), "and is centred as a block");
+        assertTrue(lines.get(4).contains("Multichannel Music"), "the list follows it");
+        assertEquals(TALL, lines.size());
     }
 
     @Test
