@@ -161,7 +161,7 @@ public final class Browser {
     private static final String SECTION = "browse";
     private static final String NOW_PLAYING_MARK = "♪ ";
     private static final int STRIP_BANDS = 16;
-    private static final int SCOPE_PLACING_WIDTH = 3;
+    private static final int PLACING_WIDTH = 3;
     private static final int CHROME_LINES = 6;
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
@@ -366,7 +366,7 @@ public final class Browser {
         final AttributedStyle text = item.dimmed() ? Palette.DIMMED : Palette.VALUE;
         if (item instanceof EntryItem entry) {
             line.style(medal(entry.entry().placing(), text)).append(String.format("%3s", entry.entry().placing()));
-            line.style(text).append(entry.label().substring(SCOPE_PLACING_WIDTH));
+            line.style(text).append(entry.label().substring(PLACING_WIDTH));
         } else {
             line.style(text).append(item.label());
         }
