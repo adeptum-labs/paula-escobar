@@ -8,10 +8,10 @@ carry around.
 
 Paula Escobar plays local files, but it also opens the party archives: the music
 competitions of fourteen party series — from The Party, Assembly and The
-Gathering through Breakpoint and Revision to the Polish classics Icing,
-Intel Outside, Gravity and Xenium — can be browsed year by year straight
-from the player, and any placed entry is downloaded from scene.org,
-ModArchive or Modland and played on the spot.
+Gathering through Breakpoint and Revision to Swedish Icing and the Polish
+classics Intel Outside, Gravity and Xenium — can be browsed year by year
+straight from the player, and any placed entry is downloaded from
+scene.org, ModArchive or Modland and played on the spot.
 
 Tracker modules are decoded and mixed by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which covers ProTracker, NoiseTracker,
