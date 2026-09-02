@@ -39,11 +39,13 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Turns a competition entry into a playable file on disk: the production's best download is fetched into the
  * cache, unpacked when it is an archive, and the first module the loaders accept is returned.
  */
+@Slf4j
 public final class TrackResolver {
 
     private static final String SCENE_ORG = "SceneOrgFile";
@@ -73,14 +75,34 @@ public final class TrackResolver {
         this.loaders = loaders;
     }
 
+    /**
+     * The links are tried in turn, since the release handed in at the party is now and then a disk image or a
+     * bundle of a whole competition that holds nothing Paula can play, while a copy elsewhere is the tune
+     * itself.
+     */
     public Path resolve(CompoEntry entry) throws IOException {
         final Path directory = cache.directory(FILES, String.valueOf(entry.productionId()));
         final Optional<Path> cached = firstPlayable(directory);
         if (cached.isPresent()) {
             return cached.get();
         }
-        final Production production = demozoo.production(entry.productionId());
-        final Link link = preferredLink(production).orElseThrow(() -> new IOException("No download for " + entry.title()));
+        final List<Link> links = preferredLinks(demozoo.production(entry.productionId()));
+        if (links.isEmpty()) {
+            throw new IOException("No download for " + entry.title());
+        }
+        IOException failure = null;
+        for (final Link link : links) {
+            try {
+                return download(link, directory, entry);
+            } catch (IOException e) {
+                log.info("Nothing playable from {} for {}: {}", link.url(), entry.title(), e.getMessage());
+                failure = e;
+            }
+        }
+        throw failure;
+    }
+
+    private Path download(Link link, Path directory, CompoEntry entry) throws IOException {
         final URI uri = downloadUri(link);
         final HttpFetcher.Response response = http.get(uri);
         final Path download = directory.resolve(fileName(response, uri));
@@ -90,17 +112,18 @@ public final class TrackResolver {
     }
 
     /**
-     * The scene.org file is the release as handed in at the party, so it wins over the copies on ModArchive and
-     * Modland; any other download link is a last resort.
+     * The scene.org file is the release as handed in at the party, so it comes before the copies on ModArchive
+     * and Modland; any other download link is a last resort.
      */
-    public static Optional<Link> preferredLink(Production production) {
+    public static List<Link> preferredLinks(Production production) {
         return Stream.of(
                         withClass(production.downloads(), SCENE_ORG),
                         withClass(production.externals(), MODARCHIVE),
                         withClass(production.downloads(), MODLAND),
                         production.downloads().stream())
                 .flatMap(links -> links)
-                .findFirst();
+                .distinct()
+                .toList();
     }
 
     static URI downloadUri(Link link) {

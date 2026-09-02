@@ -92,18 +92,18 @@ class TrackResolverTest {
     }
 
     @Test
-    void prefersSceneOrgThenModarchiveThenModlandThenAnyDownload() {
+    void triesSceneOrgThenModarchiveThenModlandThenAnyOtherDownload() {
         final Link sceneOrg = new Link("SceneOrgFile", SCENE_ORG_VIEW);
         final Link modland = new Link("ModlandFile", MODLAND_FILE);
         final Link modarchive = new Link("ModarchiveModule", MODARCHIVE_PAGE);
         final Link other = new Link("AmigascneFile", "https://ftp.amigascne.org/x.lha");
         final Link pouet = new Link("PouetProduction", "https://www.pouet.net/prod.php?which=1");
 
-        assertEquals(Optional.of(sceneOrg), TrackResolver.preferredLink(production(List.of(modland, sceneOrg), List.of(modarchive))));
-        assertEquals(Optional.of(modarchive), TrackResolver.preferredLink(production(List.of(modland, other), List.of(modarchive))));
-        assertEquals(Optional.of(modland), TrackResolver.preferredLink(production(List.of(other, modland), List.of(pouet))));
-        assertEquals(Optional.of(other), TrackResolver.preferredLink(production(List.of(other), List.of(pouet))));
-        assertEquals(Optional.empty(), TrackResolver.preferredLink(production(List.of(), List.of(pouet))));
+        assertEquals(List.of(sceneOrg, modarchive, modland), TrackResolver.preferredLinks(production(List.of(modland, sceneOrg), List.of(modarchive))));
+        assertEquals(List.of(modarchive, modland, other), TrackResolver.preferredLinks(production(List.of(modland, other), List.of(modarchive))));
+        assertEquals(List.of(modland, other), TrackResolver.preferredLinks(production(List.of(other, modland), List.of(pouet))));
+        assertEquals(List.of(other), TrackResolver.preferredLinks(production(List.of(other), List.of(pouet))));
+        assertEquals(List.of(), TrackResolver.preferredLinks(production(List.of(), List.of(pouet))));
     }
 
     @Test
@@ -216,6 +216,17 @@ class TrackResolverTest {
     }
 
     @Test
+    void movesOnToTheNextDownloadWhenTheFirstHoldsNothingPlayable(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW, "ModlandFile", MODLAND_FILE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("compo.d64", README)), Optional.empty());
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
     void failsClearlyOnUnknownDownloads(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW.replace("funkyeeh.zip", "page.html")));
         http.put(SCENE_ORG_FILE.replace("funkyeeh.zip", "page.html"), "<html>".getBytes(StandardCharsets.US_ASCII), Optional.empty());
@@ -227,7 +238,13 @@ class TrackResolverTest {
         return new Production(7, "Funkyeeh", downloads, externals);
     }
 
-    private static String productionJson(String linkClass, String url) {
-        return "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[{\"link_class\":\"" + linkClass + "\",\"url\":\"" + url + "\"}],\"external_links\":[]}";
+    private static String productionJson(String... classesAndUrls) {
+        final StringBuilder links = new StringBuilder();
+        for (int at = 0; at < classesAndUrls.length; at += 2) {
+            links.append(links.isEmpty() ? "" : ",")
+                    .append("{\"link_class\":\"").append(classesAndUrls[at]).append("\",\"url\":\"").append(classesAndUrls[at + 1]).append("\"}");
+        }
+        return "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[" + links + "],\"external_links\":[]}";
     }
+
 }

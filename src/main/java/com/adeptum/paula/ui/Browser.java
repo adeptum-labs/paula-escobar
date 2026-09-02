@@ -336,7 +336,7 @@ public final class Browser {
         for (final CompoEntry entry : entries) {
             if (!downloads.containsKey(entry.productionId())) {
                 try {
-                    downloads.put(entry.productionId(), TrackResolver.preferredLink(demozoo.production(entry.productionId())).isPresent());
+                    downloads.put(entry.productionId(), !TrackResolver.preferredLinks(demozoo.production(entry.productionId())).isEmpty());
                 } catch (IOException e) {
                     log.debug("Could not look up downloads for {}: {}", entry.title(), e.getMessage());
                 }
