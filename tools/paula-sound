@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#
+# Paula is a terminal music player for demoscene and chip music.
+# Copyright © 2026 Adeptum AB, Org.nr 559494-1824.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Website: https://www.adeptum.se
+# Contact: info@adeptum.se
+
+set -euo pipefail
+
+port=${PAULA_SOUND_PORT:-4713}
+
+usage() {
+    cat <<'USAGE'
+Usage: paula-sound [paula arguments...]
+
+Starts Paula Escobar here and plays it out of the machine you have ssh'd in
+from, by pointing it at that machine's sound server over the network.
+
+The client needs to accept audio connections. Once, on the client:
+
+    pactl load-module module-native-protocol-tcp auth-ip-acl=<this host>
+
+or, to keep it across reboots with PipeWire, in
+~/.config/pipewire/pipewire-pulse.conf.d/10-tcp.conf:
+
+    pulse.cmd = [
+        { cmd = "load-module"
+          args = "module-native-protocol-tcp auth-ip-acl=<this host>" }
+    ]
+
+Environment:
+    PAULA_SOUND_HOST   play on this host instead of the ssh client
+    PAULA_SOUND_PORT   port of the client's sound server (default 4713)
+    PULSE_COOKIE       cookie file, when the client authenticates by cookie
+                       rather than by address
+USAGE
+}
+
+die() {
+    echo "paula-sound: $*" >&2
+    exit 1
+}
+
+case ${1-} in
+    -h|--help) usage; exit 0 ;;
+esac
+
+client=${PAULA_SOUND_HOST:-${SSH_CLIENT-}}
+client=${client%% *}
+[ -n "$client" ] || die "no ssh client to play on; run this from an ssh session or set PAULA_SOUND_HOST"
+
+case $client in
+    *:*) server=tcp:[$client]:$port ;;
+    *) server=tcp:$client:$port ;;
+esac
+
+if ! PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1; then
+    here=$(ip -4 route get "$client" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+    die "no sound server answering on $server.
+Run this on $client, then try again:
+    pactl load-module module-native-protocol-tcp auth-ip-acl=${here:-<this host>}"
+fi
+
+paula=$(command -v paula || true)
+[ -n "$paula" ] || paula=$(dirname "$(readlink -f "$0")")/../target/paula
+[ -x "$paula" ] || die "no paula executable found on PATH or in target/"
+
+export PULSE_SERVER=$server
+exec "$paula" "$@"
