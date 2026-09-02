@@ -31,6 +31,7 @@ import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
+import com.adeptum.paula.testing.TestSids;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -224,6 +225,42 @@ class TrackResolverTest {
         final Path resolved = resolver(dir).resolve(ENTRY);
 
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
+    void picksTheFileNamedAfterTheEntryFromABundle(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("aaa.mod", TestModules.proTracker());
+        entries.put("theseus.mod", TestModules.digiBooster());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("theseus.mod", resolved.getFileName().toString(), "the entry is by Theseus");
+    }
+
+    @Test
+    void unpacksTheDiskImageInsideAPartyFile(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final byte[] disk = TestArchives.d64(Map.of("THESEUS", TestSids.program()));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("compo.d64", disk)), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("THESEUS.prg", resolved.getFileName().toString());
+        assertArrayEquals(TestSids.program(), Files.readAllBytes(resolved));
+    }
+
+    @Test
+    void playsTheTuneRatherThanTheWholeReleaseWhereBothAreOffered(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW, "ModlandFile", MODLAND_FILE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("compo.d64", TestArchives.d64(Map.of("THESEUS", TestSids.program())))), Optional.empty());
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("funkyeeh.mod", resolved.getFileName().toString(), "the module comes before the C64 program");
     }
 
     @Test

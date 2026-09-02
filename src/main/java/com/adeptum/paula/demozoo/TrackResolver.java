@@ -24,15 +24,20 @@ package com.adeptum.paula.demozoo;
 import com.adeptum.paula.archive.ArchiveExtractor;
 import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SidLoader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -62,6 +67,8 @@ public final class TrackResolver {
     private static final String EXTRACTED = "extracted";
     private static final String DEFAULT_NAME = "download";
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
+    private static final int NESTED_ROUNDS = 3;
+    private static final int SHORTEST_NAME = 3;
 
     private final DemozooClient demozoo;
     private final HttpFetcher http;
@@ -78,11 +85,12 @@ public final class TrackResolver {
     /**
      * The links are tried in turn, since the release handed in at the party is now and then a disk image or a
      * bundle of a whole competition that holds nothing the player can play, while a copy elsewhere is the tune
-     * itself.
+     * itself. A C64 program plays a whole release rather than a tune, so it is kept as a last resort behind
+     * whatever the other links offer.
      */
     public Path resolve(CompoEntry entry) throws IOException {
         final Path directory = cache.directory(FILES, String.valueOf(entry.productionId()));
-        final Optional<Path> cached = firstPlayable(directory);
+        final Optional<Path> cached = firstPlayable(directory, entry);
         if (cached.isPresent()) {
             return cached.get();
         }
@@ -91,13 +99,21 @@ public final class TrackResolver {
             throw new IOException("No download for " + entry.title());
         }
         IOException failure = null;
+        Path program = null;
         for (final Link link : links) {
             try {
-                return download(link, directory, entry);
+                final Path playable = download(link, directory, entry);
+                if (!isProgram(playable)) {
+                    return playable;
+                }
+                program = program == null ? playable : program;
             } catch (IOException e) {
                 log.info("Nothing playable from {} for {}: {}", link.url(), entry.title(), e.getMessage());
                 failure = e;
             }
+        }
+        if (program != null) {
+            return program;
         }
         throw failure;
     }
@@ -191,38 +207,67 @@ public final class TrackResolver {
         }
         final Path extracted = download.resolveSibling(EXTRACTED);
         archive.get().extract(download, extracted, wantedEntry());
-        unwrapPackedFiles(extracted);
-        return firstPlayable(extracted);
+        unpackNested(extracted);
+        final Optional<Path> playable = firstPlayable(extracted, entry);
+        if (playable.isEmpty() && loaders.loaderFor(download).isPresent()) {
+            return Optional.of(download);
+        }
+        return playable;
     }
 
     /**
-     * Modules inside an archive may themselves be wrapped by a packer such as XPK; they are unpacked in place.
+     * Archives hold archives: a party file may carry a disk image of the competition, and a module inside may
+     * itself be wrapped by a packer such as XPK. They are unpacked where they lie until nothing new turns up.
      */
-    private void unwrapPackedFiles(Path directory) throws IOException {
+    private void unpackNested(Path directory) throws IOException {
+        final Set<Path> unpacked = new HashSet<>();
+        for (int round = 0; round < NESTED_ROUNDS && unpackRound(directory, unpacked); round++) {
+            continue;
+        }
+    }
+
+    private boolean unpackRound(Path directory, Set<Path> unpacked) throws IOException {
         if (!Files.isDirectory(directory)) {
-            return;
+            return false;
         }
         final List<Path> files;
         try (Stream<Path> walk = Files.walk(directory)) {
-            files = walk.filter(Files::isRegularFile).filter(file -> loaders.loaderFor(file).isPresent()).toList();
+            files = walk.filter(Files::isRegularFile).filter(file -> !unpacked.contains(file)).toList();
         }
+        boolean unpackedAny = false;
         for (final Path file : files) {
-            final Optional<ArchiveExtractor> wrapper = Archives.detect(file).filter(ArchiveExtractor::wrapsSingleFile);
-            if (wrapper.isPresent()) {
-                wrapper.get().extract(file, file.getParent(), name -> true);
+            final Optional<ArchiveExtractor> nested = Archives.detect(file);
+            if (nested.isEmpty()) {
+                continue;
+            }
+            unpacked.add(file);
+            if (nested.get().wrapsSingleFile()) {
+                if (loaders.loaderFor(file).isPresent()) {
+                    nested.get().extract(file, file.getParent(), name -> true);
+                    unpackedAny = true;
+                }
+            } else {
+                nested.get().extract(file, directory, wantedEntry());
+                unpackedAny = true;
             }
         }
-    }
-
-    private Predicate<String> wantedEntry() {
-        return name -> loaders.loaderFor(Path.of(name)).isPresent();
+        return unpackedAny;
     }
 
     /**
-     * Files are chosen by name order, skipping archives so a download that merely looks like a module by name is
-     * never handed to the loaders.
+     * Archives are taken out along with the modules, since a disk image or a further archive may hold what is
+     * being looked for.
      */
-    private Optional<Path> firstPlayable(Path directory) throws IOException {
+    private Predicate<String> wantedEntry() {
+        return name -> loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name);
+    }
+
+    /**
+     * A download that holds a whole competition names its files after the entrants, so a file named after this
+     * entry comes first; the rest are taken in name order. Archives are skipped so a download that merely looks
+     * like a module by name is never handed to the loaders.
+     */
+    private Optional<Path> firstPlayable(Path directory, CompoEntry entry) throws IOException {
         if (!Files.isDirectory(directory)) {
             return Optional.empty();
         }
@@ -230,10 +275,31 @@ public final class TrackResolver {
             return files.filter(Files::isRegularFile)
                     .filter(file -> loaders.loaderFor(file).isPresent())
                     .filter(TrackResolver::isPlainFile)
-                    .min(Comparator.comparing(Path::toString));
+                    .min(Comparator.comparing((Path file) -> namesTheEntry(file, entry) ? 0 : 1)
+                            .thenComparing(file -> isProgram(file) ? 1 : 0)
+                            .thenComparing(Path::toString));
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
+    }
+
+    /**
+     * A program is the whole release, a menu and a picture and all, rather than the tune on its own.
+     */
+    private static boolean isProgram(Path file) {
+        return SidLoader.PROGRAMS.contains(ModuleFormat.extensionOf(file.getFileName().toString()));
+    }
+
+    private static boolean namesTheEntry(Path file, CompoEntry entry) {
+        final String name = simplified(file.getFileName().toString());
+        return Stream.of(entry.author(), entry.title())
+                .flatMap(text -> Arrays.stream(simplified(text).split(" ")))
+                .filter(word -> word.length() >= SHORTEST_NAME)
+                .anyMatch(name::contains);
+    }
+
+    private static String simplified(String text) {
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").strip();
     }
 
     private static boolean isPlainFile(Path file) {

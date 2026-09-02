@@ -29,7 +29,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Detects archives by their magic bytes, never by file name, and keeps extracted paths inside the target directory.
@@ -37,6 +39,7 @@ import java.util.Optional;
 public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
+    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64");
     private static final List<ArchiveExtractor> EXTRACTORS =
             List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor(), new D64Extractor());
 
@@ -47,6 +50,15 @@ public final class Archives {
         final byte[] head = head(file);
         final long size = Files.size(file);
         return EXTRACTORS.stream().filter(extractor -> extractor.matches(head, size)).findFirst();
+    }
+
+    /**
+     * Names an archive is likely to carry; used where only the name of a file inside an archive is known and
+     * its contents cannot be looked at yet.
+     */
+    public static boolean looksLikeArchive(String name) {
+        final int dot = name.lastIndexOf('.');
+        return dot >= 0 && ARCHIVE_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 
     public static Path target(Path into, String entryName) throws IOException {

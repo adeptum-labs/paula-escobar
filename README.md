@@ -112,8 +112,10 @@ after it in ranked order, so `n` walks through the results.
 
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
 fetched from scene.org when Demozoo knows the party release there, otherwise
-from ModArchive or Modland. Zip, LHA and Amiga LZX archives are unpacked and
-the first module inside, in name order, is played. Modules wrapped by the
+from ModArchive or Modland. Zip, LHA, Amiga LZX archives and 1541 disk images are unpacked, along with
+whatever archives they hold in turn, and
+the file inside named after the entry is played, or the first module in
+name order when none is. Modules wrapped by the
 Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
 SQSH packers, which is what tracker modules of the time were packed with.
 
@@ -141,6 +143,15 @@ one of the up to 254 tracks. It follows
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3),
 the reference replayer released by APC&TCP under the two-clause BSD licence,
 and renders the modules on Modland sample for sample as that library does.
+
+### Commodore 64 disk images
+
+A party file for a C64 competition is often a 1541 disk image holding every
+entry as a program rather than a tune. Those images are unpacked like any
+other archive — they carry no header, so they are known by their size — and
+the programs inside are run by the same emulation that plays SID files. A
+program plays the whole release, so it is only reached for when no link
+offers the tune itself.
 
 ### Audio output
 
