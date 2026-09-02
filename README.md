@@ -87,6 +87,9 @@ then into every music competition of that party and finally into the ranked
 entries. Entries in streaming or executable music competitions are shown
 dimmed because Paula cannot play them, but they stay in the list so the
 results are complete. C64 competitions play through the SID emulation.
+Entries Demozoo has no download for are marked "(no download)" as soon as
+their details have been fetched, since some releases never made it to any
+archive.
 Playing an entry queues the rest of the competition
 after it in ranked order, so `n` walks through the results.
 
