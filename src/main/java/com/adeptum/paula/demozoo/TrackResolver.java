@@ -28,6 +28,7 @@ import com.adeptum.paula.module.ModuleLoaderRegistry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -52,6 +53,9 @@ public final class TrackResolver {
     private static final String SCENE_ORG_ARCHIVE = "https://archive.scene.org/pub/";
     private static final Pattern MODARCHIVE_ID = Pattern.compile("query=(\\d+)");
     private static final String MODARCHIVE_DOWNLOAD = "https://api.modarchive.org/downloads.php?moduleid=";
+    private static final Pattern ESCAPE = Pattern.compile("%[0-9A-Fa-f]{2}");
+    private static final String LEGAL_IN_URI =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
     private static final String FILES = "files";
     private static final String EXTRACTED = "extracted";
     private static final String DEFAULT_NAME = "download";
@@ -101,10 +105,34 @@ public final class TrackResolver {
 
     static URI downloadUri(Link link) {
         return switch (link.linkClass()) {
-            case SCENE_ORG -> URI.create(SCENE_ORG_VIEW.matcher(link.url()).replaceFirst(SCENE_ORG_ARCHIVE));
-            case MODARCHIVE -> URI.create(MODARCHIVE_DOWNLOAD + firstGroup(MODARCHIVE_ID, link.url()));
-            default -> URI.create(link.url());
+            case SCENE_ORG -> uri(SCENE_ORG_VIEW.matcher(link.url()).replaceFirst(SCENE_ORG_ARCHIVE));
+            case MODARCHIVE -> uri(MODARCHIVE_DOWNLOAD + firstGroup(MODARCHIVE_ID, link.url()));
+            default -> uri(link.url());
         };
+    }
+
+    /**
+     * Demozoo stores its links as typed in, so the same archive appears both escaped and with raw spaces in it.
+     * Everything a URI may not hold is escaped, while the escapes already in the link are passed through
+     * untouched rather than having their percent sign escaped again.
+     */
+    private static URI uri(String url) {
+        final Matcher escapes = ESCAPE.matcher(url);
+        final StringBuilder escaped = new StringBuilder(url.length());
+        int plain = 0;
+        while (escapes.find()) {
+            escaped.append(escape(url.substring(plain, escapes.start()))).append(escapes.group());
+            plain = escapes.end();
+        }
+        return URI.create(escaped.append(escape(url.substring(plain))).toString());
+    }
+
+    private static String escape(String text) {
+        final StringBuilder escaped = new StringBuilder(text.length());
+        for (final byte character : text.getBytes(StandardCharsets.UTF_8)) {
+            escaped.append(LEGAL_IN_URI.indexOf(character) < 0 ? "%%%02X".formatted(character & 0xFF) : (char) character);
+        }
+        return escaped.toString();
     }
 
     private static Stream<Link> withClass(List<Link> links, String linkClass) {

@@ -50,6 +50,7 @@ class TrackResolverTest {
     private static final String SCENE_ORG_VIEW = "https://files.scene.org/view/parties/1995/assembly95/m4ch/funkyeeh.zip";
     private static final String SCENE_ORG_FILE = "https://archive.scene.org/pub/parties/1995/assembly95/m4ch/funkyeeh.zip";
     private static final String MODLAND_FILE = "https://ftp.modland.com/pub/modules/Protracker/Theseus/funkyeeh.mod";
+    private static final String MODLAND_SPACED = "https://ftp.modland.com/pub/modules/Digibooster Pro/TZX/rasp in feelings.dbm";
     private static final String MODARCHIVE_PAGE = "https://modarchive.org/index.php?request=view_by_moduleid&query=123";
     private static final String MODARCHIVE_FILE = "https://api.modarchive.org/downloads.php?moduleid=123";
     private static final byte[] README = "hello".getBytes(StandardCharsets.US_ASCII);
@@ -76,6 +77,18 @@ class TrackResolverTest {
     @Test
     void otherLinksAreUsedAsTheyAre() {
         assertEquals(URI.create(MODLAND_FILE), TrackResolver.downloadUri(new Link("ModlandFile", MODLAND_FILE)));
+    }
+
+    @Test
+    void escapesTheCharactersDemozooLeavesUnescaped() {
+        assertEquals(URI.create(MODLAND_SPACED.replace(" ", "%20")),
+                TrackResolver.downloadUri(new Link("ModlandFile", MODLAND_SPACED)));
+    }
+
+    @Test
+    void keepsEscapesThatAreAlreadyThere() {
+        final String escaped = MODLAND_SPACED.replace(" ", "%20").replace("Pro/", "%23Pro/");
+        assertEquals(URI.create(escaped), TrackResolver.downloadUri(new Link("ModlandFile", escaped)));
     }
 
     @Test
