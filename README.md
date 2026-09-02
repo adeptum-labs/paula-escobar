@@ -91,7 +91,7 @@ analyser with peak hold, one braille-dot oscilloscope per channel (a
 single one for SID tunes), a position bar with elapsed and total time and
 stereo VU meters, all redrawn thirty times a second. The browser colours
 the first three placings gold, silver and bronze, highlights the cursor row
-across the width and shows what is playing with a small spectrum strip
+across the list and shows what is playing with a small spectrum strip
 above the key bar, so music keeps going while you browse.
 
 ### Browsing demo parties

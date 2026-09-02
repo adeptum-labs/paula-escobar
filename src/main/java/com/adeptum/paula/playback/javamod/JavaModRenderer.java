@@ -109,6 +109,9 @@ public final class JavaModRenderer implements Renderer {
     @Override
     public List<ChannelState> channels() {
         final ChannelMemory[] memory = ChannelPeek.channels(mixer);
+        if (memory == null) {
+            return List.of();
+        }
         final int used = Math.min(channelCount, memory.length);
         final List<ChannelState> states = new ArrayList<>(used);
         for (int i = 0; i < used; i++) {
@@ -130,8 +133,9 @@ public final class JavaModRenderer implements Renderer {
         }
         final long[] data = sample.sampleL;
         final double peak = samplePeaks.computeIfAbsent(sample, JavaModRenderer::peakOf);
+        final int start = channel.currentSamplePos;
         for (int i = 0; i < WAVEFORM_SAMPLES; i++) {
-            final int index = wrap(channel.currentSamplePos + i, sample);
+            final int index = wrap(start + i, sample);
             waveform[i] = index < 0 ? 0 : data[index] / peak * volume;
         }
         return new ChannelState(number, channel.currentAssignedInstrumentIndex, volume, waveform);

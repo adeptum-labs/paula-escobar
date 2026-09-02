@@ -120,9 +120,7 @@ public final class Frame {
         if (!title.isEmpty()) {
             line.append(HORIZONTAL).style(Palette.PANEL_TITLE).append(' ').append(title).append(' ').style(Palette.BORDER);
         }
-        while (line.columnLength() < width - 1) {
-            line.append(HORIZONTAL);
-        }
+        line.append(String.valueOf(HORIZONTAL).repeat(Math.max(0, width - 1 - line.columnLength())));
         return line.append(end).toAttributedString().columnSubSequence(0, Math.max(0, width));
     }
 }

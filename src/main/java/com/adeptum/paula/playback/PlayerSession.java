@@ -113,7 +113,7 @@ public final class PlayerSession {
             if (finished() && !advance(true) && !returnToBrowser()) {
                 return;
             }
-            final short[] audio = engine.tap().snapshot(ANALYSIS_FRAMES);
+            final short[] audio = engine.state() == PlaybackState.PLAYING ? engine.tap().snapshot(ANALYSIS_FRAMES) : new short[ANALYSIS_FRAMES * 2];
             spectrum.feed(audio);
             vu.feed(audio);
             browser.nowPlaying(module == null || playlist == null ? null : playlist.current().label(), spectrum.levels());

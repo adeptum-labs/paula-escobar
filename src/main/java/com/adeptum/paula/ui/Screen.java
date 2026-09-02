@@ -45,6 +45,9 @@ public final class Screen {
     private static final String APPLICATION = "Paula";
     private static final String SECTION = "player";
     private static final String IDLE = "Nothing playing, press b to browse the party archives";
+    private static final String DETAILS_TITLE = "Now playing";
+    private static final int MIN_BOX_ROWS = 3;
+    private static final int CLOCK_WIDTH = 5;
     private static final int WIDE_LAYOUT_WIDTH = 100;
     private static final int DETAILS_WIDTH = 50;
     private static final int METER_ROWS = 1;
@@ -79,12 +82,15 @@ public final class Screen {
         return builder.toAttributedString();
     }
 
+    /**
+     * Pads to the exact size; when there are more lines than rows the last line, the key bar, still wins the bottom row.
+     */
     static List<AttributedString> fit(List<AttributedString> lines, int width, int height) {
         final List<AttributedString> fitted = new ArrayList<>(height);
         for (int row = 0; row < height; row++) {
             fitted.add(Frame.pad(row < lines.size() ? lines.get(row) : AttributedString.EMPTY, width, AttributedStyle.DEFAULT));
         }
-        if (!lines.isEmpty() && height > 1) {
+        if (lines.size() > height && height > 0) {
             fitted.set(height - 1, Frame.pad(lines.get(lines.size() - 1), width, AttributedStyle.DEFAULT));
         }
         return fitted;
@@ -99,24 +105,24 @@ public final class Screen {
         if (view.status() != null) {
             lines.add(Frame.centered(view.status(), width, Palette.ACCENT));
         }
-        return lines;
+        while (lines.size() < height) {
+            lines.add(AttributedString.EMPTY);
+        }
+        return lines.subList(0, height);
     }
 
     private static List<AttributedString> playing(PlayerView view, int width, int height) {
+        final List<AttributedString> detailLines = detailLines(view);
         if (width >= WIDE_LAYOUT_WIDTH) {
-            return Frame.sideBySide(details(view, DETAILS_WIDTH, height), visuals(view, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
+            return Frame.sideBySide(Frame.box(DETAILS_TITLE, detailLines, DETAILS_WIDTH, height), visuals(view, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
         }
-        final int detailRows = Math.min(height, Math.max(3, Math.min(detailLines(view, width - 2).size() + 2, height / 2)));
-        final List<AttributedString> lines = new ArrayList<>(details(view, width, detailRows));
+        final int detailRows = Math.min(height, Math.max(3, Math.min(detailLines.size() + 2, height / 2)));
+        final List<AttributedString> lines = new ArrayList<>(Frame.box(DETAILS_TITLE, detailLines, width, detailRows));
         lines.addAll(visuals(view, width, height - detailRows));
         return lines;
     }
 
-    private static List<AttributedString> details(PlayerView view, int width, int height) {
-        return Frame.box("Now playing", detailLines(view, width - 2), width, height);
-    }
-
-    private static List<AttributedString> detailLines(PlayerView view, int width) {
+    private static List<AttributedString> detailLines(PlayerView view) {
         final ModuleMetadata meta = view.module().metadata();
         final Set<Integer> active = view.channels().stream().filter(c -> c.volume() > 0).map(ChannelState::instrument).collect(Collectors.toSet());
         final List<AttributedString> lines = new ArrayList<>();
@@ -147,18 +153,21 @@ public final class Screen {
             return lines;
         }
         final int panels = Math.max(0, height - METER_ROWS);
-        final int spectrumRows = Math.min(panels, Math.max(Math.min(MIN_SPECTRUM_ROWS, panels), panels * 2 / 5));
-        final int scopeRows = panels - spectrumRows;
-        if (spectrumRows > 0) {
+        final int scopeRows = panels < MIN_BOX_ROWS * 2 ? 0 : panels - Math.max(MIN_SPECTRUM_ROWS, panels * 2 / 5);
+        final int spectrumRows = panels - scopeRows;
+        if (spectrumRows >= MIN_BOX_ROWS) {
             lines.addAll(Frame.box("Spectrum", spectrum(view, width - 2, spectrumRows - 2), width, spectrumRows));
         }
-        if (scopeRows > 0) {
+        if (scopeRows >= MIN_BOX_ROWS) {
             lines.addAll(Frame.box("Channels", scopes(view, width - 2, scopeRows - 2), width, scopeRows));
         }
         lines.add(meters(view, width));
         return lines;
     }
 
+    /**
+     * Bands share the width evenly, each keeping a one-column gap when there is room, so the bars reach the edge.
+     */
     private static List<AttributedString> spectrum(PlayerView view, int width, int height) {
         final double[] levels = view.spectrum();
         final double[] peaks = view.peaks();
@@ -166,18 +175,24 @@ public final class Screen {
         if (levels.length == 0 || width <= 0 || height <= 0) {
             return rows;
         }
-        final int slot = Math.max(1, width / levels.length);
-        final int barWidth = slot > 1 ? slot - 1 : 1;
+        final char[][] columns = new char[levels.length][];
+        final int[] peakRows = new int[levels.length];
+        for (int band = 0; band < levels.length; band++) {
+            columns[band] = Bars.column(levels[band], height);
+            peakRows[band] = height - 1 - (int) Math.min(height - 1, Math.floor(peaks[band] * height));
+        }
+        final boolean gaps = width >= levels.length * 2;
         for (int row = 0; row < height; row++) {
             final AttributedStringBuilder line = new AttributedStringBuilder();
             final double rowHeight = height == 1 ? 1 : (double) (height - 1 - row) / (height - 1);
-            for (int band = 0; band < levels.length && line.columnLength() + slot <= width; band++) {
-                final char glyph = Bars.column(levels[band], height)[row];
-                final int peakRow = height - 1 - (int) Math.min(height - 1, Math.floor(peaks[band] * height));
-                final boolean showPeak = glyph == ' ' && peaks[band] > levels[band] && row == peakRow;
+            for (int band = 0; band < levels.length; band++) {
+                final int start = band * width / levels.length;
+                final int end = (band + 1) * width / levels.length;
+                final int barWidth = Math.max(0, end - start - (gaps ? 1 : 0));
+                final boolean showPeak = columns[band][row] == ' ' && peaks[band] > levels[band] && row == peakRows[band];
                 line.style(showPeak ? Palette.PEAK : Palette.level(rowHeight));
-                line.append(String.valueOf(showPeak ? PEAK_MARK : glyph).repeat(barWidth));
-                line.append(" ".repeat(slot - barWidth));
+                line.append(String.valueOf(showPeak ? PEAK_MARK : columns[band][row]).repeat(barWidth));
+                line.append(" ".repeat(end - start - barWidth));
             }
             rows.add(line.toAttributedString());
         }
@@ -208,8 +223,8 @@ public final class Screen {
                     }
                     final ChannelState channel = channels.get(index);
                     final boolean sounding = channel.volume() > 0;
-                    final String label = y == 0 ? String.format("%2s ", channel.number() == 0 ? "mix" : channel.number()) : " ".repeat(SCOPE_LABEL_WIDTH);
-                    line.style(sounding ? Palette.ACTIVE : Palette.DIMMED).append(label.substring(0, SCOPE_LABEL_WIDTH));
+                    final String label = y == 0 ? String.format("%-3s", channel.number() == 0 ? "mix" : channel.number()) : " ".repeat(SCOPE_LABEL_WIDTH);
+                    line.style(sounding ? Palette.ACTIVE : Palette.DIMMED).append(label, 0, SCOPE_LABEL_WIDTH);
                     line.style(sounding ? Palette.SCOPE : Palette.SCOPE_QUIET).append(plots.get(column).get(y));
                 }
                 lines.add(line.toAttributedString());
@@ -221,8 +236,8 @@ public final class Screen {
     private static AttributedString meters(PlayerView view, int width) {
         final Duration length = view.length() == null ? Duration.ZERO : view.length();
         final double progress = length.isZero() ? 0 : (double) view.position().toMillis() / length.toMillis();
-        final String vu = "  L " + Bars.row(view.vuLeft(), VU_WIDTH) + " R " + Bars.row(view.vuRight(), VU_WIDTH);
-        final int barWidth = Math.max(1, width - 2 * (clock(Duration.ZERO).length() + 1) - vu.length() - 1);
+        final int metersWidth = "  L ".length() + VU_WIDTH + " R ".length() + VU_WIDTH;
+        final int barWidth = Math.max(1, width - 2 * (CLOCK_WIDTH + 1) - metersWidth - 1);
         return line(b -> b.style(Palette.VALUE).append(' ').append(clock(view.position())).append(' ')
                 .style(Palette.ACCENT).append(Bars.row(progress, barWidth))
                 .style(Palette.VALUE).append(' ').append(clock(length))

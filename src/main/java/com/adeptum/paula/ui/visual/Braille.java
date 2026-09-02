@@ -43,8 +43,8 @@ public final class Braille {
     public static List<String> plot(double[] samples, int widthCells, int heightCells) {
         final int columns = widthCells * DOT_COLUMNS;
         final int rows = heightCells * DOT_ROWS;
-        final int[] cells = new int[widthCells * heightCells];
-        for (int column = 0; column < columns && samples.length > 0; column++) {
+        final int[] cells = new int[Math.max(0, widthCells * heightCells)];
+        for (int column = 0; column < columns && rows > 0 && samples.length > 0; column++) {
             final double value = Math.clamp(samples[(int) ((long) column * samples.length / columns)], -1, 1);
             final int row = (int) Math.round((1 - value) / 2 * (rows - 1));
             cells[(row / DOT_ROWS) * widthCells + column / DOT_COLUMNS] |= DOT_BITS[row % DOT_ROWS][column % DOT_COLUMNS];

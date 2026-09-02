@@ -99,8 +99,16 @@ public final class Browser {
 
         @Override
         public String label() {
-            final String label = String.format("%3s  %s  %s", entry.placing(), entry.title(), entry.author());
-            return hasNoDownload() ? label + NO_DOWNLOAD : label;
+            return placingText() + titleText();
+        }
+
+        String placingText() {
+            return String.format("%" + PLACING_WIDTH + "s", entry.placing());
+        }
+
+        String titleText() {
+            final String text = "  " + entry.title() + "  " + entry.author();
+            return hasNoDownload() ? text + NO_DOWNLOAD : text;
         }
 
         @Override
@@ -365,8 +373,8 @@ public final class Browser {
         final AttributedStringBuilder line = new AttributedStringBuilder().style(Palette.ACCENT).append(NO_CURSOR);
         final AttributedStyle text = item.dimmed() ? Palette.DIMMED : Palette.VALUE;
         if (item instanceof EntryItem entry) {
-            line.style(medal(entry.entry().placing(), text)).append(String.format("%3s", entry.entry().placing()));
-            line.style(text).append(entry.label().substring(PLACING_WIDTH));
+            line.style(medal(entry.entry().placing(), text)).append(entry.placingText());
+            line.style(text).append(entry.titleText());
         } else {
             line.style(text).append(item.label());
         }

@@ -107,7 +107,7 @@ class ScreenTest {
         final String all = String.join("\n", text(Screen.render(view, WIDTH, HEIGHT)));
         assertTrue(all.contains("⠤") || all.contains("⣀") || all.contains("⠉"), "braille dots appear in the scopes");
         for (int channel = 1; channel <= 4; channel++) {
-            assertTrue(all.contains(" " + channel + " "), "channel " + channel + " is labelled");
+            assertTrue(all.matches("(?s).*[│ \\u2800-\\u28ff]" + channel + " {2}[\\u2800-\\u28ff].*"), "channel " + channel + " is labelled before its scope");
         }
     }
 
@@ -132,6 +132,48 @@ class ScreenTest {
     }
 
     @Test
+    void drawsTheKeyBarExactlyOnceOnShortScreens() {
+        final PlayerView idle = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO).build();
+        final long keyBars = text(Screen.render(idle, WIDTH, HEIGHT)).stream().filter(line -> line.contains("quit")).count();
+        assertEquals(1, keyBars);
+    }
+
+    @Test
+    void showsCreditsForFormatsWithoutInstruments() {
+        final PlayerView sid = PlayerView.builder()
+                .module(new TestModule(Path.of("tune.sid"), ModuleMetadata.builder()
+                        .title("Commando")
+                        .format(new ModuleFormat("sid", "PSID", Set.of("sid")))
+                        .channels(3)
+                        .songLength(4)
+                        .lengthUnit("subtunes")
+                        .credits(List.of("Rob Hubbard", "1985 Elite"))
+                        .build()))
+                .trackLabel("tune.sid")
+                .state(PlaybackState.PLAYING)
+                .position(Duration.ZERO)
+                .track(1)
+                .trackCount(1)
+                .build();
+
+        final String all = String.join("\n", text(Screen.render(sid, WIDTH, HEIGHT)));
+        assertTrue(all.contains("Rob Hubbard") && all.contains("1985 Elite"));
+        assertTrue(all.contains("PSID, 3 channels, 4 subtunes"));
+        assertTrue(all.contains("mix"), "a format without channels gets one mixed scope");
+    }
+
+    @Test
+    void spectrumBarsFillThePanelWidth() {
+        final PlayerView loud = PlayerView.builder().module(view.module()).state(PlaybackState.PLAYING).position(Duration.ZERO)
+                .track(1).trackCount(1).spectrum(full(32)).peaks(full(32)).build();
+        final List<String> lines = text(Screen.render(loud, WIDTH, HEIGHT));
+        final String bars = lines.stream().filter(line -> line.contains("█")).findFirst().orElseThrow();
+        final int panelEnd = bars.lastIndexOf('│');
+        final int lastBar = bars.lastIndexOf('█');
+        assertTrue(panelEnd - lastBar <= 2, "bars reach the right edge of the panel: " + bars);
+    }
+
+    @Test
     void showsTheStatusLine() {
         final PlayerView loading = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO)
                 .trackLabel("Funkyeeh").status("Loading Funkyeeh").build();
@@ -144,6 +186,12 @@ class ScreenTest {
         final List<AttributedString> lines = Screen.render(view, 20, 5);
         assertEquals(5, lines.size());
         assertTrue(lines.stream().allMatch(line -> line.columnLength() == 20));
+    }
+
+    private static double[] full(int bands) {
+        final double[] levels = new double[bands];
+        java.util.Arrays.fill(levels, 1.0);
+        return levels;
     }
 
     private static List<String> text(List<AttributedString> lines) {

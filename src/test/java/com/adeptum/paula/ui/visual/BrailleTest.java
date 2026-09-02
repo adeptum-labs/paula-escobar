@@ -53,6 +53,12 @@ class BrailleTest {
     }
 
     @Test
+    void emptyGridsProduceNothing() {
+        assertEquals(List.of(), Braille.plot(new double[] {0, 1}, 4, 0));
+        assertEquals(List.of("⠀"), Braille.plot(new double[0], 1, 1));
+    }
+
+    @Test
     void valuesBeyondFullScaleAreClamped() {
         assertEquals(List.of("⢁"), Braille.plot(new double[] {5, -5}, 1, 1));
     }

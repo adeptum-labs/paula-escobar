@@ -24,11 +24,14 @@ package com.adeptum.paula.playback.javamod;
 import de.quippy.javamod.multimedia.mod.mixer.BasicModMixer;
 import de.quippy.javamod.multimedia.mod.mixer.ChannelMemory;
 import java.lang.reflect.Field;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Reads the per-channel state JavaMod keeps protected in its mixer. The jar seals its packages, so reflection is
- * the only way in; the field is registered for the native image in reflect-config.json.
+ * the only way in; the field is registered for the native image in reflect-config.json. When the field cannot be
+ * reached the scopes are simply missing rather than the player.
  */
+@Slf4j
 final class ChannelPeek {
 
     private static final Field CHANNEL_MEMORY = channelMemoryField();
@@ -37,10 +40,13 @@ final class ChannelPeek {
     }
 
     static ChannelMemory[] channels(BasicModMixer mixer) {
+        if (CHANNEL_MEMORY == null) {
+            return null;
+        }
         try {
             return (ChannelMemory[]) CHANNEL_MEMORY.get(mixer);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("JavaMod channel state is not accessible", e);
+        } catch (IllegalAccessException | ClassCastException e) {
+            return null;
         }
     }
 
@@ -49,8 +55,9 @@ final class ChannelPeek {
             final Field field = BasicModMixer.class.getDeclaredField("channelMemory");
             field.setAccessible(true);
             return field;
-        } catch (NoSuchFieldException e) {
-            throw new IllegalStateException("JavaMod mixer has no channel memory", e);
+        } catch (NoSuchFieldException | RuntimeException e) {
+            log.warn("JavaMod channel state is not accessible, channel scopes are off: {}", e.toString());
+            return null;
         }
     }
 }
