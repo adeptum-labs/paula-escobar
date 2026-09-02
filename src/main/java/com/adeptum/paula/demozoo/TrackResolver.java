@@ -89,7 +89,7 @@ public final class TrackResolver {
      * The scene.org file is the release as handed in at the party, so it wins over the copies on ModArchive and
      * Modland; any other download link is a last resort.
      */
-    static Optional<Link> preferredLink(Production production) {
+    public static Optional<Link> preferredLink(Production production) {
         return Stream.of(
                         withClass(production.downloads(), SCENE_ORG),
                         withClass(production.externals(), MODARCHIVE),

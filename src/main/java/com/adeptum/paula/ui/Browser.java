@@ -26,6 +26,7 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Party;
+import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
@@ -35,18 +36,22 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
 
 /**
  * Walks party series, parties, music competitions and ranked entries as a stack of lists. Demozoo is read on the
  * executor and the answer is applied on the next tick, so key handling never waits for the network.
  */
+@Slf4j
 public final class Browser {
 
     private sealed interface Item permits SeriesItem, PartyItem, CompoItem, EntryItem {
@@ -86,16 +91,25 @@ public final class Browser {
         }
     }
 
-    private record EntryItem(CompoItem compo, CompoEntry entry, int index) implements Item {
+    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, Boolean> downloads) implements Item {
 
         @Override
         public String label() {
-            return String.format("%3s  %s  %s", entry.placing(), entry.title(), entry.author());
+            final String label = String.format("%3s  %s  %s", entry.placing(), entry.title(), entry.author());
+            return hasNoDownload() ? label + NO_DOWNLOAD : label;
         }
 
         @Override
         public boolean dimmed() {
-            return !entry.likelyPlayable();
+            return !playable();
+        }
+
+        boolean playable() {
+            return entry.likelyPlayable() && !hasNoDownload();
+        }
+
+        private boolean hasNoDownload() {
+            return Boolean.FALSE.equals(downloads.get(entry.productionId()));
         }
     }
 
@@ -138,11 +152,13 @@ public final class Browser {
     private static final String CRUMB_SEPARATOR = " › ";
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
+    private static final String NO_DOWNLOAD = "  (no download)";
     private static final int CHROME_LINES = 4;
 
     private final DemozooClient demozoo;
     private final Executor executor;
     private final Deque<Level> levels = new ArrayDeque<>();
+    private final Map<Integer, Boolean> downloads = new ConcurrentHashMap<>();
     private CompletableFuture<Level> pending;
     private String error;
     private Playlist selection;
@@ -237,8 +253,8 @@ public final class Browser {
             switch (item) {
                 case SeriesItem series -> load(series.label(), NOTHING_HERE, () -> partyItems(series.series().id()));
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
-                case CompoItem compo -> levels.push(new Level(compo.compoLabel(), NOTHING_HERE, entryItems(compo)));
-                case EntryItem entry -> selection = playlistFrom(entry);
+                case CompoItem compo -> openCompo(compo);
+                case EntryItem entry -> selection = playlistFrom(level, entry);
             }
         });
     }
@@ -272,20 +288,38 @@ public final class Browser {
         return demozoo.competitions(party.id()).stream().<Item>map(compo -> new CompoItem(party, compo)).toList();
     }
 
-    private static List<Item> entryItems(CompoItem compo) {
+    /**
+     * The entry list shows at once; whether each production actually has a download is looked up behind it, so
+     * entries Demozoo knows no file for get marked before anyone tries to play them.
+     */
+    private void openCompo(CompoItem compo) {
         final List<CompoEntry> entries = compo.compo().entries();
-        return IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i)).toList();
+        final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads)).toList();
+        levels.push(new Level(compo.compoLabel(), NOTHING_HERE, items));
+        CompletableFuture.runAsync(() -> lookUpDownloads(entries), executor);
+    }
+
+    private void lookUpDownloads(List<CompoEntry> entries) {
+        for (final CompoEntry entry : entries) {
+            if (!downloads.containsKey(entry.productionId())) {
+                try {
+                    downloads.put(entry.productionId(), TrackResolver.preferredLink(demozoo.production(entry.productionId())).isPresent());
+                } catch (IOException e) {
+                    log.debug("Could not look up downloads for {}: {}", entry.title(), e.getMessage());
+                }
+            }
+        }
     }
 
     /**
      * The chosen entry plays even when it looks unplayable, since a streaming compo can still hold a module; the
      * rest of the competition follows in ranked order.
      */
-    private static Playlist playlistFrom(EntryItem chosen) {
-        final List<CompoEntry> entries = chosen.compo().compo().entries();
-        final List<Track> tracks = IntStream.range(chosen.index(), entries.size())
-                .filter(i -> i == chosen.index() || entries.get(i).likelyPlayable())
-                .<Track>mapToObj(i -> new DemozooTrack(entries.get(i), chosen.compo().compoLabel()))
+    private static Playlist playlistFrom(Level level, EntryItem chosen) {
+        final List<Track> tracks = level.items.subList(chosen.index(), level.items.size()).stream()
+                .map(EntryItem.class::cast)
+                .filter(item -> item == chosen || item.playable())
+                .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().compoLabel()))
                 .toList();
         return new Playlist(tracks);
     }

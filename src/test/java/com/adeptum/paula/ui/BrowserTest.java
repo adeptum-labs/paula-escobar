@@ -61,6 +61,12 @@ class BrowserTest {
                 {"position":4,"ranking":"4","production":{"id":14,"title":"Fourth","author_nicks":[{"name":"D"}],"types":[{"id":29}]}}]}]}
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
+    private static final String PRODUCTION_WITH_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/x.zip\"}],\"external_links\":[]}";
+    private static final String PRODUCTION_WITHOUT_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[],\"external_links\":[{\"link_class\":\"PouetProduction\",\"url\":\"https://www.pouet.net/prod.php?which=1\"}]}";
+
+    private static String productionUrl(int id) {
+        return "https://demozoo.org/api/v1/productions/" + id + "/?format=json";
+    }
 
     private final FakeHttp http = new FakeHttp();
     private Browser browser;
@@ -258,6 +264,25 @@ class BrowserTest {
         press(Key.Special.ENTER);
 
         assertEquals(1, browser.takeSelection().orElseThrow().size());
+    }
+
+    @Test
+    void marksEntriesWithoutAnyDownloadOnceTheirDetailsArrive() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITHOUT_DOWNLOAD);
+        http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
+        openCompo();
+        browser.tick();
+
+        final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
+        assertTrue(lines.get(3).toString().startsWith("    2  Second  B  (no download)"), lines.get(3).toString());
+        assertEquals(Theme.DIMMED, lines.get(3).styleAt(4));
+        assertTrue(lines.get(2).toString().startsWith(">   1  First  A"), "known downloads are not annotated");
+        assertTrue(lines.get(4).toString().startsWith("    3  Stream  C"), "an entry Demozoo cannot describe is left alone");
+
+        press(Key.Special.ENTER);
+        final Playlist playlist = browser.takeSelection().orElseThrow();
+        assertEquals(2, playlist.size(), "entries without a download are not queued");
     }
 
     @Test
