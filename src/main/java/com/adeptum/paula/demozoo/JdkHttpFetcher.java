@@ -49,7 +49,7 @@ public final class JdkHttpFetcher implements HttpFetcher {
     }
 
     public static JdkHttpFetcher paula() throws IOException {
-        return new JdkHttpFetcher("Paula/" + BuildInfo.version());
+        return new JdkHttpFetcher("PaulaEscobar/" + BuildInfo.version());
     }
 
     @Override

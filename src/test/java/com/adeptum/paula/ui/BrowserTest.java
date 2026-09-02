@@ -80,7 +80,7 @@ class BrowserTest {
     @Test
     void startsWithTheCuratedSeries() {
         final List<String> lines = render();
-        assertTrue(lines.get(0).contains("Paula") && lines.get(0).contains("browse"), "title bar");
+        assertTrue(lines.get(0).contains("Paula Escobar") && lines.get(0).contains("browse"), "title bar");
         assertTrue(lines.get(1).contains("Parties"), "the box is titled with the breadcrumb");
         assertTrue(lines.get(2).startsWith("│> The Party"));
         assertTrue(lines.get(3).startsWith("│  Assembly"));

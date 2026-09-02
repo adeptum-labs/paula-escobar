@@ -165,7 +165,7 @@ public final class Browser {
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "  (no download)";
-    private static final String APPLICATION = "Paula";
+    private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "browse";
     private static final String NOW_PLAYING_MARK = "♪ ";
     private static final int STRIP_BANDS = 16;

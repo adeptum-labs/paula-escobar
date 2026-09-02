@@ -61,7 +61,7 @@ public final class TerminalUi implements AutoCloseable {
     /**
      * Nothing following the escape within the short window means the user pressed escape itself. A CSI sequence
      * carries parameter and intermediate bytes before its final byte, an SS3 sequence is exactly one byte long and
-     * anything else is an alt chord Paula does not use.
+     * anything else is an alt chord the player does not use.
      */
     private Key escapedKey() throws IOException {
         final int introducer = terminal.reader().read(SEQUENCE_TIMEOUT_MILLIS);

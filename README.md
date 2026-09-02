@@ -1,4 +1,4 @@
-# Paula
+# Paula Escobar
 
 A terminal music player for demoscene and chip music, named after the Amiga's
 sound chip. Everything happens in the terminal: picocli drives the command
@@ -6,7 +6,7 @@ line and JLine draws a full-screen, colour player view. The build produces a
 native executable with GraalVM, so there is no JVM to start and no jar to
 carry around.
 
-Paula plays local files, but it also opens the party archives: the music
+Paula Escobar plays local files, but it also opens the party archives: the music
 competitions of fourteen party series — from The Party, Assembly and The
 Gathering through Breakpoint and Revision to the Polish classics Icing,
 Intel Outside, Gravity and Xenium — can be browsed year by year straight
@@ -20,7 +20,7 @@ files among others. Commodore 64 SID tunes play through the libsidplay2
 port with reSID chip emulation that JavaMod bundles. Its jar is vendored
 under `lib/` as a small Maven repository because no current release is
 published to Maven Central. DigiBooster modules, which JavaMod does not
-read, have a replayer of their own inside Paula.
+read, have a replayer of their own inside Paula Escobar.
 
 ## Building
 

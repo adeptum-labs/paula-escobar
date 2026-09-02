@@ -77,7 +77,7 @@ public final class TrackResolver {
 
     /**
      * The links are tried in turn, since the release handed in at the party is now and then a disk image or a
-     * bundle of a whole competition that holds nothing Paula can play, while a copy elsewhere is the tune
+     * bundle of a whole competition that holds nothing the player can play, while a copy elsewhere is the tune
      * itself.
      */
     public Path resolve(CompoEntry entry) throws IOException {

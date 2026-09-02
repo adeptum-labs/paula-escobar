@@ -42,7 +42,7 @@ import org.jline.utils.AttributedStyle;
  */
 public final class Screen {
 
-    private static final String APPLICATION = "Paula";
+    private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "player";
     private static final String IDLE = "Nothing playing, press b to browse the party archives";
     private static final String DETAILS_TITLE = "Now playing";

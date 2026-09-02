@@ -33,6 +33,13 @@ public interface ArchiveExtractor {
 
     boolean matches(byte[] head);
 
+    /**
+     * Formats without magic bytes, such as disk images, are known by their size as well as their first bytes.
+     */
+    default boolean matches(byte[] head, long size) {
+        return matches(head);
+    }
+
     void extract(Path archive, Path into, Predicate<String> wanted) throws IOException;
 
     /**

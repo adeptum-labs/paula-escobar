@@ -37,14 +37,16 @@ import java.util.Optional;
 public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
-    private static final List<ArchiveExtractor> EXTRACTORS = List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor());
+    private static final List<ArchiveExtractor> EXTRACTORS =
+            List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor(), new D64Extractor());
 
     private Archives() {
     }
 
     public static Optional<ArchiveExtractor> detect(Path file) throws IOException {
         final byte[] head = head(file);
-        return EXTRACTORS.stream().filter(extractor -> extractor.matches(head)).findFirst();
+        final long size = Files.size(file);
+        return EXTRACTORS.stream().filter(extractor -> extractor.matches(head, size)).findFirst();
     }
 
     public static Path target(Path into, String entryName) throws IOException {

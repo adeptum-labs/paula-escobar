@@ -73,7 +73,7 @@ class ScreenTest {
 
         assertEquals(HEIGHT, lines.size());
         assertTrue(lines.stream().allMatch(line -> line.columnLength() == WIDTH), "every line spans the width");
-        assertTrue(lines.get(0).toString().contains("Paula"), "title bar");
+        assertTrue(lines.get(0).toString().contains("Paula Escobar"), "title bar");
         assertTrue(lines.get(HEIGHT - 1).toString().contains("quit"), "key bar at the bottom");
         final String all = String.join("\n", text(lines));
         assertTrue(all.contains("Spectrum") && all.contains("Channels") && all.contains("Now playing"));

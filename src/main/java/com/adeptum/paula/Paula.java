@@ -63,7 +63,7 @@ import com.adeptum.paula.ui.Theme;
 @Command(name = "paula",
         mixinStandardHelpOptions = true,
         versionProvider = BuildInfo.class,
-        description = "Terminal music player for demoscene and chip music. Without files it opens the party browser.",
+        description = "Paula Escobar, a terminal music player for demoscene and chip music. Without files it opens the party browser.",
         subcommands = {InfoCommand.class, FormatsCommand.class})
 public final class Paula implements Runnable {
 
@@ -116,7 +116,7 @@ public final class Paula implements Runnable {
                 spec.commandLine().usage(spec.commandLine().getOut());
                 return;
             }
-            throw new ExecutionException(spec.commandLine(), "Paula needs a terminal: " + e.getMessage(), e);
+            throw new ExecutionException(spec.commandLine(), "Paula Escobar needs a terminal: " + e.getMessage(), e);
         }
         final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
         try (ui;
