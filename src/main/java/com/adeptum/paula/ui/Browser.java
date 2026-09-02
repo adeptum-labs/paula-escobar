@@ -25,6 +25,7 @@ import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.Link;
 import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
@@ -37,6 +38,9 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +100,7 @@ public final class Browser {
         }
     }
 
-    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, Boolean> downloads) implements Item {
+    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, String> downloads) implements Item {
 
         @Override
         public String label() {
@@ -122,7 +126,7 @@ public final class Browser {
         }
 
         private boolean hasNoDownload() {
-            return Boolean.FALSE.equals(downloads.get(entry.productionId()));
+            return NO_FILE.equals(downloads.get(entry.productionId()));
         }
     }
 
@@ -167,6 +171,7 @@ public final class Browser {
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "  (no download)";
+    private static final String NO_FILE = "";
     private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "browse";
     private static final String NOW_PLAYING_MARK = "♪ ";
@@ -176,6 +181,7 @@ public final class Browser {
     private static final int ART_LINES = 12;
     private static final int FEWEST_ART_LINES = 3;
     private static final int FEWEST_ROWS = 6;
+    private static final Duration DWELL = Duration.ofMillis(500);
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
             new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
@@ -183,12 +189,16 @@ public final class Browser {
     private final DemozooClient demozoo;
     private final Executor executor;
     private final ReleaseArt art;
+    private final Duration dwell;
+    private final Clock clock;
     private final Deque<Level> levels = new ArrayDeque<>();
-    private final Map<Integer, Boolean> downloads = new ConcurrentHashMap<>();
+    private final Map<Integer, String> downloads = new ConcurrentHashMap<>();
     private CompletableFuture<Level> pending;
     private String error;
     private Playlist selection;
     private int pageSize = 1;
+    private int restingOn;
+    private Instant restingSince;
     private String nowPlayingLabel;
     private double[] nowPlayingSpectrum = new double[0];
 
@@ -197,9 +207,15 @@ public final class Browser {
     }
 
     public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art) {
+        this(demozoo, executor, art, DWELL, Clock.systemUTC());
+    }
+
+    Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, Duration dwell, Clock clock) {
         this.demozoo = demozoo;
         this.executor = executor;
         this.art = art;
+        this.dwell = dwell;
+        this.clock = clock;
         levels.push(new Level(ROOT_TITLE, NOTHING_HERE, CuratedSeries.ALL.stream().<Item>map(SeriesItem::new).toList()));
     }
 
@@ -235,6 +251,7 @@ public final class Browser {
     }
 
     public void tick() {
+        fetchArtOfTheEntryRestedOn();
         if (pending == null || !pending.isDone()) {
             return;
         }
@@ -245,6 +262,35 @@ public final class Browser {
             error = cause.getMessage() == null ? cause.toString() : cause.getMessage();
         }
         pending = null;
+    }
+
+    /**
+     * An entry the cursor has come to rest on has its files brought down, so the art it was packed with can
+     * take the place of the one the competition was opened with. Nothing is fetched while the cursor is still
+     * moving.
+     */
+    private void fetchArtOfTheEntryRestedOn() {
+        final Optional<CompoEntry> entry = levels.peek().selected()
+                .filter(EntryItem.class::isInstance)
+                .map(item -> ((EntryItem) item).entry());
+        if (entry.map(CompoEntry::productionId).orElse(0) != restingOn) {
+            restingOn = entry.map(CompoEntry::productionId).orElse(0);
+            restingSince = clock.instant();
+            return;
+        }
+        if (restingSince != null && restingSince.plus(dwell).isBefore(clock.instant())) {
+            restingSince = null;
+            entry.filter(this::hasArtOfItsOwn).ifPresent(art::fetch);
+        }
+    }
+
+    /**
+     * Entries of a competition often share the one file the party was handed, and its art with it, so an entry
+     * downloaded from the same place as the one the competition was opened with is left alone.
+     */
+    private boolean hasArtOfItsOwn(CompoEntry entry) {
+        final String source = downloads.get(entry.productionId());
+        return source != null && !source.equals(NO_FILE) && !source.equals(downloads.get(levels.peek().artProduction));
     }
 
     /**
@@ -354,7 +400,8 @@ public final class Browser {
         for (final CompoEntry entry : entries) {
             if (!downloads.containsKey(entry.productionId())) {
                 try {
-                    downloads.put(entry.productionId(), !TrackResolver.preferredLinks(demozoo.production(entry.productionId())).isEmpty());
+                    downloads.put(entry.productionId(), TrackResolver.preferredLinks(demozoo.production(entry.productionId()))
+                            .stream().map(Link::url).findFirst().orElse(NO_FILE));
                 } catch (IOException e) {
                     log.debug("Could not look up downloads for {}: {}", entry.title(), e.getMessage());
                 }

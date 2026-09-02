@@ -36,6 +36,11 @@ import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +50,31 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class BrowserTest {
+
+    private static final class MutableClock extends Clock {
+
+        private Instant now = Instant.parse("2026-09-02T18:00:00Z");
+
+        void advance(Duration by) {
+            now = now.plus(by);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+    }
+
 
     private static final int WIDTH = 80;
     private static final int HEIGHT = 12;
@@ -81,6 +111,71 @@ class BrowserTest {
     void createBrowser(@TempDir Path dir) {
         cache = new CacheDirectory(dir);
         browser = new Browser(new DemozooClient(http, cache), Runnable::run);
+    }
+
+    @Test
+    void fetchesTheArtOfAnEntryTheCursorComesToRestOn() {
+        final List<CompoEntry> fetched = new ArrayList<>();
+        final MutableClock clock = new MutableClock();
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void fetch(CompoEntry entry) {
+                fetched.add(entry);
+            }
+        }, Duration.ofMillis(500), clock);
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD.replace("x.zip", "another.zip"));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        fetched.clear();
+
+        press(Key.Special.DOWN);
+        browser.tick();
+        assertEquals(List.of(), fetched, "a cursor still on the move fetches nothing");
+
+        clock.advance(Duration.ofSeconds(1));
+        browser.tick();
+
+        assertEquals(1, fetched.size(), "the entry rested on is fetched");
+        assertEquals(12, fetched.getFirst().productionId());
+    }
+
+    @Test
+    void leavesAloneAnEntryDownloadedFromTheSamePlaceAsTheCompetition() {
+        final List<CompoEntry> fetched = new ArrayList<>();
+        final MutableClock clock = new MutableClock();
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void fetch(CompoEntry entry) {
+                fetched.add(entry);
+            }
+        }, Duration.ofMillis(500), clock);
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        fetched.clear();
+
+        press(Key.Special.DOWN);
+        browser.tick();
+        clock.advance(Duration.ofSeconds(1));
+        browser.tick();
+
+        assertEquals(List.of(), fetched, "the party file it shares carries the art already fetched");
     }
 
     @Test
