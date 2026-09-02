@@ -30,6 +30,8 @@ import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
+import com.adeptum.paula.ui.visual.Bars;
+import com.adeptum.paula.ui.visual.Palette;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -46,6 +48,8 @@ import java.util.concurrent.Executor;
 import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
+import org.jline.utils.AttributedStringBuilder;
+import org.jline.utils.AttributedStyle;
 
 /**
  * Walks party series, parties, music competitions and ranked entries as a stack of lists. Demozoo is read on the
@@ -153,7 +157,12 @@ public final class Browser {
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "  (no download)";
-    private static final int CHROME_LINES = 4;
+    private static final String APPLICATION = "Paula";
+    private static final String SECTION = "browse";
+    private static final String NOW_PLAYING_MARK = "♪ ";
+    private static final int STRIP_BANDS = 16;
+    private static final int SCOPE_PLACING_WIDTH = 3;
+    private static final int CHROME_LINES = 6;
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
             new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
@@ -166,6 +175,8 @@ public final class Browser {
     private String error;
     private Playlist selection;
     private int pageSize = 1;
+    private String nowPlayingLabel;
+    private double[] nowPlayingSpectrum = new double[0];
 
     public Browser(DemozooClient demozoo, Executor executor) {
         this.demozoo = demozoo;
@@ -230,23 +241,30 @@ public final class Browser {
         return taken;
     }
 
+    /**
+     * Tells the browser what the player is doing so it can show it under the list while music keeps playing.
+     */
+    public void nowPlaying(String label, double[] spectrum) {
+        nowPlayingLabel = label;
+        nowPlayingSpectrum = spectrum;
+    }
+
     public List<AttributedString> render(int width, int height) {
         final Level level = levels.peek();
         pageSize = Math.max(1, height - CHROME_LINES);
         level.scrollTo(pageSize);
-        final List<AttributedString> lines = new ArrayList<>();
-        lines.add(Screen.line(b -> b.style(Theme.TITLE).append("Paula").style(Theme.LABEL).append("  browse  ").style(Theme.VALUE).append(breadcrumb())));
-        lines.add(AttributedString.EMPTY);
+        final List<AttributedString> rows = new ArrayList<>();
         if (level.items.isEmpty()) {
-            lines.add(Screen.line(b -> b.style(Theme.LABEL).append(level.emptyText)));
+            rows.add(Screen.line(b -> b.style(Palette.LABEL).append(level.emptyText)));
         }
         for (int i = level.offset; i < Math.min(level.items.size(), level.offset + pageSize); i++) {
-            lines.add(row(level.items.get(i), i == level.cursor));
+            rows.add(row(level.items.get(i), i == level.cursor, width - 2));
         }
+        final List<AttributedString> lines = new ArrayList<>();
+        lines.add(Frame.titleBar(APPLICATION, SECTION, width));
+        lines.addAll(Frame.box(breadcrumb(), rows, width, pageSize + 2));
         lines.add(statusLine());
-        while (lines.size() < height - 1) {
-            lines.add(AttributedString.EMPTY);
-        }
+        lines.add(nowPlayingLine(width));
         lines.add(Frame.footer(KEYS, width));
         return Screen.fit(lines, width, height);
     }
@@ -337,19 +355,58 @@ public final class Browser {
         return String.join(CRUMB_SEPARATOR, titles);
     }
 
-    private static AttributedString row(Item item, boolean selected) {
-        return Screen.line(b -> b.style(Theme.ACCENT).append(selected ? CURSOR : NO_CURSOR)
-                .style(item.dimmed() ? Theme.DIMMED : Theme.VALUE).append(item.label()));
+    /**
+     * The cursor row is painted edge to edge in one style; other rows colour the top three placings like medals.
+     */
+    private static AttributedString row(Item item, boolean selected, int width) {
+        if (selected) {
+            return Frame.pad(new AttributedStringBuilder().style(Palette.SELECTED).append(CURSOR).append(item.label()).toAttributedString(), width, Palette.SELECTED);
+        }
+        final AttributedStringBuilder line = new AttributedStringBuilder().style(Palette.ACCENT).append(NO_CURSOR);
+        final AttributedStyle text = item.dimmed() ? Palette.DIMMED : Palette.VALUE;
+        if (item instanceof EntryItem entry) {
+            line.style(medal(entry.entry().placing(), text)).append(String.format("%3s", entry.entry().placing()));
+            line.style(text).append(entry.label().substring(SCOPE_PLACING_WIDTH));
+        } else {
+            line.style(text).append(item.label());
+        }
+        return line.toAttributedString();
+    }
+
+    private static AttributedStyle medal(String placing, AttributedStyle fallback) {
+        return switch (placing) {
+            case "1" -> Palette.GOLD;
+            case "2" -> Palette.SILVER;
+            case "3" -> Palette.BRONZE;
+            default -> fallback;
+        };
     }
 
     private AttributedString statusLine() {
         if (pending != null) {
-            return Screen.line(b -> b.style(Theme.ACCENT).append(LOADING).append(loadingTitle()).append('…'));
+            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(loadingTitle()).append('…'));
         }
         if (error != null) {
-            return Screen.line(b -> b.style(Theme.ACCENT).append(error));
+            return Screen.line(b -> b.style(Palette.ACCENT).append(error));
         }
         return AttributedString.EMPTY;
+    }
+
+    private AttributedString nowPlayingLine(int width) {
+        if (nowPlayingLabel == null) {
+            return AttributedString.EMPTY;
+        }
+        final AttributedStringBuilder line = new AttributedStringBuilder()
+                .style(Palette.ACCENT).append(NOW_PLAYING_MARK).style(Palette.VALUE).append(nowPlayingLabel).append("  ");
+        final int bands = Math.min(STRIP_BANDS, nowPlayingSpectrum.length);
+        for (int band = 0; band < bands; band++) {
+            double level = 0;
+            for (int i = band * nowPlayingSpectrum.length / bands; i < (band + 1) * nowPlayingSpectrum.length / bands; i++) {
+                level = Math.max(level, nowPlayingSpectrum[i]);
+            }
+            line.style(Palette.level(level)).append(Bars.column(level, 1)[0]);
+        }
+        return line.toAttributedString().columnSubSequence(0, Math.min(width, line.columnLength()));
     }
 
     private String loadingTitle() {

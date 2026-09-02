@@ -30,6 +30,7 @@ import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
+import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -43,7 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
 class BrowserTest {
 
     private static final int WIDTH = 80;
-    private static final int HEIGHT = 8;
+    private static final int HEIGHT = 12;
     private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/19/?format=json";
     private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/5/?format=json";
     private static final String SERIES = """
@@ -79,10 +80,13 @@ class BrowserTest {
     @Test
     void startsWithTheCuratedSeries() {
         final List<String> lines = render();
-        assertTrue(lines.get(0).contains("Parties"));
-        assertTrue(lines.contains("> The Party"));
-        assertTrue(lines.contains("  Assembly"));
-        assertTrue(lines.contains("  Mekka & Symposium"));
+        assertTrue(lines.get(0).contains("Paula") && lines.get(0).contains("browse"), "title bar");
+        assertTrue(lines.get(1).contains("Parties"), "the box is titled with the breadcrumb");
+        assertTrue(lines.get(2).startsWith("│> The Party"));
+        assertTrue(lines.get(3).startsWith("│  Assembly"));
+        assertTrue(lines.get(4).startsWith("│  Mekka & Symposium"));
+        assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
+        assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
         assertTrue(browser.atRoot());
     }
 
@@ -93,25 +97,30 @@ class BrowserTest {
         browser.tick();
 
         final List<String> lines = render();
-        assertTrue(lines.get(0).contains("The Party"));
-        assertEquals(List.of("> The Party 1994", "  The Party 1995"), lines.subList(2, 4));
+        assertTrue(lines.get(1).contains("Parties › The Party"));
+        assertTrue(lines.get(2).startsWith("│> The Party 1994"));
+        assertTrue(lines.get(3).startsWith("│  The Party 1995"));
         assertFalse(browser.atRoot());
     }
 
     @Test
     void enterOnAPartyListsMusicCompetitionsWithEntryCounts() {
         openParty();
-        assertTrue(render().contains("> Multichannel Music (4)"));
+        assertTrue(render().get(2).startsWith("│> Multichannel Music (4)"));
     }
 
     @Test
     void enterOnACompetitionListsRankedEntriesAndDimsUnplayableOnes() {
         openCompo();
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(2).toString().startsWith(">   1  First  A"));
-        assertTrue(lines.get(4).toString().startsWith("    3  Stream  C"));
-        assertEquals(Theme.DIMMED, lines.get(4).styleAt(4));
-        assertEquals(Theme.VALUE, lines.get(3).styleAt(4));
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"));
+        assertTrue(lines.get(4).toString().startsWith("│    3  Stream  C"));
+        assertEquals(Palette.DIMMED, lines.get(4).styleAt(8), "dimmed title");
+        assertEquals(Palette.VALUE, lines.get(3).styleAt(8));
+        assertEquals(Palette.SILVER, lines.get(3).styleAt(5), "second place is silver");
+        assertEquals(Palette.BRONZE, lines.get(4).styleAt(5), "third place is bronze");
+        assertEquals(Palette.SELECTED, lines.get(2).styleAt(1), "the cursor row is highlighted from edge to edge");
+        assertEquals(Palette.SELECTED, lines.get(2).styleAt(WIDTH - 2));
     }
 
     @Test
@@ -144,7 +153,7 @@ class BrowserTest {
     void backspaceLeftAndEscapeGoUpOneLevel() {
         openParty();
         press(Key.Special.BACKSPACE);
-        assertTrue(render().contains("> The Party 1995"));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│> The Party 1995")));
         press(Key.Special.LEFT);
         assertTrue(browser.atRoot());
         assertFalse(browser.consumes(Key.of(Key.Special.ESCAPE)), "escape at the root is left to the player");
@@ -154,25 +163,25 @@ class BrowserTest {
     void cursorClampsAndPagesWithinTheList() {
         openCompo();
         press(Key.Special.UP);
-        assertTrue(render().get(2).startsWith(">   1"));
+        assertTrue(render().get(2).startsWith("│>   1"));
         press(Key.Special.END);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith(">   4")));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")));
         press(Key.Special.DOWN);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith(">   4")));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")));
         press(Key.Special.HOME);
         press(Key.Special.PAGE_DOWN);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith(">   4")), "a page is the visible rows");
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")), "a page is the visible rows");
         press(Key.Special.PAGE_UP);
-        assertTrue(render().get(2).startsWith(">   1"));
+        assertTrue(render().get(2).startsWith("│>   1"));
     }
 
     @Test
     void scrollsTheWindowToKeepTheCursorVisible() {
         openCompo();
-        final List<String> tall = browser.render(WIDTH, 6).stream().map(AttributedString::toString).toList();
-        assertEquals(2, tall.stream().filter(line -> line.matches("[> ] +\\d.*")).count(), "six rows leave two for the list");
+        final List<String> tall = browser.render(WIDTH, 8).stream().map(AttributedString::toString).toList();
+        assertEquals(2, tall.stream().filter(line -> line.matches("│[> ] +\\d.*")).count(), "eight rows leave two for the list");
         press(Key.Special.END);
-        assertTrue(browser.render(WIDTH, 6).stream().map(AttributedString::toString).anyMatch(line -> line.startsWith(">   4")));
+        assertTrue(browser.render(WIDTH, 8).stream().map(AttributedString::toString).anyMatch(line -> line.startsWith("│>   4")));
     }
 
     @Test
@@ -202,7 +211,7 @@ class BrowserTest {
         press(Key.Special.ENTER);
         browser.tick();
 
-        assertTrue(render().contains("No music competitions"));
+        assertTrue(render().stream().anyMatch(line -> line.contains("No music competitions")));
         press(Key.Special.ENTER);
         assertEquals(Optional.empty(), browser.takeSelection());
     }
@@ -275,14 +284,25 @@ class BrowserTest {
         browser.tick();
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(3).toString().startsWith("    2  Second  B  (no download)"), lines.get(3).toString());
-        assertEquals(Theme.DIMMED, lines.get(3).styleAt(4));
-        assertTrue(lines.get(2).toString().startsWith(">   1  First  A"), "known downloads are not annotated");
-        assertTrue(lines.get(4).toString().startsWith("    3  Stream  C"), "an entry Demozoo cannot describe is left alone");
+        assertTrue(lines.get(3).toString().startsWith("│    2  Second  B  (no download)"), lines.get(3).toString());
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8));
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"), "known downloads are not annotated");
+        assertTrue(lines.get(4).toString().startsWith("│    3  Stream  C"), "an entry Demozoo cannot describe is left alone");
 
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
         assertEquals(2, playlist.size(), "entries without a download are not queued");
+    }
+
+    @Test
+    void showsWhatIsPlayingWithASpectrumStripAboveTheKeyBar() {
+        assertFalse(render().get(HEIGHT - 2).contains("♪"), "nothing playing, no now-playing line");
+
+        browser.nowPlaying("Assembly 1995 · Music  #1 Funkyeeh by Theseus", new double[] {1.0, 0.5, 0.25, 0});
+
+        final String nowPlaying = render().get(HEIGHT - 2);
+        assertTrue(nowPlaying.contains("Funkyeeh"), nowPlaying);
+        assertTrue(nowPlaying.contains("█"), "the spectrum strip shows the loud band");
     }
 
     @Test
