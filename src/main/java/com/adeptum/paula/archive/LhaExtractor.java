@@ -49,6 +49,7 @@ public final class LhaExtractor implements ArchiveExtractor {
     private static final int METHOD_OFFSET = 2;
     private static final int METHOD_PREFIX_LENGTH = 3;
     private static final Set<String> METHOD_PREFIXES = Set.of("-lh", "-lz", "-pm");
+    private static final char NAME_TERMINATOR = '\0';
     private static final String NAME_ENCODING = StandardCharsets.ISO_8859_1.name();
 
     @Override
@@ -63,7 +64,7 @@ public final class LhaExtractor implements ArchiveExtractor {
             for (byte[] data = LhaHeader.getFirstHeaderData(in); data != null; data = LhaHeader.getNextHeaderData(in)) {
                 final LhaHeader header = new LhaHeader(data, NAME_ENCODING);
                 final InputStream compressed = new LimitedInputStream(in, header.getCompressedSize());
-                final String name = header.getPath().replace('\\', '/');
+                final String name = entryName(header);
                 if (wanted.test(name) && !header.getCompressMethod().equals(CompressMethod.LHD)) {
                     final long written = Files.copy(decoder(compressed, header), Archives.target(into, name), StandardCopyOption.REPLACE_EXISTING);
                     if (written != header.getOriginalSize()) {
@@ -75,6 +76,16 @@ public final class LhaExtractor implements ArchiveExtractor {
         } catch (RuntimeException e) {
             throw new IOException("Corrupt LHA archive " + archive.getFileName() + ": " + e, e);
         }
+    }
+
+    /**
+     * Amiga packers of the day wrote a greeting after the name's terminator and counted it into the name field,
+     * so the name ends at the first terminator rather than at the end of the field.
+     */
+    private static String entryName(LhaHeader header) {
+        final String path = header.getPath().replace('\\', '/');
+        final int terminator = path.indexOf(NAME_TERMINATOR);
+        return terminator < 0 ? path : path.substring(0, terminator);
     }
 
     private static InputStream decoder(InputStream in, LhaHeader header) throws IOException {

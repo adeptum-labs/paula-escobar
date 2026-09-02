@@ -85,6 +85,16 @@ class LhaExtractorTest {
     }
 
     @Test
+    void namesEndAtTheNoteSomePackersLeaveInTheNameField(@TempDir Path dir) throws IOException {
+        final byte[] archive = TestArchives.lha(Map.of("tune.mod\0spread by: keldon / giants", TestModules.proTracker()), "-lh5-");
+        final Path file = Files.write(dir.resolve("a.lha"), archive);
+
+        extractor.extract(file, dir.resolve("out"), name -> true);
+
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(dir.resolve("out/tune.mod")));
+    }
+
+    @Test
     void truncatedArchivesFailWithAnIoException(@TempDir Path dir) throws IOException {
         final byte[] whole = TestArchives.lha(Map.of("tune.mod", TestModules.proTracker()), "-lh5-");
         final Path archive = Files.write(dir.resolve("a.lha"), Arrays.copyOf(whole, whole.length / 2));
