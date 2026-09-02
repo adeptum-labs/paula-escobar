@@ -93,7 +93,9 @@ after it in ranked order, so `n` walks through the results.
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
 fetched from scene.org when Demozoo knows the party release there, otherwise
 from ModArchive or Modland. Zip, LHA and Amiga LZX archives are unpacked and
-the first module inside, in name order, is played.
+the first module inside, in name order, is played. Modules wrapped by the
+Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
+SQSH packers, which is what tracker modules of the time were packed with.
 
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
@@ -136,6 +138,7 @@ disturbs the player screen.
 | `com.adeptum.paula.demozoo`      | Demozoo API model, cached client and track resolution       |
 | `com.adeptum.paula.archive`      | zip and LHA extraction, format detection by magic bytes     |
 | `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
+| `com.adeptum.paula.archive.xpk`  | Amiga XPK unpacker (NUKE, DUKE, SQSH)                       |
 | `com.adeptum.paula.cache`        | the XDG cache directory                                     |
 | `com.adeptum.paula.ui`           | player and browser screens, key mapping, theme, JLine terminal |
 
@@ -157,4 +160,6 @@ Ishizuka, distributed under the BSD 2-Clause License reproduced in
 [lib/JLHA-LICENSE.txt](lib/JLHA-LICENSE.txt). The LZX decoder follows the
 implementation in [XADMaster](https://github.com/MacPaw/XADMaster), copyright
 MacPaw Inc., licensed under the GNU Lesser General Public License version 2.1
-or later and used under the GPL as that licence permits.
+or later and used under the GPL as that licence permits. The XPK unpacker
+follows Teemu Suutari's [ancient](https://github.com/temisu/ancient),
+distributed under the BSD 2-Clause License.
