@@ -31,5 +31,16 @@ public record CuratedSeries(int id, String name) {
     public static final List<CuratedSeries> ALL = List.of(
             new CuratedSeries(19, "The Party"),
             new CuratedSeries(2, "Assembly"),
-            new CuratedSeries(62, "Mekka & Symposium"));
+            new CuratedSeries(62, "Mekka & Symposium"),
+            new CuratedSeries(11, "The Gathering"),
+            new CuratedSeries(39, "Saturne Party"),
+            new CuratedSeries(112, "Wired"),
+            new CuratedSeries(1, "Breakpoint"),
+            new CuratedSeries(10, "Revision"),
+            new CuratedSeries(111, "Evoke"),
+            new CuratedSeries(236, "Icing"),
+            new CuratedSeries(190, "Intel Outside"),
+            new CuratedSeries(222, "Gravity"),
+            new CuratedSeries(436, "Xenium"),
+            new CuratedSeries(41, "Symphony"));
 }
