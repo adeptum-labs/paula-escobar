@@ -21,19 +21,13 @@
 
 package com.adeptum.paula.ui;
 
-import org.jline.utils.AttributedStyle;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Help.ColorScheme;
 
+/**
+ * Colours for picocli's help output; the screens themselves use the 24-bit palette.
+ */
 public final class Theme {
-
-    public static final AttributedStyle TITLE = AttributedStyle.BOLD.foreground(AttributedStyle.CYAN);
-    public static final AttributedStyle LABEL = AttributedStyle.DEFAULT.foreground(AttributedStyle.BRIGHT + AttributedStyle.BLACK);
-    public static final AttributedStyle VALUE = AttributedStyle.DEFAULT.foreground(AttributedStyle.WHITE);
-    public static final AttributedStyle ACCENT = AttributedStyle.DEFAULT.foreground(AttributedStyle.MAGENTA);
-    public static final AttributedStyle KEY = AttributedStyle.BOLD.foreground(AttributedStyle.YELLOW);
-    public static final AttributedStyle STATUS = AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN);
-    public static final AttributedStyle DIMMED = LABEL;
 
     private Theme() {
     }
