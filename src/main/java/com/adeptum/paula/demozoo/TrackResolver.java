@@ -58,7 +58,7 @@ public final class TrackResolver {
     private static final String MODLAND = "ModlandFile";
     private static final Pattern SCENE_ORG_VIEW = Pattern.compile("^https?://files\\.scene\\.org/(?:view|get)/");
     private static final String SCENE_ORG_ARCHIVE = "https://archive.scene.org/pub/";
-    private static final Pattern MODARCHIVE_ID = Pattern.compile("query=(\\d+)");
+    private static final Pattern MODARCHIVE_ID = Pattern.compile("(?:query=|\\?)(\\d+)");
     private static final String MODARCHIVE_DOWNLOAD = "https://api.modarchive.org/downloads.php?moduleid=";
     private static final Pattern ESCAPE = Pattern.compile("%[0-9A-Fa-f]{2}");
     private static final String LEGAL_IN_URI =

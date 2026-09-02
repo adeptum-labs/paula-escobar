@@ -53,6 +53,7 @@ class TrackResolverTest {
     private static final String MODLAND_FILE = "https://ftp.modland.com/pub/modules/Protracker/Theseus/funkyeeh.mod";
     private static final String MODLAND_SPACED = "https://ftp.modland.com/pub/modules/Digibooster Pro/TZX/rasp in feelings.dbm";
     private static final String MODARCHIVE_PAGE = "https://modarchive.org/index.php?request=view_by_moduleid&query=123";
+    private static final String MODARCHIVE_MODULE_PAGE = "https://modarchive.org/module.php?123";
     private static final String MODARCHIVE_FILE = "https://api.modarchive.org/downloads.php?moduleid=123";
     private static final byte[] README = "hello".getBytes(StandardCharsets.US_ASCII);
     private static final CompoEntry ENTRY = new CompoEntry(1, "1", 7, "Funkyeeh", "Theseus", Set.of(29));
@@ -73,6 +74,7 @@ class TrackResolverTest {
     @Test
     void rewritesModarchivePagesToTheDownloadApi() {
         assertEquals(URI.create(MODARCHIVE_FILE), TrackResolver.downloadUri(new Link("ModarchiveModule", MODARCHIVE_PAGE)));
+        assertEquals(URI.create(MODARCHIVE_FILE), TrackResolver.downloadUri(new Link("ModarchiveModule", MODARCHIVE_MODULE_PAGE)));
     }
 
     @Test
