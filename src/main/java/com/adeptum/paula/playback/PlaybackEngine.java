@@ -39,10 +39,12 @@ public final class PlaybackEngine implements AutoCloseable {
 
     private static final int CHANNELS = 2;
     private static final long PAUSE_POLL_MILLIS = 20;
+    private static final int TAP_FRAMES = 8192;
 
     private final AudioSink sink;
     private final int sampleRate;
     private final short[] buffer;
+    private final AudioTap tap = new AudioTap(TAP_FRAMES);
     private final Object rendererLock = new Object();
 
     private volatile PlaybackState state = STOPPED;
@@ -62,6 +64,10 @@ public final class PlaybackEngine implements AutoCloseable {
 
     public PlaybackState state() {
         return state;
+    }
+
+    public AudioTap tap() {
+        return tap;
     }
 
     public Duration position() {
@@ -151,6 +157,7 @@ public final class PlaybackEngine implements AutoCloseable {
     private boolean writeToSink(int frames) {
         try {
             sink.write(buffer, frames);
+            tap.write(buffer, frames);
             return true;
         } catch (RuntimeException e) {
             log.error("Audio output failed, giving up on the current song", e);

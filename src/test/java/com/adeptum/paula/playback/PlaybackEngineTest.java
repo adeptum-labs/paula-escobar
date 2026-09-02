@@ -44,6 +44,7 @@ class PlaybackEngineTest {
             assertEquals(PlaybackState.FINISHED, engine.state());
             assertEquals(800, sink.frames);
             assertEquals(Duration.ofMillis(100), engine.position());
+            assertEquals(800, engine.tap().written(), "everything written to the sink is also tapped");
         }
         assertTrue(sink.closed);
     }
