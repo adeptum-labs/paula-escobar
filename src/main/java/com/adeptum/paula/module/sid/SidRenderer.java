@@ -26,6 +26,7 @@ import de.quippy.sidplay.libsidplay.SIDPlay2;
 import de.quippy.sidplay.libsidplay.common.ISID2Types;
 import de.quippy.sidplay.libsidplay.components.sidtune.SidTune;
 import de.quippy.sidplay.resid_builder.ReSIDBuilder;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
@@ -47,6 +48,7 @@ public final class SidRenderer implements Renderer {
     private static final int SCRATCH_FRAMES = 4096;
     private static final int CATCH_UP_FRAMES_PER_BUFFER = 16384;
 
+    private final Path source;
     private final byte[] file;
     private final int subtune;
     private final int sampleRate;
@@ -57,7 +59,8 @@ public final class SidRenderer implements Renderer {
     private long pendingFrames;
     private short[] raw = new short[0];
 
-    public SidRenderer(byte[] file, int subtune, Duration length, int sampleRate) {
+    public SidRenderer(Path source, byte[] file, int subtune, Duration length, int sampleRate) {
+        this.source = source;
         this.file = file;
         this.subtune = subtune;
         this.sampleRate = sampleRate;
@@ -129,7 +132,7 @@ public final class SidRenderer implements Renderer {
     }
 
     private SIDPlay2 start() {
-        final SidTune tune = SidLoader.tune(file);
+        final SidTune tune = SidLoader.tune(source, file);
         tune.selectSong(subtune);
         final SIDPlay2 engine = new SIDPlay2();
         final ISID2Types.sid2_config_t config = engine.config();

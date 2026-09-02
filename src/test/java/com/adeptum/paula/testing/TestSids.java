@@ -53,8 +53,30 @@ public final class TestSids {
         (byte) 0xA9, 0x41, (byte) 0x8D, 0x04, (byte) 0xD4,
         0x60};
     private static final byte[] PLAY = {0x60};
+    private static final int BASIC_START = 0x0801;
+    private static final int PROGRAM_LENGTH = 512;
+
+    /**
+     * 10 SYS 2062, the line that starts the machine code following it.
+     */
+    private static final byte[] BASIC_LINE = {
+        0x0B, 0x08, 0x0A, 0x00, (byte) 0x9E, 0x32, 0x30, 0x36, 0x32, 0x00, 0x00, 0x00};
 
     private TestSids() {
+    }
+
+    /**
+     * A C64 program as the disks of the day hold them: a load address and a BASIC line that starts the machine
+     * code after it, which here only turns the volume up and returns. It is padded to the length the engine
+     * needs before it will look at a program at all.
+     */
+    public static byte[] program() {
+        final ByteBuffer buffer = ByteBuffer.allocate(PROGRAM_LENGTH);
+        return buffer.putShort(Short.reverseBytes((short) BASIC_START)).put(BASIC_LINE).put(INIT).array();
+    }
+
+    public static Path writeProgram(Path directory) throws IOException {
+        return Files.write(directory.resolve("tune.prg"), program());
     }
 
     public static Path writePsid(Path directory) throws IOException {

@@ -42,7 +42,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class SidLoader implements ModuleLoader {
 
-    public static final ModuleFormat FORMAT = new ModuleFormat("sid", "Commodore 64 SID (libsidplay2)", Set.of("sid", "psid", "rsid"));
+    public static final ModuleFormat FORMAT =
+            new ModuleFormat("sid", "Commodore 64 SID and programs (libsidplay2)", Set.of("sid", "psid", "rsid", "prg", "c64"));
+
+    /**
+     * A program has no header to say how it is played, so the engine runs it as the C64 would; it knows those
+     * files by their name rather than their contents, which is why they are loaded from their path.
+     */
+    private static final Set<String> PROGRAMS = Set.of("prg", "c64");
 
     private static final int VOICES_PER_CHIP = 3;
     private static final int NAME = 0;
@@ -72,7 +79,7 @@ public final class SidLoader implements ModuleLoader {
         final byte[] file = Files.readAllBytes(path);
         final SidTune tune;
         try {
-            tune = tune(file);
+            tune = tune(path, file);
         } catch (RuntimeException e) {
             log.debug("The SID engine rejected {}", path, e);
             throw new UnsupportedModuleException(path, "not a SID file");
@@ -85,7 +92,10 @@ public final class SidLoader implements ModuleLoader {
         return new SidModule(path, metadata(info), file, subtune, lengths.lengthOf(file, subtune));
     }
 
-    static SidTune tune(byte[] file) {
+    static SidTune tune(Path path, byte[] file) {
+        if (PROGRAMS.contains(ModuleFormat.extensionOf(path.getFileName().toString()))) {
+            return new SidTune(path.toString(), null);
+        }
         final short[] unsigned = new short[file.length];
         for (int i = 0; i < file.length; i++) {
             unsigned[i] = (short) (file[i] & 0xFF);

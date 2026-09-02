@@ -34,6 +34,6 @@ public record SidModule(Path source, ModuleMetadata metadata, byte[] file, int s
 
     @Override
     public Renderer createRenderer(int sampleRate) {
-        return new SidRenderer(file, subtune, length, sampleRate);
+        return new SidRenderer(source, file, subtune, length, sampleRate);
     }
 }

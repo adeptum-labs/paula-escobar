@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.playback.Renderer;
 import com.adeptum.paula.testing.TestSids;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +38,7 @@ class SidRendererTest {
     private static final Duration LENGTH = Duration.ofSeconds(2);
     private static final int LENGTH_FRAMES = SAMPLE_RATE * 2;
 
-    private final Renderer renderer = new SidRenderer(TestSids.psid(), 1, LENGTH, SAMPLE_RATE);
+    private final Renderer renderer = new SidRenderer(Path.of("tune.sid"), TestSids.psid(), 1, LENGTH, SAMPLE_RATE);
     private final short[] buffer = new short[FRAMES * 2];
 
     @Test
@@ -96,7 +97,7 @@ class SidRendererTest {
 
     @Test
     void rejectsSampleRatesTheEngineCannotHandle() {
-        assertThrows(IllegalStateException.class, () -> new SidRenderer(TestSids.psid(), 1, LENGTH, 3000));
+        assertThrows(IllegalStateException.class, () -> new SidRenderer(Path.of("tune.sid"), TestSids.psid(), 1, LENGTH, 3000));
     }
 
     @Test

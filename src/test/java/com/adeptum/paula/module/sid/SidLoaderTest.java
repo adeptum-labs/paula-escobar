@@ -39,6 +39,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SidLoaderTest {
 
+    private static final int SAMPLE_RATE = 44100;
+    private static final int FRAMES = 2048;
+
     private final SidLoader loader = new SidLoader(SongLengths.none());
 
     @Test
@@ -46,7 +49,9 @@ class SidLoaderTest {
         assertTrue(loader.supports(Path.of("a.sid")));
         assertTrue(loader.supports(Path.of("b.PSID")));
         assertTrue(loader.supports(Path.of("c.rsid")));
-        assertFalse(loader.supports(Path.of("d.mod")));
+        assertTrue(loader.supports(Path.of("d.prg")), "programs run on the same emulation");
+        assertTrue(loader.supports(Path.of("e.c64")));
+        assertFalse(loader.supports(Path.of("f.mod")));
         assertFalse(loader.supports(Path.of("sid")), "a bare name is not an extension");
         assertEquals("sid", loader.format().id());
     }
@@ -67,8 +72,20 @@ class SidLoaderTest {
     }
 
     @Test
+    void runsC64ProgramsOnTheSameEmulation(@TempDir Path dir) throws Exception {
+        final Module module = loader.load(TestSids.writeProgram(dir));
+
+        assertTrue(module.metadata().format().name().contains("PRG"), module.metadata().format().name());
+        assertEquals(1, module.metadata().songLength());
+        assertTrue(module.createRenderer(SAMPLE_RATE).render(new short[FRAMES * 2]) > 0, "the program plays");
+    }
+
+    @Test
     void rejectsFilesTheEngineCannotParse(@TempDir Path dir) throws Exception {
         final Path garbage = Files.write(dir.resolve("x.sid"), "hello".getBytes(StandardCharsets.US_ASCII));
+        final Path stub = Files.write(dir.resolve("x.prg"), "hello".getBytes(StandardCharsets.US_ASCII));
+
         assertThrows(UnsupportedModuleException.class, () -> loader.load(garbage));
+        assertThrows(UnsupportedModuleException.class, () -> loader.load(stub), "a program too short to be one");
     }
 }
