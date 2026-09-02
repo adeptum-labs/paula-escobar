@@ -28,6 +28,7 @@ import de.quippy.sidplay.libsidplay.components.sidtune.SidTune;
 import de.quippy.sidplay.resid_builder.ReSIDBuilder;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Emulates the C64 and its SID chip for one subtune. A SID tune never ends by itself, so playback stops at the
@@ -49,6 +50,7 @@ public final class SidRenderer implements Renderer {
     private final byte[] file;
     private final int subtune;
     private final int sampleRate;
+    private final Duration length;
     private final long lengthFrames;
     private SIDPlay2 player;
     private long renderedFrames;
@@ -59,6 +61,7 @@ public final class SidRenderer implements Renderer {
         this.file = file;
         this.subtune = subtune;
         this.sampleRate = sampleRate;
+        this.length = length;
         this.lengthFrames = length.toMillis() * sampleRate / 1000;
         this.player = start();
     }
@@ -84,6 +87,11 @@ public final class SidRenderer implements Renderer {
     @Override
     public Duration position() {
         return Duration.ofMillis((renderedFrames + pendingFrames) * 1000 / sampleRate);
+    }
+
+    @Override
+    public Optional<Duration> length() {
+        return Optional.of(length);
     }
 
     @Override

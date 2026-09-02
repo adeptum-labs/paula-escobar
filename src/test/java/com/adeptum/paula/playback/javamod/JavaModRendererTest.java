@@ -25,10 +25,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.javamod.JavaModLoader;
+import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.Renderer;
 import com.adeptum.paula.testing.TestModules;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -74,6 +77,28 @@ class JavaModRendererTest {
         renderer.seek(Duration.ofSeconds(-5));
 
         assertEquals(Duration.ZERO, renderer.position());
+    }
+
+    @Test
+    void reportsEachChannelWithItsWaveformAndInstrument(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+        renderer.render(new short[FRAMES * 2]);
+
+        final List<ChannelState> channels = renderer.channels();
+        assertEquals(4, channels.size());
+        final ChannelState first = channels.get(0);
+        assertEquals(1, first.number());
+        assertEquals(1, first.instrument(), "the test module plays sample one on channel one");
+        assertTrue(first.volume() > 0, "channel one is sounding");
+        assertTrue(Arrays.stream(first.waveform()).anyMatch(v -> Math.abs(v) > 0.1), "a square wave is not flat");
+        assertEquals(0, channels.get(1).volume(), "silent channels report no volume");
+        assertEquals(0, channels.get(1).instrument());
+    }
+
+    @Test
+    void knowsTheSongLength(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+        assertTrue(renderer.length().orElseThrow().toMillis() > 0);
     }
 
     @Test

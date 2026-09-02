@@ -21,38 +21,9 @@
 
 package com.adeptum.paula.playback;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.Optional;
-
 /**
- * Produces interleaved 16-bit stereo PCM for one module.
+ * What one channel is doing right now: the instrument it plays (0 when silent), its volume from 0 to 1 and a
+ * snippet of its waveform in the range -1..1 scaled by that volume.
  */
-public interface Renderer {
-
-    /**
-     * Fills the buffer from the start and returns the number of frames written; zero means the song has ended.
-     */
-    int render(short[] interleavedStereo);
-
-    Duration position();
-
-    /**
-     * Moves playback to the given position, clamped to the song; a target beyond the end leaves the song finished.
-     */
-    void seek(Duration target);
-
-    /**
-     * The song length when the format knows it up front.
-     */
-    default Optional<Duration> length() {
-        return Optional.empty();
-    }
-
-    /**
-     * Per-channel state for formats that mix distinct channels; empty for the rest.
-     */
-    default List<ChannelState> channels() {
-        return List.of();
-    }
+public record ChannelState(int number, int instrument, double volume, double[] waveform) {
 }

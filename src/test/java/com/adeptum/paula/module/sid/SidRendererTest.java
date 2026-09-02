@@ -89,6 +89,12 @@ class SidRendererTest {
     }
 
     @Test
+    void reportsTheSongLengthAndNoChannels() {
+        assertEquals(LENGTH, renderer.length().orElseThrow());
+        assertTrue(renderer.channels().isEmpty());
+    }
+
+    @Test
     void rejectsSampleRatesTheEngineCannotHandle() {
         assertThrows(IllegalStateException.class, () -> new SidRenderer(TestSids.psid(), 1, LENGTH, 3000));
     }

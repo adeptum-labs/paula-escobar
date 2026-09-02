@@ -1,0 +1,8 @@
+[
+  {
+    "name": "de.quippy.javamod.multimedia.mod.mixer.BasicModMixer",
+    "fields": [
+      {"name": "channelMemory"}
+    ]
+  }
+]
