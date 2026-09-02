@@ -43,6 +43,10 @@ class CachedReleaseArtTest {
     private static final Charset CODE_PAGE = StandardCharsets.ISO_8859_1;
     private static final String BANNER = "\n.------------------.\n|  I.C.I.N.G 9.7   |\n`------------------'\n\n\n";
 
+    private static CachedReleaseArt art(Path dir) {
+        return new CachedReleaseArt(new CacheDirectory(dir));
+    }
+
     private static Path release(Path dir) throws IOException {
         return Files.createDirectories(dir.resolve("files").resolve(String.valueOf(PRODUCTION)).resolve("extracted"));
     }
@@ -51,7 +55,7 @@ class CachedReleaseArtTest {
     void readsTheArtOutOfTheFilesTheReleaseCameWith(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("file_id.diz"), BANNER.getBytes(CODE_PAGE));
 
-        final List<String> art = new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION).orElseThrow();
+        final List<String> art = art(dir).of(PRODUCTION).orElseThrow();
 
         assertEquals(List.of(".------------------.", "|  I.C.I.N.G 9.7   |", "`------------------'"), art);
     }
@@ -60,7 +64,7 @@ class CachedReleaseArtTest {
     void readsBoxDrawnArtInTheCodePageOfThePc(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("party.nfo"), new byte[] {(byte) 0xC9, (byte) 0xCD, (byte) 0xBB, '\n', (byte) 0xC8, (byte) 0xCD, (byte) 0xBC});
 
-        final List<String> art = new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION).orElseThrow();
+        final List<String> art = art(dir).of(PRODUCTION).orElseThrow();
 
         assertEquals(List.of("╔═╗", "╚═╝"), art);
     }
@@ -69,7 +73,7 @@ class CachedReleaseArtTest {
     void readsArtWithoutBoxesAsTheAmigaWroteIt(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("party.nfo"), new byte[] {'P', (byte) 0xF6, 's', 'e', '\n', 'N', 'o', 't', 'e'});
 
-        final List<String> art = new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION).orElseThrow();
+        final List<String> art = art(dir).of(PRODUCTION).orElseThrow();
 
         assertEquals(List.of("Pöse", "Note"), art);
     }
@@ -80,7 +84,7 @@ class CachedReleaseArtTest {
         Files.write(release.resolve("aaa.nfo"), "one\ntwo".getBytes(CODE_PAGE));
         Files.write(release.resolve("file_id.diz"), BANNER.getBytes(CODE_PAGE));
 
-        final List<String> art = new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION).orElseThrow();
+        final List<String> art = art(dir).of(PRODUCTION).orElseThrow();
 
         assertTrue(art.getFirst().startsWith("."), art.getFirst());
     }
@@ -89,7 +93,7 @@ class CachedReleaseArtTest {
     void leavesAloneWhatItCannotShowAsPlainText(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("bbs.nfo"), "\033[15C\033[32mBROADWAY BBS\n\033[0mline two".getBytes(CODE_PAGE));
 
-        assertEquals(Optional.empty(), new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION),
+        assertEquals(Optional.empty(), art(dir).of(PRODUCTION),
                 "art shaped by cursor moves cannot be a block of text");
     }
 
@@ -97,8 +101,8 @@ class CachedReleaseArtTest {
     void hasNothingForReleasesThatCameWithout(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("tune.mod"), "not art".getBytes(CODE_PAGE));
 
-        assertEquals(Optional.empty(), new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION));
-        assertEquals(Optional.empty(), new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION + 1), "never played");
+        assertEquals(Optional.empty(), art(dir).of(PRODUCTION));
+        assertEquals(Optional.empty(), art(dir).of(PRODUCTION + 1), "never played");
     }
 
     @Test
@@ -116,6 +120,6 @@ class CachedReleaseArtTest {
     void skipsAOneLineNote(@TempDir Path dir) throws IOException {
         Files.write(release(dir).resolve("file_id.diz"), "just a note\n".getBytes(CODE_PAGE));
 
-        assertEquals(Optional.empty(), new CachedReleaseArt(new CacheDirectory(dir)).of(PRODUCTION));
+        assertEquals(Optional.empty(), art(dir).of(PRODUCTION));
     }
 }

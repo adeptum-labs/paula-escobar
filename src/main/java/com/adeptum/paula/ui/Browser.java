@@ -137,6 +137,7 @@ public final class Browser {
         private final List<Item> items;
         private int cursor;
         private int offset;
+        private int artProduction;
 
         private Level(String title, String emptyText, List<Item> items) {
             this.title = title;
@@ -340,7 +341,12 @@ public final class Browser {
     private void openCompo(CompoItem compo) {
         final List<CompoEntry> entries = compo.compo().entries();
         final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads)).toList();
-        levels.push(new Level(compo.compoLabel(), NOTHING_HERE, items));
+        final Level level = new Level(compo.compoLabel(), NOTHING_HERE, items);
+        entries.stream().filter(CompoEntry::likelyPlayable).findFirst().ifPresent(entry -> {
+            level.artProduction = entry.productionId();
+            art.fetch(entry);
+        });
+        levels.push(level);
         CompletableFuture.runAsync(() -> lookUpDownloads(entries), executor);
     }
 
@@ -404,8 +410,8 @@ public final class Browser {
 
     /**
      * The art a release was packed with is shown above the list while the cursor rests on it, so browsing a
-     * competition shows the banners the entrants drew for it. Only what has already been downloaded has any,
-     * and a screen too short to spare the room shows none.
+     * competition shows the banner drawn for it. Where an entry has none of its own, the art of the entry the
+     * competition was opened with stands for the whole of it. A screen too short to spare the room shows none.
      */
     private List<AttributedString> artLines(Level level, int width, int height) {
         final int room = Math.min(ART_LINES, height - CHROME_LINES - FEWEST_ROWS);
@@ -415,7 +421,7 @@ public final class Browser {
         return level.selected()
                 .filter(EntryItem.class::isInstance)
                 .map(item -> ((EntryItem) item).entry().productionId())
-                .flatMap(art::of)
+                .flatMap(production -> art.of(production).or(() -> art.of(level.artProduction)))
                 .map(lines -> centred(lines.stream().limit(room).toList(), width))
                 .orElseGet(List::of);
     }

@@ -45,6 +45,7 @@ import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
 import com.adeptum.paula.demozoo.CachedReleaseArt;
+import com.adeptum.paula.demozoo.FetchingReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SidLoader;
@@ -69,6 +70,7 @@ import com.adeptum.paula.ui.Theme;
 public final class Paula implements Runnable {
 
     private static final String BROWSER_THREAD = "paula-browser";
+    private static final String ART_THREAD = "paula-art";
 
     @Spec
     private CommandSpec spec;
@@ -120,6 +122,7 @@ public final class Paula implements Runnable {
             throw new ExecutionException(spec.commandLine(), "Paula Escobar needs a terminal: " + e.getMessage(), e);
         }
         final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
+        final ExecutorService fetchingArt = DaemonExecutors.singleThread(ART_THREAD);
         try (ui;
                 PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
@@ -129,12 +132,13 @@ public final class Paula implements Runnable {
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
-            final Browser browser = new Browser(demozoo, browsing, new CachedReleaseArt(cache));
+            final Browser browser = new Browser(demozoo, browsing, new FetchingReleaseArt(new CachedReleaseArt(cache), resolver, fetchingArt));
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
             browsing.shutdownNow();
+            fetchingArt.shutdownNow();
         }
     }
 

@@ -28,10 +28,22 @@ import java.util.Optional;
  * The text art a release carries: the file id or information file that party archives are packed with, which
  * often holds a hand drawn banner for the party and its competition.
  */
-@FunctionalInterface
 public interface ReleaseArt {
 
-    ReleaseArt NONE = production -> Optional.empty();
+    ReleaseArt NONE = new ReleaseArt() {
+
+        @Override
+        public Optional<List<String>> of(int productionId) {
+            return Optional.empty();
+        }
+    };
 
     Optional<List<String>> of(int productionId);
+
+    /**
+     * Brings down the files of a release so its art can be read, for a competition being looked at rather than
+     * played. Returns at once; the art turns up on a later look.
+     */
+    default void fetch(CompoEntry entry) {
+    }
 }

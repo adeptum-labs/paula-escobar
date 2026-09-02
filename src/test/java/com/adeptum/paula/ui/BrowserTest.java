@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
@@ -34,6 +36,7 @@ import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.jline.utils.AttributedString;
@@ -78,6 +81,34 @@ class BrowserTest {
     void createBrowser(@TempDir Path dir) {
         cache = new CacheDirectory(dir);
         browser = new Browser(new DemozooClient(http, cache), Runnable::run);
+    }
+
+    @Test
+    void fetchesTheArtOfACompetitionAsItOpensAndShowsItForEveryEntry() {
+        final List<CompoEntry> fetched = new ArrayList<>();
+        final List<String> banner = List.of("== ICING ==", "== 1997  ==");
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return productionId == 11 ? Optional.of(banner) : Optional.empty();
+            }
+
+            @Override
+            public void fetch(CompoEntry entry) {
+                fetched.add(entry);
+            }
+        });
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.DOWN);
+
+        final List<String> lines = browser.render(WIDTH, TALL).stream().map(AttributedString::toString).toList();
+
+        assertEquals(1, fetched.size(), "one entry is fetched for the competition");
+        assertEquals(11, fetched.getFirst().productionId(), "the first entry that can be played");
+        assertTrue(lines.get(1).contains("ICING"), "and its art stands for the entry below it too");
     }
 
     @Test

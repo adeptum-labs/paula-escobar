@@ -120,12 +120,14 @@ Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
 SQSH packers, which is what tracker modules of the time were packed with.
 
 Party archives are often packed with a `file_id.diz` or an information file
-carrying a hand drawn banner for the competition. Where a release has one,
-it is shown above the list while the cursor rests on that entry, read in the
-code page it was drawn in — the box characters of the PC or the accented
-letters of the Amiga, whichever the file leans towards. Art shaped by
-terminal escapes is left alone, and entries whose archive carries none show
-nothing.
+carrying a hand drawn banner for the competition. Opening a competition
+brings down its first entry in the background — the download playing it
+would have cost anyway — and the art that comes with it is shown above the
+list for every entry in that competition, an entry's own art taking
+precedence. It is read in the code page it was drawn in: the box characters
+of the PC or the accented letters of the Amiga, whichever the file leans
+towards. Art shaped by terminal escapes is left alone, and competitions
+whose files carry none show nothing.
 
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
