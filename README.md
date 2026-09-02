@@ -85,6 +85,8 @@ Keys while browsing:
 
 ### The screens
 
+![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
+
 Both screens fill the terminal: a gradient title bar on top, the key hints
 in a bar at the bottom and box-drawn panels in between, in 24-bit colour
 where the terminal supports it and rounded to 256 or 16 colours where it
@@ -95,7 +97,10 @@ single one for SID tunes), a position bar with elapsed and total time and
 stereo VU meters, all redrawn thirty times a second. The browser colours
 the first three placings gold, silver and bronze, highlights the cursor row
 across the list and shows what is playing with a small spectrum strip
-above the key bar, so music keeps going while you browse.
+above the key bar, so music keeps going while you browse. The shot above
+is Approach by Nightbeat, which won the multichannel competition at Icing
+1999, with a scope for each of its 31 channels and the message the musician
+wrote into the sample names beside them.
 
 ### Browsing demo parties
 
