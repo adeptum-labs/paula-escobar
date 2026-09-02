@@ -44,7 +44,7 @@ public final class DigiBoosterRenderer implements Renderer {
     private static final int CATCH_UP_FRAMES_PER_BUFFER = 16384;
     private static final int SCRATCH_FRAMES = 4096;
 
-    private static final long LONGEST_SONG_FRAMES = 60L * 60 * 48000;
+    private static final long LONGEST_SONG_SECONDS = 60 * 60;
 
     private final DbmFile file;
     private final int sampleRate;
@@ -60,7 +60,7 @@ public final class DigiBoosterRenderer implements Renderer {
         this.file = file;
         this.sampleRate = sampleRate;
         this.engine = new DbmEngine(file, sampleRate);
-        this.songFrames = DbmEngine.songFrames(file, sampleRate, LONGEST_SONG_FRAMES);
+        this.songFrames = DbmEngine.songFrames(file, sampleRate, LONGEST_SONG_SECONDS * sampleRate);
     }
 
     @Override

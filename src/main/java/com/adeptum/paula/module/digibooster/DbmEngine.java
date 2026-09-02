@@ -70,7 +70,6 @@ final class DbmEngine {
     private static final int CLIP_HIGH = 0x7FFF;
     private static final int CLIP_LOW = 0x8001;
     private static final int MAX_LEVEL = 0x7FFFFFFF;
-    private static final int DECIBEL_STEP = 6;
 
     private final DbmFile module;
     private final int sampleRate;
