@@ -22,13 +22,15 @@
 package com.adeptum.paula.ui;
 
 import java.time.Duration;
+import java.util.List;
 import lombok.Builder;
 import com.adeptum.paula.module.Module;
+import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
 
 /**
- * What the player screen shows. The module is absent until a track has loaded and the status line is absent
- * unless something is being loaded or went wrong.
+ * What the player screen shows. The module is absent until a track has loaded, the status line is absent unless
+ * something is being loaded or went wrong, and the visual fields are absent when nothing plays.
  */
 @Builder
 public record PlayerView(
@@ -36,7 +38,21 @@ public record PlayerView(
         String trackLabel,
         PlaybackState state,
         Duration position,
+        Duration length,
         int track,
         int trackCount,
-        String status) {
+        String status,
+        double[] spectrum,
+        double[] peaks,
+        double vuLeft,
+        double vuRight,
+        List<ChannelState> channels,
+        double[] mixed) {
+
+    public PlayerView {
+        channels = channels == null ? List.of() : channels;
+        spectrum = spectrum == null ? new double[0] : spectrum;
+        peaks = peaks == null ? new double[spectrum.length] : peaks;
+        mixed = mixed == null ? new double[0] : mixed;
+    }
 }

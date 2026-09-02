@@ -154,6 +154,9 @@ public final class Browser {
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "  (no download)";
     private static final int CHROME_LINES = 4;
+    private static final List<Frame.Key> KEYS = List.of(
+            new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
+            new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
 
     private final DemozooClient demozoo;
     private final Executor executor;
@@ -241,7 +244,11 @@ public final class Browser {
             lines.add(row(level.items.get(i), i == level.cursor));
         }
         lines.add(statusLine());
-        return Screen.fit(lines, keyBar(), width, height);
+        while (lines.size() < height - 1) {
+            lines.add(AttributedString.EMPTY);
+        }
+        lines.add(Frame.footer(KEYS, width));
+        return Screen.fit(lines, width, height);
     }
 
     private void open(Level level) {
@@ -349,13 +356,4 @@ public final class Browser {
         return levels.peek().selected().map(Item::label).orElse("");
     }
 
-    private static AttributedString keyBar() {
-        return Screen.line(b -> {
-            Screen.key(b, "↑/↓", "move");
-            Screen.key(b, "enter", "open");
-            Screen.key(b, "backspace", "back");
-            Screen.key(b, "b", "player");
-            Screen.key(b, "q", "quit");
-        });
-    }
 }

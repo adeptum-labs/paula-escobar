@@ -23,6 +23,7 @@ package com.adeptum.paula.playback;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import com.adeptum.paula.module.Module;
@@ -35,6 +36,8 @@ import com.adeptum.paula.ui.Key;
 import com.adeptum.paula.ui.PlayerView;
 import com.adeptum.paula.ui.Screen;
 import com.adeptum.paula.ui.TerminalUi;
+import com.adeptum.paula.ui.visual.Spectrum;
+import com.adeptum.paula.ui.visual.Vu;
 
 /**
  * Drives one interactive session: reacts to keys, hands tracks to the loader, plays them as they arrive and
@@ -43,8 +46,11 @@ import com.adeptum.paula.ui.TerminalUi;
 @Slf4j
 public final class PlayerSession {
 
-    private static final long REDRAW_INTERVAL_MILLIS = 100;
+    private static final long REDRAW_INTERVAL_MILLIS = 33;
     private static final long DRAIN_TIMEOUT_MILLIS = 1;
+    private static final int SPECTRUM_BANDS = 32;
+    private static final int ANALYSIS_FRAMES = 2048;
+    private static final int SCOPE_FRAMES = 256;
     private static final Duration SEEK_STEP = Duration.ofSeconds(5);
     private static final String LOADING = "Loading ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
@@ -56,10 +62,13 @@ public final class PlayerSession {
     private final TrackLoader.Resolver resolver;
     private final Browser browser;
     private final boolean exitWhenDone;
+    private final Spectrum spectrum;
+    private final Vu vu = new Vu();
     private Playlist playlist;
     private boolean browsing;
     private boolean everBrowsed;
     private Module module;
+    private Renderer renderer;
     private String status;
     private boolean playedAnything;
 
@@ -78,6 +87,7 @@ public final class PlayerSession {
         this.loader = loader;
         this.resolver = resolver;
         this.browser = browser;
+        this.spectrum = new Spectrum(SPECTRUM_BANDS, engine.sampleRate());
     }
 
     public void run() throws IOException {
@@ -103,7 +113,10 @@ public final class PlayerSession {
             if (finished() && !advance(true) && !returnToBrowser()) {
                 return;
             }
-            ui.draw(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(), ui.width(), ui.height()));
+            final short[] audio = engine.tap().snapshot(ANALYSIS_FRAMES);
+            spectrum.feed(audio);
+            vu.feed(audio);
+            ui.draw(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height()));
         }
     }
 
@@ -159,7 +172,8 @@ public final class PlayerSession {
     private boolean play(TrackLoader.Loaded loaded) throws IOException {
         try {
             module = loaders.load(loaded.path());
-            engine.play(module.createRenderer(engine.sampleRate()));
+            renderer = module.createRenderer(engine.sampleRate());
+            engine.play(renderer);
         } catch (IOException e) {
             return skip(loaded.track(), e);
         } catch (RuntimeException e) {
@@ -210,16 +224,35 @@ public final class PlayerSession {
         return true;
     }
 
-    private PlayerView view() {
+    private PlayerView view(short[] audio) {
+        final boolean sounding = module != null && renderer != null;
         return PlayerView.builder()
                 .module(module)
                 .trackLabel(playlist == null ? null : playlist.current().label())
                 .state(engine.state())
                 .position(engine.position())
+                .length(sounding ? renderer.length().orElse(null) : null)
                 .track(playlist == null ? 0 : playlist.position())
                 .trackCount(playlist == null ? 0 : playlist.size())
                 .status(statusLine())
+                .spectrum(spectrum.levels())
+                .peaks(spectrum.peaks())
+                .vuLeft(vu.left())
+                .vuRight(vu.right())
+                .channels(sounding ? renderer.channels() : List.of())
+                .mixed(mono(audio, SCOPE_FRAMES))
                 .build();
+    }
+
+    private static double[] mono(short[] interleaved, int frames) {
+        final int available = interleaved.length / 2;
+        final int used = Math.min(frames, available);
+        final double[] mono = new double[used];
+        for (int i = 0; i < used; i++) {
+            final int frame = available - used + i;
+            mono[i] = (interleaved[frame * 2] + interleaved[frame * 2 + 1]) / (2.0 * Short.MAX_VALUE);
+        }
+        return mono;
     }
 
     private String statusLine() {

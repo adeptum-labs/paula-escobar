@@ -21,12 +21,15 @@
 
 package com.adeptum.paula.ui;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleMetadata;
+import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
 import com.adeptum.paula.testing.TestModule;
+import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -36,7 +39,7 @@ import org.junit.jupiter.api.Test;
 
 class ScreenTest {
 
-    private static final int WIDTH = 80;
+    private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
 
     private final PlayerView view = PlayerView.builder()
@@ -50,29 +53,82 @@ class ScreenTest {
             .trackLabel("Assembly 1995 · 4 Channel Music  #1 Space Debris by Captain")
             .state(PlaybackState.PLAYING)
             .position(Duration.ofSeconds(83))
+            .length(Duration.ofSeconds(250))
             .track(2)
             .trackCount(5)
+            .spectrum(new double[32])
+            .peaks(new double[32])
+            .vuLeft(0.5)
+            .vuRight(0.25)
+            .channels(List.of(
+                    new ChannelState(1, 2, 0.8, new double[] {0, 1, 0, -1}),
+                    new ChannelState(2, 0, 0, new double[4]),
+                    new ChannelState(3, 0, 0, new double[4]),
+                    new ChannelState(4, 0, 0, new double[4])))
             .build();
 
     @Test
-    void showsTitleFileStatusAndInstruments() {
-        final List<String> lines = render(view, HEIGHT);
+    void fillsTheWholeTerminalWithBarsAndPanels() {
+        final List<AttributedString> lines = Screen.render(view, WIDTH, HEIGHT);
 
-        assertTrue(lines.contains("Title   Space Debris"));
-        assertTrue(lines.contains("File    space.mod"));
-        assertTrue(lines.contains("Format  ProTracker, 4 channels, 42 positions"));
-        assertTrue(lines.contains("Track   2 / 5  Assembly 1995 · 4 Channel Music  #1 Space Debris by Captain"));
-        assertTrue(lines.contains("Status  PLAYING  01:23"));
-        assertTrue(lines.contains("01 kick"));
-        assertTrue(lines.contains("02 snare"));
+        assertEquals(HEIGHT, lines.size());
+        assertTrue(lines.stream().allMatch(line -> line.columnLength() == WIDTH), "every line spans the width");
+        assertTrue(lines.get(0).toString().contains("Paula"), "title bar");
+        assertTrue(lines.get(HEIGHT - 1).toString().contains("quit"), "key bar at the bottom");
+        final String all = String.join("\n", text(lines));
+        assertTrue(all.contains("Spectrum") && all.contains("Channels") && all.contains("Now playing"));
+    }
+
+    @Test
+    void showsTheSongDetails() {
+        final String all = String.join("\n", text(Screen.render(view, WIDTH, HEIGHT)));
+
+        assertTrue(all.contains("Space Debris"));
+        assertTrue(all.contains("space.mod"));
+        assertTrue(all.contains("ProTracker, 4 channels, 42 positions"));
+        assertTrue(all.contains("2 / 5"));
+        assertTrue(all.contains("PLAYING"));
+        assertTrue(all.contains("kick") && all.contains("snare"));
+        assertTrue(all.contains("01:23") && all.contains("04:10"), "elapsed and total time");
+    }
+
+    @Test
+    void highlightsTheInstrumentThatIsPlaying() {
+        final List<AttributedString> lines = Screen.render(view, WIDTH, HEIGHT);
+        final AttributedString snare = lines.stream().filter(line -> line.toString().contains("snare")).findFirst().orElseThrow();
+        final AttributedString kick = lines.stream().filter(line -> line.toString().contains("kick")).findFirst().orElseThrow();
+
+        assertEquals(Palette.ACTIVE, snare.styleAt(snare.toString().indexOf("snare")), "instrument two sounds on channel one");
+        assertEquals(Palette.VALUE, kick.styleAt(kick.toString().indexOf("kick")));
+    }
+
+    @Test
+    void drawsOneScopePerChannel() {
+        final String all = String.join("\n", text(Screen.render(view, WIDTH, HEIGHT)));
+        assertTrue(all.contains("⠤") || all.contains("⣀") || all.contains("⠉"), "braille dots appear in the scopes");
+        for (int channel = 1; channel <= 4; channel++) {
+            assertTrue(all.contains(" " + channel + " "), "channel " + channel + " is labelled");
+        }
+    }
+
+    @Test
+    void stacksPanelsOnNarrowTerminals() {
+        final List<AttributedString> lines = Screen.render(view, 80, 30);
+
+        assertEquals(30, lines.size());
+        assertTrue(lines.stream().allMatch(line -> line.columnLength() == 80));
+        final String all = String.join("\n", text(lines));
+        assertTrue(all.contains("Spectrum") && all.contains("Channels") && all.contains("Space Debris"));
     }
 
     @Test
     void showsAnIdleScreenWithoutAModule() {
-        final List<String> lines = render(PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO).build(), HEIGHT);
+        final PlayerView idle = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO).build();
+        final List<AttributedString> lines = Screen.render(idle, WIDTH, HEIGHT);
 
-        assertTrue(lines.contains("Nothing playing, press b to browse the party archives"));
-        assertTrue(lines.stream().anyMatch(line -> line.contains("b browse")));
+        assertEquals(HEIGHT, lines.size());
+        assertTrue(String.join("\n", text(lines)).contains("Nothing playing, press b to browse the party archives"));
+        assertTrue(lines.get(HEIGHT - 1).toString().contains("browse"));
     }
 
     @Test
@@ -80,46 +136,17 @@ class ScreenTest {
         final PlayerView loading = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO)
                 .trackLabel("Funkyeeh").status("Loading Funkyeeh").build();
 
-        assertTrue(render(loading, HEIGHT).contains("Loading Funkyeeh"));
+        assertTrue(String.join("\n", text(Screen.render(loading, WIDTH, HEIGHT))).contains("Loading Funkyeeh"));
     }
 
     @Test
-    void showsCreditsForFormatsWithoutInstruments() {
-        final PlayerView sid = PlayerView.builder()
-                .module(new TestModule(Path.of("tune.sid"), ModuleMetadata.builder()
-                        .title("Commando")
-                        .format(new ModuleFormat("sid", "PSID", Set.of("sid")))
-                        .channels(3)
-                        .songLength(4)
-                        .lengthUnit("subtunes")
-                        .credits(List.of("Rob Hubbard", "1985 Elite"))
-                        .build()))
-                .trackLabel("tune.sid")
-                .state(PlaybackState.PLAYING)
-                .position(Duration.ZERO)
-                .track(1)
-                .trackCount(1)
-                .build();
-
-        final List<String> lines = render(sid, HEIGHT);
-        assertTrue(lines.contains("Rob Hubbard"));
-        assertTrue(lines.contains("1985 Elite"));
-        assertTrue(lines.contains("Format  PSID, 3 channels, 4 subtunes"));
+    void survivesTinyTerminals() {
+        final List<AttributedString> lines = Screen.render(view, 20, 5);
+        assertEquals(5, lines.size());
+        assertTrue(lines.stream().allMatch(line -> line.columnLength() == 20));
     }
 
-    @Test
-    void clipsLinesToTerminalWidth() {
-        assertTrue(Screen.render(view, 10, HEIGHT).stream().allMatch(line -> line.columnLength() <= 10));
-    }
-
-    @Test
-    void clipsToTerminalHeightKeepingTheKeyBar() {
-        final List<String> lines = render(view, 5);
-        assertTrue(lines.size() <= 5);
-        assertTrue(lines.get(lines.size() - 1).contains("q quit"));
-    }
-
-    private static List<String> render(PlayerView view, int height) {
-        return Screen.render(view, WIDTH, height).stream().map(AttributedString::toString).toList();
+    private static List<String> text(List<AttributedString> lines) {
+        return lines.stream().map(AttributedString::toString).toList();
     }
 }

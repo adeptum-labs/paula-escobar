@@ -74,7 +74,7 @@ public final class Frame {
             final AttributedString body = row < content.size() ? content.get(row) : AttributedString.EMPTY;
             lines.add(new AttributedStringBuilder()
                     .style(Palette.BORDER).append(VERTICAL)
-                    .append(pad(body, inner, AttributedStyle.DEFAULT))
+                    .style(AttributedStyle.DEFAULT).append(pad(body, inner, AttributedStyle.DEFAULT))
                     .style(Palette.BORDER).append(VERTICAL)
                     .toAttributedString());
         }
@@ -97,9 +97,12 @@ public final class Frame {
         return lines;
     }
 
+    /**
+     * Clips or pads to the width. The builder starts with the default style so the line's own styles survive.
+     */
     public static AttributedString pad(AttributedString line, int width, AttributedStyle padding) {
         final AttributedStringBuilder padded = new AttributedStringBuilder();
-        padded.append(line.columnSubSequence(0, Math.min(line.columnLength(), width)));
+        padded.style(AttributedStyle.DEFAULT).append(line.columnSubSequence(0, Math.min(line.columnLength(), width)));
         padded.style(padding);
         for (int column = padded.columnLength(); column < width; column++) {
             padded.append(' ');

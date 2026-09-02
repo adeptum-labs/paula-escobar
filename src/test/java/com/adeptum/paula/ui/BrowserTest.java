@@ -317,6 +317,6 @@ class BrowserTest {
     }
 
     private List<String> render() {
-        return browser.render(WIDTH, HEIGHT).stream().map(AttributedString::toString).toList();
+        return browser.render(WIDTH, HEIGHT).stream().map(AttributedString::toString).map(String::stripTrailing).toList();
     }
 }
