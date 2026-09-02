@@ -69,6 +69,14 @@ final class DbmWavetable {
         regenerate();
     }
 
+    short[] sample() {
+        return sample;
+    }
+
+    int position() {
+        return position;
+    }
+
     void reverse(boolean play) {
         backwards = play;
         direction = play ? BACKWARDS : FORWARDS;

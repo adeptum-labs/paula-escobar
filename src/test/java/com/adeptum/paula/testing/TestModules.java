@@ -81,6 +81,10 @@ public final class TestModules {
         return buffer.array();
     }
 
+    public static Path writeDigiBooster(Path directory) throws IOException {
+        return Files.write(directory.resolve("test.dbm"), digiBooster());
+    }
+
     /**
      * Builds a minimal DigiBooster Pro module: two tracks, one looping eight-bit sample played by one
      * instrument with a volume envelope, one pattern of four rows and an echo on the first track.

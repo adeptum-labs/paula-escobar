@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module;
 
+import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
@@ -38,7 +39,7 @@ public final class ModuleLoaderRegistry {
     }
 
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
-        return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths)));
+        return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new DigiBoosterLoader()));
     }
 
     public List<ModuleFormat> formats() {

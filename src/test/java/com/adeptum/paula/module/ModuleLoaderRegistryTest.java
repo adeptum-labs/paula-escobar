@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
@@ -38,13 +39,14 @@ class ModuleLoaderRegistryTest {
 
     @Test
     void listsBuiltInFormats() {
-        assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT), registry.formats());
+        assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, DigiBoosterLoader.FORMAT), registry.formats());
     }
 
     @Test
     void findsLoaderByFileName() {
         assertTrue(registry.loaderFor(Path.of("x.mod")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.sid")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.dbm")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());
     }
 

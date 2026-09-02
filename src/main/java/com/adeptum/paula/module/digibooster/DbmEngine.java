@@ -26,6 +26,7 @@
 package com.adeptum.paula.module.digibooster;
 
 import java.util.Arrays;
+import java.util.OptionalLong;
 
 /**
  * Plays a DigiBooster module: a sequencer stepping the playlist row by row and tick by tick, the effects of
@@ -122,6 +123,23 @@ final class DbmEngine {
 
     int tracks() {
         return tracks.length;
+    }
+
+    /**
+     * How many frames the song lasts, counted by stepping the sequencer without mixing any audio; empty for a
+     * song that jumps back on itself and never reaches an end.
+     */
+    static OptionalLong songFrames(DbmFile module, int sampleRate, long limit) {
+        final DbmEngine engine = new DbmEngine(module, sampleRate);
+        long frames = 0;
+        while (frames < limit) {
+            final boolean ended = engine.nextTick();
+            frames += engine.tickFramesWhole;
+            if (ended) {
+                return OptionalLong.of(frames);
+            }
+        }
+        return OptionalLong.empty();
     }
 
     int order() {

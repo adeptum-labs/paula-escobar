@@ -19,7 +19,8 @@ FastTracker II, Scream Tracker, Impulse Tracker, Farandole and MultiTracker
 files among others. Commodore 64 SID tunes play through the libsidplay2
 port with reSID chip emulation that JavaMod bundles. Its jar is vendored
 under `lib/` as a small Maven repository because no current release is
-published to Maven Central.
+published to Maven Central. DigiBooster modules, which JavaMod does not
+read, have a replayer of their own inside Paula.
 
 ## Building
 
@@ -130,6 +131,17 @@ first time a SID is played, refreshed monthly and kept when offline; tunes
 it does not know play for three minutes. The start subtune is played and the
 player shows the author and release credits from the file.
 
+### DigiBooster modules
+
+The modules of DigiBooster Pro 2 and DigiBooster 3, the Amiga trackers no
+other Java player reads, are played by a replayer written for Paula: the
+sequencer and effects of the tracker, envelopes per instrument, and a chain
+of wavetable, resampler, stereo panoramizer and cross feeding echo for every
+one of the up to 254 tracks. It follows
+[libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3),
+the reference replayer released by APC&TCP under the two-clause BSD licence,
+and renders the modules on Modland sample for sample as that library does.
+
 ### Audio output
 
 The native executable streams raw PCM into a system audio command, chosen
@@ -150,6 +162,7 @@ disturbs the player screen.
 | `com.adeptum.paula.module`       | module model, loader interface and loader registry          |
 | `com.adeptum.paula.module.javamod` | loads tracker modules through JavaMod                     |
 | `com.adeptum.paula.module.sid`   | SID loader and renderer, HVSC song lengths                  |
+| `com.adeptum.paula.module.digibooster` | reads and plays DigiBooster modules                   |
 | `com.adeptum.paula.audio`        | `AudioSink`, the audio backends and PCM encoding            |
 | `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
