@@ -271,6 +271,30 @@ class ScreenTest {
         assertTrue(lines.get(HEIGHT - 1).toString().contains("browse"));
     }
 
+    /**
+     * Nothing plays until the first track has been fetched, so the screen waiting for it is the idle one, and
+     * it has to say what the wait is for rather than look as though nobody asked for anything.
+     */
+    @Test
+    void saysWhatItIsWaitingForWhileNothingPlaysYet() {
+        final PlayerView waiting = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO)
+                .progress(new Progress.Step("Downloading blitz.mp3 · 40% of 12833 kB", 0.4, 0)).build();
+
+        final List<String> lines = text(Screen.render(waiting, WIDTH, HEIGHT));
+
+        assertTrue(lines.stream().anyMatch(l -> l.contains("Downloading blitz.mp3")), "it says what it is fetching");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("████") && !l.contains("Downloading")), "and draws its bar");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("Nothing playing")), "beneath the idle line");
+    }
+
+    @Test
+    void stillSaysWhatWentWrongWhileNothingPlays() {
+        final PlayerView failed = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO)
+                .status("Nothing there to play").build();
+
+        assertTrue(text(Screen.render(failed, WIDTH, HEIGHT)).stream().anyMatch(l -> l.contains("Nothing there to play")));
+    }
+
     @Test
     void drawsTheKeyBarExactlyOnceOnShortScreens() {
         final PlayerView idle = PlayerView.builder().state(PlaybackState.STOPPED).position(Duration.ZERO).build();

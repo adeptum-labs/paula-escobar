@@ -56,6 +56,7 @@ public final class Screen {
     private static final int METER_ROWS = 1;
     private static final int MIN_SPECTRUM_ROWS = 3;
     private static final int VU_WIDTH = 10;
+    private static final int IDLE_BAR_WIDTH = 40;
     private static final char PEAK_MARK = '─';
     private static final char[] SHADES = {' ', '░', '▒', '▓', '█'};
     private static final List<Frame.Key> KEYS = List.of(
@@ -185,7 +186,10 @@ public final class Screen {
             lines.add(AttributedString.EMPTY);
         }
         lines.add(Frame.centered(IDLE, width, Palette.VALUE));
-        if (view.status() != null) {
+        if (view.progress() != null) {
+            lines.add(Frame.centered(view.progress().text(), width, Palette.ACCENT));
+            lines.add(Frame.centered(bar(view.progress(), Math.min(width, IDLE_BAR_WIDTH)), width, Palette.ACCENT));
+        } else if (view.status() != null) {
             lines.add(Frame.centered(view.status(), width, Palette.ACCENT));
         }
         while (lines.size() < height) {
@@ -384,8 +388,11 @@ public final class Screen {
      * whose end is not in sight sweeps a block to and fro at the pace it is getting through.
      */
     private static AttributedString progressBar(Progress.Step step, int width) {
-        final String bar = step.measured() ? Bars.row(step.fraction(), width) : Bars.sweep(step.count(), width);
-        return line(b -> b.style(Palette.ACCENT).append(bar));
+        return line(b -> b.style(Palette.ACCENT).append(bar(step, width)));
+    }
+
+    private static String bar(Progress.Step step, int width) {
+        return step.measured() ? Bars.row(step.fraction(), width) : Bars.sweep(step.count(), width);
     }
 
     private static AttributedString field(String label, String value) {

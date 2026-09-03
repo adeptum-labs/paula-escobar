@@ -24,7 +24,6 @@ package com.adeptum.paula.demozoo;
 import com.adeptum.paula.cli.BuildInfo;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -37,20 +36,29 @@ import java.util.regex.Pattern;
 public final class JdkHttpFetcher implements HttpFetcher {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
+    /**
+     * Long enough for a recorded track of many megabytes on a poor line; a module arrives in a moment, but a
+     * streaming compo entry can run past ten minutes of audio and the whole of it is fetched before it plays.
+     */
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
     private static final String USER_AGENT_HEADER = "User-Agent";
     private static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition";
     private static final Pattern FILE_NAME = Pattern.compile("filename=\"?([^\";]+)\"?");
     private static final int SUCCESS_CLASS = 2;
     private static final String CONTENT_LENGTH_HEADER = "Content-Length";
     private static final long UNKNOWN_LENGTH = -1;
-    private static final int BLOCK = 16 * 1024;
 
     private final String userAgent;
+    private final Duration timeout;
     private HttpClient client;
 
     public JdkHttpFetcher(String userAgent) {
+        this(userAgent, REQUEST_TIMEOUT);
+    }
+
+    JdkHttpFetcher(String userAgent, Duration timeout) {
         this.userAgent = userAgent;
+        this.timeout = timeout;
     }
 
     public static JdkHttpFetcher paula() throws IOException {
@@ -63,36 +71,34 @@ public final class JdkHttpFetcher implements HttpFetcher {
     }
 
     /**
-     * The body is read in blocks rather than in one go, so that whoever is waiting can be told how far along a
-     * long download is while it happens.
+     * The body is taken block by block, so that whoever is waiting can be told how far along a long download
+     * has come. The blocks are gathered while the request is still in hand rather than read from a stream
+     * afterwards, since only then does the timeout cover the body: a stream handed back and read at leisure
+     * can stall for ever with nothing to stop it.
      */
     @Override
     public Response get(URI uri, Watcher watcher) throws IOException {
-        final HttpRequest request = HttpRequest.newBuilder(uri).timeout(REQUEST_TIMEOUT).header(USER_AGENT_HEADER, userAgent).GET().build();
+        final HttpRequest request = HttpRequest.newBuilder(uri).timeout(timeout).header(USER_AGENT_HEADER, userAgent).GET().build();
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
         try {
-            final HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
+            final HttpResponse<Void> response = client().send(request, info -> blocks(info, body, watcher));
             if (response.statusCode() / 100 != SUCCESS_CLASS) {
-                response.body().close();
                 throw new IOException("HTTP " + response.statusCode() + " from " + uri.getHost());
             }
-            return new Response(body(response, watcher), fileName(response));
+            return new Response(body.toByteArray(), fileName(response));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while fetching " + uri, e);
         }
     }
 
-    private static byte[] body(HttpResponse<InputStream> response, Watcher watcher) throws IOException {
-        final long total = response.headers().firstValueAsLong(CONTENT_LENGTH_HEADER).orElse(UNKNOWN_LENGTH);
-        final ByteArrayOutputStream body = new ByteArrayOutputStream(total > 0 ? (int) total : BLOCK);
-        try (InputStream in = response.body()) {
-            final byte[] block = new byte[BLOCK];
-            for (int read = in.read(block); read >= 0; read = in.read(block)) {
-                body.write(block, 0, read);
-                watcher.read(body.size(), total);
-            }
-        }
-        return body.toByteArray();
+    private static HttpResponse.BodySubscriber<Void> blocks(HttpResponse.ResponseInfo info,
+            ByteArrayOutputStream body, Watcher watcher) {
+        final long total = info.headers().firstValueAsLong(CONTENT_LENGTH_HEADER).orElse(UNKNOWN_LENGTH);
+        return HttpResponse.BodySubscribers.ofByteArrayConsumer(block -> block.ifPresent(bytes -> {
+            body.writeBytes(bytes);
+            watcher.read(body.size(), total);
+        }));
     }
 
     /**

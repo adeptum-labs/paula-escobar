@@ -31,10 +31,13 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,8 +48,11 @@ class JdkHttpFetcherTest {
     private static final int OK = 200;
     private static final int NOT_FOUND = 404;
     private static final String DISPOSITION = "Content-Disposition";
+    private static final int STALLED_LENGTH = 1_000_000;
 
     private final JdkHttpFetcher fetcher = new JdkHttpFetcher("paula-test");
+    private final CountDownLatch stalled = new CountDownLatch(1);
+    private final CountDownLatch finished = new CountDownLatch(1);
     private HttpServer server;
 
     @BeforeEach
@@ -57,6 +63,7 @@ class JdkHttpFetcherTest {
 
     @AfterEach
     void stopServer() {
+        finished.countDown();
         server.stop(0);
     }
 
@@ -86,6 +93,32 @@ class JdkHttpFetcherTest {
         assertTrue(reads.size() > 1, "it was counted up in blocks, not handed over at once");
         assertEquals(body.length, reads.get(reads.size() - 1), "and the last count is the whole of it");
         assertEquals(reads.stream().sorted().toList(), reads, "counting only ever goes up");
+    }
+
+    /**
+     * A body handed back as a stream and read afterwards is outside the request's timeout and can stall for
+     * ever. This one is gathered while the request is still in hand, so a server that goes quiet halfway
+     * through is given up on rather than waited on.
+     */
+    @Test
+    void givesUpOnAServerThatGoesQuietPartWayThroughTheBody() {
+        server.createContext("/stalls", exchange -> {
+            exchange.sendResponseHeaders(OK, STALLED_LENGTH);
+            exchange.getResponseBody().write(new byte[1024]);
+            exchange.getResponseBody().flush();
+            stalled.countDown();
+            await(finished);
+            exchange.close();
+        });
+
+        final JdkHttpFetcher impatient = new JdkHttpFetcher("paula-test", Duration.ofMillis(400));
+        try {
+            assertThrows(IOException.class, () -> impatient.get(uri("/stalls")),
+                    "a stalled body is given up on, not waited on for ever");
+            await(stalled);
+        } finally {
+            finished.countDown();
+        }
     }
 
     @Test
@@ -118,6 +151,14 @@ class JdkHttpFetcherTest {
 
     private URI uri(String path) {
         return URI.create("http://localhost:" + server.getAddress().getPort() + path);
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static byte[] noise(int length) {
