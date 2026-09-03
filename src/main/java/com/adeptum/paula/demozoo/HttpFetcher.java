@@ -33,5 +33,24 @@ public interface HttpFetcher {
     record Response(byte[] body, Optional<String> fileName) {
     }
 
+    /**
+     * Told how much of a body has arrived and how much was promised, or nothing promised where the server
+     * would not say.
+     */
+    @FunctionalInterface
+    interface Watcher {
+
+        Watcher NONE = (read, total) -> { };
+
+        void read(long bytes, long total);
+    }
+
     Response get(URI uri) throws IOException;
+
+    /**
+     * The same, with someone watching the body arrive; a fetcher that cannot say is free to ignore it.
+     */
+    default Response get(URI uri, Watcher watcher) throws IOException {
+        return get(uri);
+    }
 }

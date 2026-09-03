@@ -22,7 +22,9 @@
 package com.adeptum.paula.demozoo;
 
 import com.adeptum.paula.cli.BuildInfo;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -40,6 +42,9 @@ public final class JdkHttpFetcher implements HttpFetcher {
     private static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition";
     private static final Pattern FILE_NAME = Pattern.compile("filename=\"?([^\";]+)\"?");
     private static final int SUCCESS_CLASS = 2;
+    private static final String CONTENT_LENGTH_HEADER = "Content-Length";
+    private static final long UNKNOWN_LENGTH = -1;
+    private static final int BLOCK = 16 * 1024;
 
     private final String userAgent;
     private HttpClient client;
@@ -54,17 +59,40 @@ public final class JdkHttpFetcher implements HttpFetcher {
 
     @Override
     public Response get(URI uri) throws IOException {
+        return get(uri, Watcher.NONE);
+    }
+
+    /**
+     * The body is read in blocks rather than in one go, so that whoever is waiting can be told how far along a
+     * long download is while it happens.
+     */
+    @Override
+    public Response get(URI uri, Watcher watcher) throws IOException {
         final HttpRequest request = HttpRequest.newBuilder(uri).timeout(REQUEST_TIMEOUT).header(USER_AGENT_HEADER, userAgent).GET().build();
         try {
-            final HttpResponse<byte[]> response = client().send(request, HttpResponse.BodyHandlers.ofByteArray());
+            final HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() / 100 != SUCCESS_CLASS) {
+                response.body().close();
                 throw new IOException("HTTP " + response.statusCode() + " from " + uri.getHost());
             }
-            return new Response(response.body(), fileName(response));
+            return new Response(body(response, watcher), fileName(response));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while fetching " + uri, e);
         }
+    }
+
+    private static byte[] body(HttpResponse<InputStream> response, Watcher watcher) throws IOException {
+        final long total = response.headers().firstValueAsLong(CONTENT_LENGTH_HEADER).orElse(UNKNOWN_LENGTH);
+        final ByteArrayOutputStream body = new ByteArrayOutputStream(total > 0 ? (int) total : BLOCK);
+        try (InputStream in = response.body()) {
+            final byte[] block = new byte[BLOCK];
+            for (int read = in.read(block); read >= 0; read = in.read(block)) {
+                body.write(block, 0, read);
+                watcher.read(body.size(), total);
+            }
+        }
+        return body.toByteArray();
     }
 
     /**

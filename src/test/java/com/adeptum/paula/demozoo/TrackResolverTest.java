@@ -62,8 +62,13 @@ class TrackResolverTest {
     private final FakeHttp http = new FakeHttp();
 
     private TrackResolver resolver(Path dir) {
+        return resolver(dir, new Progress());
+    }
+
+    private TrackResolver resolver(Path dir, Progress progress) {
         final CacheDirectory cache = new CacheDirectory(dir);
-        return new TrackResolver(new DemozooClient(http, cache), http, cache, ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()));
+        return new TrackResolver(new DemozooClient(http, cache), http, cache,
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
     }
 
     @Test
@@ -145,6 +150,35 @@ class TrackResolverTest {
         final String said = progress.step().orElseThrow();
         assertTrue(said.startsWith("Unpacking funkyeeh.zip"), "it names the archive, said " + said);
         assertTrue(said.endsWith("2 entries"), "and counts its way through, said " + said);
+    }
+
+    /**
+     * A recorded track runs to megabytes, and a wait with nothing said looks like a refusal.
+     */
+    @Test
+    void countsALongDownloadUpOnTheScreen(@TempDir Path dir) throws IOException {
+        final byte[] big = new byte[700 * 1024];
+        System.arraycopy(TestModules.proTracker(), 0, big, 0, TestModules.proTracker().length);
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW.replace(".zip", ".mod")));
+        http.put(SCENE_ORG_FILE.replace(".zip", ".mod"), big, Optional.empty());
+        final Progress progress = new Progress();
+
+        resolver(dir, progress).resolve(ENTRY);
+
+        final String said = progress.step().orElseThrow();
+        assertTrue(said.startsWith("Downloading funkyeeh.mod"), "it names the file, said " + said);
+        assertTrue(said.endsWith("% of 700 kB"), "and how far along it is, said " + said);
+    }
+
+    @Test
+    void saysNothingAboutADownloadTooShortToWaitOn(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW.replace(".zip", ".mod")));
+        http.put(SCENE_ORG_FILE.replace(".zip", ".mod"), TestModules.proTracker(), Optional.empty());
+        final Progress progress = new Progress();
+
+        resolver(dir, progress).resolve(ENTRY);
+
+        assertEquals(Optional.empty(), progress.step(), "a module of a few kilobytes is fetched and played");
     }
 
     @Test

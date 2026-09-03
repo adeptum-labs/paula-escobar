@@ -170,7 +170,9 @@ SQSH packers, which is what tracker modules of the time were packed with.
 
 A party archive can hold hundreds of entries, so unpacking one says so on
 the status line, naming the archive and counting its way through rather
-than sitting on "Loading".
+than sitting on "Loading". A download long enough to be waited on — half a
+megabyte or more, which a recorded track reaches and a module rarely does
+— counts itself up the same way.
 
 Party archives are often packed with a `file_id.diz` or an information file
 carrying a hand drawn banner for the competition. Opening a competition

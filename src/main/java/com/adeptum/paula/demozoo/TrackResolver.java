@@ -68,6 +68,12 @@ public final class TrackResolver {
     private static final String FILES = "files";
     private static final String EXTRACTED = "extracted";
     private static final String UNPACKING = "Unpacking ";
+    private static final String DOWNLOADING = "Downloading ";
+    private static final String PERCENT_OF = "% of ";
+    private static final String KILOBYTES = " kB";
+    private static final int PERCENT = 100;
+    private static final int KILOBYTE = 1024;
+    private static final long REPORT_OVER = 500L * KILOBYTE;
     private static final String COUNT_SEPARATOR = " · ";
     private static final String ENTRIES = " entries";
     private static final String DEFAULT_NAME = "download";
@@ -133,7 +139,8 @@ public final class TrackResolver {
 
     private Path download(Link link, Path directory, CompoEntry entry) throws IOException {
         final URI uri = downloadUri(link);
-        final HttpFetcher.Response response = http.get(uri);
+        final String name = lastSegment(uri);
+        final HttpFetcher.Response response = http.get(uri, (read, total) -> reportDownload(name, read, total));
         final Path download = directory.resolve(fileName(response, uri));
         cache.writeAtomically(download, response.body());
         return playableFile(download, entry)
@@ -203,6 +210,19 @@ public final class TrackResolver {
         final String suggested = response.fileName().orElseGet(() -> lastSegment(uri));
         final Path name = Path.of(suggested.replace('\\', '/')).getFileName();
         return name == null || UNUSABLE_NAMES.contains(name.toString()) ? DEFAULT_NAME : name.toString();
+    }
+
+    /**
+     * A recorded track runs to megabytes where a module runs to kilobytes, and a wait with nothing said looks
+     * like a refusal. Only a download long enough to be waited on is reported, and only as each part of a
+     * hundred is reached, since the line is read thirty times a second and rebuilt for nothing otherwise.
+     */
+    private void reportDownload(String name, long read, long total) {
+        if (total < REPORT_OVER || read * PERCENT / total == (read - 1) * PERCENT / total) {
+            return;
+        }
+        progress.report(DOWNLOADING + name + COUNT_SEPARATOR + read * PERCENT / total + PERCENT_OF
+                + total / KILOBYTE + KILOBYTES);
     }
 
     private static String lastSegment(URI uri) {

@@ -33,6 +33,8 @@ import java.util.Optional;
  */
 public final class FakeHttp implements HttpFetcher {
 
+    private static final int BLOCK = 16 * 1024;
+
     private final Map<URI, Response> responses = new HashMap<>();
     private int requests;
     private boolean offline;
@@ -59,6 +61,15 @@ public final class FakeHttp implements HttpFetcher {
 
     @Override
     public Response get(URI uri) throws IOException {
+        return get(uri, Watcher.NONE);
+    }
+
+    /**
+     * Hands the body over in blocks the way a real fetcher does, so that whoever is watching a long download
+     * is told the same things here as over the wire.
+     */
+    @Override
+    public Response get(URI uri, Watcher watcher) throws IOException {
         requests++;
         if (offline) {
             throw new IOException("offline");
@@ -66,6 +77,9 @@ public final class FakeHttp implements HttpFetcher {
         final Response response = responses.get(uri);
         if (response == null) {
             throw new IOException("HTTP 404 from " + uri.getHost());
+        }
+        for (int read = 0; read < response.body().length; read += BLOCK) {
+            watcher.read(Math.min(read + BLOCK, response.body().length), response.body().length);
         }
         return response;
     }
