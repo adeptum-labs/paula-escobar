@@ -45,6 +45,11 @@ vendor `graalvm`, for example:
 </toolchain>
 ```
 
+A C compiler is needed as well (`cc` on Linux and macOS, Visual Studio's
+`cl` on Windows); `native-image` itself already requires one. The sound
+shim in `src/main/c` is compiled into a static library during
+`prepare-package`, so `mvn test` runs without it.
+
 Compilation, tests and `native-image` all run on that toolchain, so
 `JAVA_HOME` and `GRAALVM_HOME` do not matter. `mvn test` runs the unit tests
 without building the native image.
@@ -191,19 +196,23 @@ offers the tune itself.
 
 ### Audio output
 
-The native executable streams raw PCM into a system audio command, chosen
-automatically: `pacat` (PulseAudio or PipeWire) first, then `aplay` (ALSA),
-then `ffplay` (ffmpeg) and `play` (sox), which carry raw sound on macOS and
-Windows where the first two do not exist. Pick one explicitly with
-`--output pulse`, `--output alsa`, `--output ffplay` or `--output sox`. When
-Paula runs on a JVM, from the runnable jar or from the tests, Java Sound is
-used instead (`--output javasound`), and nothing needs installing.
+The native executable plays sound itself through
+[miniaudio](https://miniaud.io), which is compiled into it. It picks the
+first backend that answers: WASAPI on Windows, CoreAudio on macOS,
+PulseAudio (also PipeWire), ALSA and JACK on Linux. Pick one explicitly
+with `--output pulse`, `--output alsa`, `--output jack`,
+`--output coreaudio` or `--output wasapi`; `--output null` plays into
+nothing at the right speed, which is what the build's own test run uses.
+When Paula runs on a JVM, from the runnable jar or from the tests, Java
+Sound is used instead (`--output javasound`).
 
 Java Sound is not open to the native executable: a native image finds no
 mixer providers, which [GraalVM does not intend to
-fix](https://github.com/oracle/graal/issues/9620). That is why the native
-executable reaches for a player of its own, and why the jar is the artefact
-that plays anywhere as it stands.
+fix](https://github.com/oracle/graal/issues/9620). That is why the
+executable carries a sound library of its own.
+
+`--quit-after SECONDS` stops Paula by itself after that long and lets it
+run without a terminal, for scripts and for the build.
 
 Log output goes to `paula.log` in the working directory so it never
 disturbs the player screen.
@@ -241,9 +250,8 @@ and the runnable jar. The jar is also kept in `releases/` here, so a checkout
 of any version holds the thing that version built.
 
 Which one to take: the executable, if there is one for your machine — it
-starts at once and needs no Java. It needs `pacat` or `aplay` on Linux, and
-`ffplay` or `play` (from ffmpeg or sox) on macOS and Windows, for the reason
-given under audio output above. The jar needs a Java 21 runtime and nothing
+starts at once, needs no Java and plays sound itself, for the reason given
+under audio output above. The jar needs a Java 21 runtime and nothing
 else, and plays everywhere as it is:
 
 ```

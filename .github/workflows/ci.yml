@@ -49,4 +49,5 @@ jobs:
           set -euo pipefail
           "${{ matrix.binary }}" --version
           "${{ matrix.binary }}" formats
+          "${{ matrix.binary }}" --output null --quit-after 2 src/test/resources/mod/paula-test.mod < /dev/null
           java -jar target/paula-*-all.jar --version

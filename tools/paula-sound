@@ -91,15 +91,6 @@ MESSAGE
 timeout 3 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null || die "$(no_tunnel)"
 PULSE_SERVER=$server timeout 5 pactl info >/dev/null 2>&1 || die "$(no_server)"
 
-for argument in "$@"; do
-    case $argument in
-        -o|-o?*|--output|--output=*) backend_chosen=true ;;
-    esac
-done
-if [ -z "${backend_chosen-}" ] && command -v pacat >/dev/null; then
-    set -- --output PULSE "$@"
-fi
-
 paula=$(command -v paula || true)
 [ -n "$paula" ] || paula=$(dirname "$(readlink -f "$0")")/../target/paula
 [ -x "$paula" ] || die "no paula executable found on PATH or in target/"
