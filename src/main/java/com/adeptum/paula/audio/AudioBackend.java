@@ -21,78 +21,51 @@
 
 package com.adeptum.paula.audio;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
+/**
+ * Where sound goes: Java Sound on a JVM, one of miniaudio's backends in the native executable.
+ */
 public enum AudioBackend {
 
-    AUTO(null),
-    JAVASOUND(null),
-    PULSE("pacat"),
-    ALSA("aplay"),
-    FFPLAY("ffplay"),
-    SOX("play");
+    AUTO(0),
+    JAVASOUND(-1),
+    PULSE(1),
+    ALSA(2),
+    JACK(3),
+    COREAUDIO(4),
+    WASAPI(5),
+    NULL(6);
 
-    /**
-     * The sound servers of Linux first and the two players that carry raw sound anywhere after them, since
-     * those are all a native executable has to reach for away from Linux.
-     */
-    private static final List<AudioBackend> COMMAND_BACKENDS = List.of(PULSE, ALSA, FFPLAY, SOX);
-    private static final String WINDOWS_SUFFIX = ".exe";
+    private final int number;
 
-    private final String executable;
-
-    AudioBackend(String executable) {
-        this.executable = executable;
+    AudioBackend(int number) {
+        this.number = number;
     }
 
-    public AudioSink createSink() throws AudioException {
-        return switch (this) {
-            case AUTO -> detect().createSink();
-            case JAVASOUND -> new JavaSoundSink();
-            case PULSE, ALSA, FFPLAY, SOX -> new CommandAudioSink(this::command);
-        };
-    }
-
-    public List<String> command(int sampleRate) {
-        final String rate = Integer.toString(sampleRate);
-        return switch (this) {
-            case PULSE -> List.of(executable, "--raw", "--format=s16le", "--channels=2", "--rate=" + rate);
-            case ALSA -> List.of(executable, "-q", "-t", "raw", "-f", "S16_LE", "-c", "2", "-r", rate, "-");
-            case FFPLAY -> List.of(executable, "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
-                    "-f", "s16le", "-ar", rate, "-ac", "2", "-i", "-");
-            case SOX -> List.of(executable, "-q", "-t", "raw", "-e", "signed", "-b", "16", "-c", "2", "-r", rate, "-");
-            case AUTO, JAVASOUND -> throw new IllegalStateException(this + " has no playback command");
-        };
-    }
-
-    public static AudioBackend detect() throws AudioException {
+    public AudioSink createSink(int bufferFrames) throws AudioException {
         if (runningOnJvm()) {
-            return JAVASOUND;
+            if (this == AUTO || this == JAVASOUND) {
+                return new JavaSoundSink();
+            }
+            throw new AudioException(this + " is only available in the native executable", null);
         }
-        return COMMAND_BACKENDS.stream()
-                .filter(AudioBackend::isInstalled)
-                .findFirst()
-                .orElseThrow(() -> new AudioException("No audio backend found; install pacat, aplay, ffplay or sox", null));
-    }
-
-    private boolean isInstalled() {
-        return Stream.of(Optional.ofNullable(System.getenv("PATH")).orElse("").split(File.pathSeparator))
-                .flatMap(directory -> names().map(Path.of(directory)::resolve))
-                .anyMatch(Files::isExecutable);
+        if (this == JAVASOUND) {
+            throw new AudioException("Java Sound is only available on a JVM", null);
+        }
+        return new NativeAudioSink(this, bufferFrames);
     }
 
     /**
-     * Windows keeps its programs under a suffix, and a bare name would be looked for in vain there.
+     * The number the C shim knows this backend by.
      */
-    private Stream<String> names() {
-        return System.getProperty("os.name", "").startsWith("Windows")
-                ? Stream.of(executable + WINDOWS_SUFFIX, executable)
-                : Stream.of(executable);
+    int number() {
+        if (number < 0) {
+            throw new IllegalStateException(this + " has no native backend");
+        }
+        return number;
     }
 
     private static boolean runningOnJvm() {

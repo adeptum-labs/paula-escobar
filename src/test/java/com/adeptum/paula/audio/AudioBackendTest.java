@@ -24,39 +24,40 @@ package com.adeptum.paula.audio;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AudioBackendTest {
 
+    private static final int BUFFER_FRAMES = 2048;
+
     @Test
-    void autoDetectsJavaSoundOnAJvm() throws AudioException {
-        assertEquals(AudioBackend.JAVASOUND, AudioBackend.detect());
-        assertInstanceOf(JavaSoundSink.class, AudioBackend.AUTO.createSink());
+    void aJvmPlaysThroughJavaSound() throws AudioException {
+        assertInstanceOf(JavaSoundSink.class, AudioBackend.AUTO.createSink(BUFFER_FRAMES));
+        assertInstanceOf(JavaSoundSink.class, AudioBackend.JAVASOUND.createSink(BUFFER_FRAMES));
     }
 
     @Test
-    void commandBackendsBuildPlaybackCommandsForTheSampleRate() throws AudioException {
-        assertEquals(List.of("aplay", "-q", "-t", "raw", "-f", "S16_LE", "-c", "2", "-r", "44100", "-"),
-                AudioBackend.ALSA.command(44100));
-        assertEquals(List.of("pacat", "--raw", "--format=s16le", "--channels=2", "--rate=48000"),
-                AudioBackend.PULSE.command(48000));
-        assertInstanceOf(CommandAudioSink.class, AudioBackend.ALSA.createSink());
+    void theNativeBackendsAreRefusedOnAJvm() {
+        final AudioException refusal = assertThrows(AudioException.class, () -> AudioBackend.PULSE.createSink(BUFFER_FRAMES));
+        assertTrue(refusal.getMessage().contains("native executable"), refusal.getMessage());
+        assertThrows(AudioException.class, () -> AudioBackend.NULL.createSink(BUFFER_FRAMES));
     }
 
     @Test
-    void thePlayersThatCarrySoundAwayFromLinuxTakeTheSameRawStream() throws AudioException {
-        assertEquals(List.of("ffplay", "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
-                "-f", "s16le", "-ar", "48000", "-ac", "2", "-i", "-"), AudioBackend.FFPLAY.command(48000));
-        assertEquals(List.of("play", "-q", "-t", "raw", "-e", "signed", "-b", "16", "-c", "2", "-r", "44100", "-"),
-                AudioBackend.SOX.command(44100));
-        assertInstanceOf(CommandAudioSink.class, AudioBackend.FFPLAY.createSink());
-        assertInstanceOf(CommandAudioSink.class, AudioBackend.SOX.createSink());
+    void backendsAreNumberedAsTheShimNumbersThem() {
+        assertEquals(0, AudioBackend.AUTO.number());
+        assertEquals(1, AudioBackend.PULSE.number());
+        assertEquals(2, AudioBackend.ALSA.number());
+        assertEquals(3, AudioBackend.JACK.number());
+        assertEquals(4, AudioBackend.COREAUDIO.number());
+        assertEquals(5, AudioBackend.WASAPI.number());
+        assertEquals(6, AudioBackend.NULL.number());
     }
 
     @Test
-    void javaSoundHasNoCommand() {
-        assertThrows(IllegalStateException.class, () -> AudioBackend.JAVASOUND.command(48000));
+    void javaSoundHasNoShimNumber() {
+        assertThrows(IllegalStateException.class, AudioBackend.JAVASOUND::number);
     }
 }

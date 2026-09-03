@@ -130,7 +130,7 @@ public final class Paula implements Runnable {
         final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
         final ExecutorService fetchingArt = DaemonExecutors.singleThread(ART_THREAD);
         try (ui;
-                PlaybackEngine engine = new PlaybackEngine(output.createSink(), sampleRate, bufferFrames);
+                PlaybackEngine engine = new PlaybackEngine(output.createSink(bufferFrames), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
