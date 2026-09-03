@@ -55,4 +55,10 @@ public interface Renderer {
     default List<ChannelState> channels() {
         return List.of();
     }
+
+    /**
+     * Silences one of those channels, or lets it sound again; formats without channels have nothing to silence.
+     */
+    default void mute(int number, boolean muted) {
+    }
 }

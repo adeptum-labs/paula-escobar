@@ -29,6 +29,7 @@ import com.adeptum.paula.ui.visual.Palette;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -53,8 +54,6 @@ public final class Screen {
     private static final int METER_ROWS = 1;
     private static final int MIN_SPECTRUM_ROWS = 3;
     private static final int VU_WIDTH = 10;
-    private static final int MIN_SCOPE_WIDTH = 12;
-    private static final int SCOPE_LABEL_WIDTH = 3;
     private static final char PEAK_MARK = '─';
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("space", "pause"), new Frame.Key("←/→", "seek"), new Frame.Key("n", "next"),
@@ -67,9 +66,32 @@ public final class Screen {
             new Frame.Key("p", "previous track"),
             new Frame.Key("b", "switch to the browser"),
             new Frame.Key("?", "close these keys"),
+            new Frame.Key("click", "mute a channel"),
+            new Frame.Key("shift/double click", "solo a channel"),
             new Frame.Key("q", "quit"));
 
     private Screen() {
+    }
+
+    /**
+     * The rows the spectrum and the scopes get of what the meters leave, each zero when the panel has too few
+     * to be worth drawing; too little for both leaves the spectrum alone with them.
+     */
+    private record Panels(int spectrum, int scopes) {
+
+        static Panels of(int height) {
+            final int available = Math.max(0, height - METER_ROWS);
+            final int scopes = available < MIN_BOX_ROWS * 2 ? 0 : available - Math.max(MIN_SPECTRUM_ROWS, available * 2 / 5);
+            return new Panels(available - scopes >= MIN_BOX_ROWS ? available - scopes : 0, scopes);
+        }
+
+        boolean hasSpectrum() {
+            return spectrum > 0;
+        }
+
+        boolean hasScopes() {
+            return scopes > 0;
+        }
     }
 
     public static List<Frame.Key> keys() {
@@ -80,9 +102,37 @@ public final class Screen {
         final int body = Math.max(0, height - 2);
         final List<AttributedString> lines = new ArrayList<>(height);
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
-        lines.addAll(view.module() == null ? idle(view, width, body) : playing(view, width, body));
+        lines.addAll(view.module() == null ? idle(view, width, body) : playing(view, scopes(view, width, height), width, body));
         lines.add(Frame.footer(KEYS, width));
         return fit(lines, width, height);
+    }
+
+    /**
+     * The channel drawn at a screen cell, numbered from one; a format that mixes no distinct channels shows one
+     * scope of the mix, which is nobody's to silence.
+     */
+    public static OptionalInt channelAt(PlayerView view, int width, int height, int column, int row) {
+        return view.channels().isEmpty() ? OptionalInt.empty() : scopes(view, width, height).channelAt(column, row);
+    }
+
+    /**
+     * Where the scopes land on the screen, which is what the drawing lays them out on and what a click is
+     * measured against. A format without channels of its own still gets a grid, for its one scope of the mix.
+     */
+    static Scopes scopes(PlayerView view, int width, int height) {
+        if (view.module() == null) {
+            return Scopes.NONE;
+        }
+        final int body = Math.max(0, height - 2);
+        final boolean wide = width >= WIDE_LAYOUT_WIDTH;
+        final int detailRows = wide ? 0 : detailRows(detailLines(view), body);
+        final Panels panels = Panels.of(body - detailRows);
+        if (!panels.hasScopes()) {
+            return Scopes.NONE;
+        }
+        final int left = wide ? DETAILS_WIDTH : 0;
+        return Scopes.grid(1 + detailRows + panels.spectrum() + 1, left + 1,
+                width - left - 2, panels.scopes() - 2, Math.max(1, view.channels().size()));
     }
 
     static String clock(Duration position) {
@@ -124,15 +174,19 @@ public final class Screen {
         return lines.subList(0, height);
     }
 
-    private static List<AttributedString> playing(PlayerView view, int width, int height) {
+    private static List<AttributedString> playing(PlayerView view, Scopes grid, int width, int height) {
         final List<AttributedString> detailLines = detailLines(view);
         if (width >= WIDE_LAYOUT_WIDTH) {
-            return Frame.sideBySide(Frame.box(DETAILS_TITLE, detailLines, DETAILS_WIDTH, height), visuals(view, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
+            return Frame.sideBySide(Frame.box(DETAILS_TITLE, detailLines, DETAILS_WIDTH, height), visuals(view, grid, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
         }
-        final int detailRows = Math.min(height, Math.max(3, Math.min(detailLines.size() + 2, height / 2)));
+        final int detailRows = detailRows(detailLines, height);
         final List<AttributedString> lines = new ArrayList<>(Frame.box(DETAILS_TITLE, detailLines, width, detailRows));
-        lines.addAll(visuals(view, width, height - detailRows));
+        lines.addAll(visuals(view, grid, width, height - detailRows));
         return lines;
+    }
+
+    private static int detailRows(List<AttributedString> detailLines, int height) {
+        return Math.min(height, Math.max(MIN_BOX_ROWS, Math.min(detailLines.size() + 2, height / 2)));
     }
 
     private static List<AttributedString> detailLines(PlayerView view) {
@@ -160,19 +214,17 @@ public final class Screen {
         return lines;
     }
 
-    private static List<AttributedString> visuals(PlayerView view, int width, int height) {
+    private static List<AttributedString> visuals(PlayerView view, Scopes grid, int width, int height) {
         final List<AttributedString> lines = new ArrayList<>();
         if (height <= 0) {
             return lines;
         }
-        final int panels = Math.max(0, height - METER_ROWS);
-        final int scopeRows = panels < MIN_BOX_ROWS * 2 ? 0 : panels - Math.max(MIN_SPECTRUM_ROWS, panels * 2 / 5);
-        final int spectrumRows = panels - scopeRows;
-        if (spectrumRows >= MIN_BOX_ROWS) {
-            lines.addAll(Frame.box("Spectrum", spectrum(view, width - 2, spectrumRows - 2), width, spectrumRows));
+        final Panels panels = Panels.of(height);
+        if (panels.hasSpectrum()) {
+            lines.addAll(Frame.box("Spectrum", spectrum(view, width - 2, panels.spectrum() - 2), width, panels.spectrum()));
         }
-        if (scopeRows >= MIN_BOX_ROWS) {
-            lines.addAll(Frame.box("Channels", scopes(view, width - 2, scopeRows - 2), width, scopeRows));
+        if (panels.hasScopes()) {
+            lines.addAll(Frame.box("Channels", scopeCells(view, grid, panels.scopes() - 2), width, panels.scopes()));
         }
         lines.add(meters(view, width));
         return lines;
@@ -212,38 +264,45 @@ public final class Screen {
         return rows;
     }
 
-    private static List<AttributedString> scopes(PlayerView view, int width, int height) {
+    private static List<AttributedString> scopeCells(PlayerView view, Scopes grid, int height) {
         final List<ChannelState> channels = view.channels().isEmpty()
-                ? List.of(new ChannelState(0, 0, 1, view.mixed()))
+                ? List.of(new ChannelState(0, 0, 1, view.mixed(), false))
                 : view.channels();
-        final int columns = Math.clamp((int) Math.ceil(Math.sqrt(channels.size())), 1, Math.max(1, width / MIN_SCOPE_WIDTH));
-        final int rows = (int) Math.ceil((double) channels.size() / columns);
-        final int cellHeight = Math.max(1, height / rows);
-        final int cellWidth = Math.max(SCOPE_LABEL_WIDTH + 1, width / columns);
+        final int plotWidth = grid.cellWidth() - Scopes.LABEL_WIDTH;
         final List<AttributedString> lines = new ArrayList<>();
-        for (int row = 0; row < rows && lines.size() < height; row++) {
+        for (int row = 0; row < grid.rows() && lines.size() < height; row++) {
             final List<List<String>> plots = new ArrayList<>();
-            for (int column = 0; column < columns; column++) {
-                final int index = row * columns + column;
-                plots.add(index < channels.size() ? Braille.plot(channels.get(index).waveform(), cellWidth - SCOPE_LABEL_WIDTH, cellHeight) : List.of());
+            for (int column = 0; column < grid.columns(); column++) {
+                final int index = row * grid.columns() + column;
+                plots.add(index < channels.size() ? Braille.plot(channels.get(index).waveform(), plotWidth, grid.cellHeight()) : List.of());
             }
-            for (int y = 0; y < cellHeight && lines.size() < height; y++) {
+            for (int y = 0; y < grid.cellHeight() && lines.size() < height; y++) {
                 final AttributedStringBuilder line = new AttributedStringBuilder();
-                for (int column = 0; column < columns; column++) {
-                    final int index = row * columns + column;
+                for (int column = 0; column < grid.columns(); column++) {
+                    final int index = row * grid.columns() + column;
                     if (index >= channels.size()) {
                         break;
                     }
-                    final ChannelState channel = channels.get(index);
-                    final boolean sounding = channel.volume() > 0;
-                    final String label = y == 0 ? String.format("%-3s", channel.number() == 0 ? "mix" : channel.number()) : " ".repeat(SCOPE_LABEL_WIDTH);
-                    line.style(sounding ? Palette.ACTIVE : Palette.DIMMED).append(label, 0, SCOPE_LABEL_WIDTH);
-                    line.style(sounding ? Palette.SCOPE : Palette.SCOPE_QUIET).append(plots.get(column).get(y));
+                    line.append(cell(channels.get(index), plots.get(column).get(y), y == 0));
                 }
                 lines.add(line.toAttributedString());
             }
         }
         return lines;
+    }
+
+    /**
+     * One scope: its channel number, written on the first row only, and the waveform beside it. A silenced
+     * channel is struck through so it reads as off rather than merely quiet.
+     */
+    private static AttributedString cell(ChannelState channel, String plot, boolean labelled) {
+        final boolean sounding = channel.volume() > 0;
+        final String label = labelled
+                ? String.format("%-" + Scopes.LABEL_WIDTH + "s", channel.number() == 0 ? "mix" : channel.number())
+                : " ".repeat(Scopes.LABEL_WIDTH);
+        final AttributedStyle labelStyle = channel.muted() ? Palette.MUTED : sounding ? Palette.ACTIVE : Palette.DIMMED;
+        return line(b -> b.style(labelStyle).append(label, 0, Scopes.LABEL_WIDTH)
+                .style(sounding ? Palette.SCOPE : Palette.SCOPE_QUIET).append(plot));
     }
 
     private static AttributedString meters(PlayerView view, int width) {

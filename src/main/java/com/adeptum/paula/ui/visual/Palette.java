@@ -45,6 +45,7 @@ public final class Palette {
     public static final AttributedStyle PEAK = AttributedStyle.DEFAULT.foreground(255, 255, 255);
     public static final AttributedStyle SCOPE = AttributedStyle.DEFAULT.foreground(120, 230, 255);
     public static final AttributedStyle SCOPE_QUIET = AttributedStyle.DEFAULT.foreground(70, 90, 120);
+    public static final AttributedStyle MUTED = AttributedStyle.DEFAULT.foreground(220, 90, 90).crossedOut();
 
     private static final int[][] TITLE_GRADIENT = {{120, 20, 140}, {40, 60, 190}, {20, 150, 190}};
     private static final int[][] LEVEL_GRADIENT = {{40, 140, 255}, {40, 220, 200}, {140, 240, 60}, {255, 220, 40}, {255, 60, 60}};

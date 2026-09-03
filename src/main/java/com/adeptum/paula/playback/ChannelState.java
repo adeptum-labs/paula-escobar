@@ -22,8 +22,8 @@
 package com.adeptum.paula.playback;
 
 /**
- * What one channel is doing right now: the instrument it plays (0 when silent), its volume from 0 to 1 and a
- * snippet of its waveform in the range -1..1 scaled by that volume.
+ * What one channel is doing right now: the instrument it plays (0 when silent), its volume from 0 to 1, a
+ * snippet of its waveform in the range -1..1 scaled by that volume, and whether the listener has silenced it.
  */
-public record ChannelState(int number, int instrument, double volume, double[] waveform) {
+public record ChannelState(int number, int instrument, double volume, double[] waveform, boolean muted) {
 }

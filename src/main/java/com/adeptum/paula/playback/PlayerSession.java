@@ -33,6 +33,7 @@ import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.Action;
 import com.adeptum.paula.ui.Browser;
 import com.adeptum.paula.ui.Key;
+import com.adeptum.paula.ui.Mouse;
 import com.adeptum.paula.ui.PlayerView;
 import com.adeptum.paula.ui.Screen;
 import com.adeptum.paula.ui.Shortcuts;
@@ -57,6 +58,7 @@ public final class PlayerSession {
     private static final Duration SEEK_STEP = Duration.ofSeconds(5);
     private static final String LOADING = "Loading ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
+    private static final short[] NO_AUDIO = new short[0];
 
     private final ModuleLoaderRegistry loaders;
     private final PlaybackEngine engine;
@@ -69,6 +71,7 @@ public final class PlayerSession {
     private final boolean exitWhenDone;
     private final Spectrum spectrum;
     private final Vu vu = new Vu();
+    private final ChannelMuting muting = new ChannelMuting();
     private Playlist playlist;
     private boolean browsing;
     private boolean everBrowsed;
@@ -105,6 +108,8 @@ public final class PlayerSession {
             while (!key.is(Key.Special.TIMEOUT)) {
                 if (showingKeys) {
                     showingKeys = false;
+                } else if (key.mouse() != null) {
+                    click(key.mouse());
                 } else if (key.character() == KEYS) {
                     showingKeys = true;
                 } else if (browsing && browser.consumes(key)) {
@@ -149,6 +154,17 @@ public final class PlayerSession {
             }
         }
         return true;
+    }
+
+    /**
+     * A click lands on the screen as it was last drawn, which is the one the loop is about to draw again.
+     */
+    private void click(Mouse mouse) {
+        if (browsing || renderer == null) {
+            return;
+        }
+        Screen.channelAt(view(NO_AUDIO), ui.width(), ui.height(), mouse.column(), mouse.row())
+                .ifPresent(channel -> muting.click(renderer, channel, mouse.shift()));
     }
 
     private void startPlaylist(Playlist selected) {

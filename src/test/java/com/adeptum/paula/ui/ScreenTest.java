@@ -33,6 +33,7 @@ import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import org.jline.utils.AttributedString;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class ScreenTest {
     private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
 
-    private final PlayerView view = PlayerView.builder()
+    private final PlayerView.PlayerViewBuilder playing = PlayerView.builder()
             .module(new TestModule(Path.of("dir", "space.mod"), ModuleMetadata.builder()
                     .title("Space Debris")
                     .format(new ModuleFormat("mod", "ProTracker", Set.of("mod")))
@@ -61,11 +62,12 @@ class ScreenTest {
             .vuLeft(0.5)
             .vuRight(0.25)
             .channels(List.of(
-                    new ChannelState(1, 2, 0.8, new double[] {0, 1, 0, -1}),
-                    new ChannelState(2, 0, 0, new double[4]),
-                    new ChannelState(3, 0, 0, new double[4]),
-                    new ChannelState(4, 0, 0, new double[4])))
-            .build();
+                    new ChannelState(1, 2, 0.8, new double[] {0, 1, 0, -1}, false),
+                    new ChannelState(2, 0, 0, new double[4], false),
+                    new ChannelState(3, 0, 0, new double[4], false),
+                    new ChannelState(4, 0, 0, new double[4], false)));
+
+    private final PlayerView view = playing.build();
 
     @Test
     void fillsTheWholeTerminalWithBarsAndPanels() {
@@ -112,6 +114,43 @@ class ScreenTest {
     }
 
     @Test
+    void findsTheChannelUnderAClickOnItsScope() {
+        assertScopesAreClickable(WIDTH, HEIGHT);
+        assertScopesAreClickable(80, 30);
+    }
+
+    @Test
+    void ignoresClicksThatMissTheScopes() {
+        final Scopes grid = Screen.scopes(view, WIDTH, HEIGHT);
+
+        assertEquals(OptionalInt.empty(), Screen.channelAt(view, WIDTH, HEIGHT, 0, 0), "the title bar");
+        assertEquals(OptionalInt.empty(), Screen.channelAt(view, WIDTH, HEIGHT, grid.left() - 1, grid.top()), "left of the box");
+        assertEquals(OptionalInt.empty(), Screen.channelAt(view, WIDTH, HEIGHT, grid.left(), grid.top() - 1), "above the box");
+        assertEquals(OptionalInt.empty(),
+                Screen.channelAt(view, WIDTH, HEIGHT, grid.left() + grid.columns() * grid.cellWidth(), grid.top()), "right of the last cell");
+    }
+
+    @Test
+    void leavesTheMixOfAFormatWithoutChannelsUnclickable() {
+        final PlayerView mixed = playing.channels(List.of()).build();
+        final Scopes grid = Screen.scopes(mixed, WIDTH, HEIGHT);
+
+        assertEquals(OptionalInt.empty(), Screen.channelAt(mixed, WIDTH, HEIGHT, grid.left(), grid.top()));
+    }
+
+    @Test
+    void strikesOutTheLabelOfASilencedChannel() {
+        final PlayerView silenced = playing.channels(List.of(
+                new ChannelState(1, 2, 0.8, new double[] {0, 1, 0, -1}, false),
+                new ChannelState(2, 0, 0, new double[4], true))).build();
+        final Scopes grid = Screen.scopes(silenced, WIDTH, HEIGHT);
+        final List<AttributedString> lines = Screen.render(silenced, WIDTH, HEIGHT);
+
+        assertEquals(Palette.MUTED, lines.get(grid.top()).styleAt(grid.left() + grid.cellWidth()), "channel two is off");
+        assertEquals(Palette.ACTIVE, lines.get(grid.top()).styleAt(grid.left()), "channel one still sounds");
+    }
+
+    @Test
     void stacksPanelsOnNarrowTerminals() {
         final List<AttributedString> lines = Screen.render(view, 80, 30);
 
@@ -119,6 +158,24 @@ class ScreenTest {
         assertTrue(lines.stream().allMatch(line -> line.columnLength() == 80));
         final String all = String.join("\n", text(lines));
         assertTrue(all.contains("Spectrum") && all.contains("Channels") && all.contains("Space Debris"));
+    }
+
+    /**
+     * The grid a click is measured against has to be the one the scopes were drawn on, so every cell it names
+     * is checked against the label actually written there.
+     */
+    private void assertScopesAreClickable(int width, int height) {
+        final List<AttributedString> lines = Screen.render(view, width, height);
+        final Scopes grid = Screen.scopes(view, width, height);
+
+        for (int channel = 1; channel <= 4; channel++) {
+            final int row = grid.top() + (channel - 1) / grid.columns() * grid.cellHeight();
+            final int column = grid.left() + (channel - 1) % grid.columns() * grid.cellWidth();
+            assertEquals(String.valueOf(channel), lines.get(row).toString().substring(column, column + 1),
+                    "channel " + channel + " is drawn where the grid says at " + width + "x" + height);
+            assertEquals(OptionalInt.of(channel), Screen.channelAt(view, width, height, column + 1, row),
+                    "a click anywhere in the cell picks channel " + channel);
+        }
     }
 
     @Test

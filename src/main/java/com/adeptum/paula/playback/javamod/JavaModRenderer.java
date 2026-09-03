@@ -31,9 +31,11 @@ import de.quippy.javamod.multimedia.mod.mixer.ChannelMemory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Pulls 32-bit stereo audio from JavaMod's mixer and reduces it to Paula's 16-bit interleaved frames.
@@ -52,6 +54,7 @@ public final class JavaModRenderer implements Renderer {
     private final int channelCount;
     private final Duration length;
     private final Map<Sample, Double> samplePeaks = new HashMap<>();
+    private final Set<Integer> muted = new HashSet<>();
     private long[] left = new long[0];
     private long[] right = new long[0];
     private long renderedFrames;
@@ -95,6 +98,7 @@ public final class JavaModRenderer implements Renderer {
     @Override
     public void seek(Duration target) {
         renderedFrames = mixer.seek(target.toMillis());
+        applyMutes();
     }
 
     @Override
@@ -120,16 +124,41 @@ public final class JavaModRenderer implements Renderer {
         return states;
     }
 
+    /**
+     * The mixer owns the flag, so a replay from the start for a seek can drop it; the set here is what the
+     * listener asked for and is put back whenever that happens.
+     */
+    @Override
+    public void mute(int number, boolean silenced) {
+        if (silenced) {
+            muted.add(number);
+        } else {
+            muted.remove(number);
+        }
+        applyMutes();
+    }
+
+    private void applyMutes() {
+        final ChannelMemory[] memory = ChannelPeek.channels(mixer);
+        if (memory == null) {
+            return;
+        }
+        for (int i = 0; i < Math.min(channelCount, memory.length); i++) {
+            memory[i].muted = muted.contains(i + 1);
+        }
+    }
+
     static short toPcm16(long sample) {
         return (short) Math.clamp((sample + ROUNDING) >> BITS_TO_DROP, Short.MIN_VALUE, Short.MAX_VALUE);
     }
 
     private ChannelState state(int number, ChannelMemory channel) {
         final Sample sample = channel.currentSample;
+        final boolean silenced = muted.contains(number);
         final double volume = Math.min(1.0, (channel.actVolumeLeft + channel.actVolumeRight) / FULL_CHANNEL_VOLUME);
         final double[] waveform = new double[WAVEFORM_SAMPLES];
         if (sample == null || sample.sampleL == null || sample.sampleL.length == 0 || channel.instrumentFinished || channel.muted || volume <= 0) {
-            return new ChannelState(number, 0, 0, waveform);
+            return new ChannelState(number, 0, 0, waveform, silenced);
         }
         final long[] data = sample.sampleL;
         final double peak = samplePeaks.computeIfAbsent(sample, JavaModRenderer::peakOf);
@@ -138,7 +167,7 @@ public final class JavaModRenderer implements Renderer {
             final int index = wrap(start + i, sample);
             waveform[i] = index < 0 ? 0 : data[index] / peak * volume;
         }
-        return new ChannelState(number, channel.currentAssignedInstrumentIndex, volume, waveform);
+        return new ChannelState(number, channel.currentAssignedInstrumentIndex, volume, waveform, silenced);
     }
 
     private static int wrap(int index, Sample sample) {

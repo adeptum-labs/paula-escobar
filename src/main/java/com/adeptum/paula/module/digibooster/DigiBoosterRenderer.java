@@ -50,6 +50,8 @@ public final class DigiBoosterRenderer implements Renderer {
     private final int sampleRate;
     private final OptionalLong songFrames;
 
+    private final boolean[] muted;
+
     private DbmEngine engine;
     private long renderedFrames;
     private long pendingFrames;
@@ -60,6 +62,7 @@ public final class DigiBoosterRenderer implements Renderer {
         this.file = file;
         this.sampleRate = sampleRate;
         this.engine = new DbmEngine(file, sampleRate);
+        this.muted = new boolean[engine.tracks()];
         this.songFrames = DbmEngine.songFrames(file, sampleRate, LONGEST_SONG_SECONDS * sampleRate);
     }
 
@@ -95,6 +98,7 @@ public final class DigiBoosterRenderer implements Renderer {
         final long targetFrames = Math.max(0, target.toMillis() * sampleRate / MILLIS);
         if (targetFrames < renderedFrames) {
             engine = new DbmEngine(file, sampleRate);
+            applyMutes();
             renderedFrames = 0;
             ended = false;
         }
@@ -114,18 +118,36 @@ public final class DigiBoosterRenderer implements Renderer {
         return channels;
     }
 
+    /**
+     * A seek backwards starts the song over on a fresh engine, so what the listener silenced is kept here and
+     * put back on the new tracks.
+     */
+    @Override
+    public void mute(int number, boolean silenced) {
+        if (number >= 1 && number <= muted.length) {
+            muted[number - 1] = silenced;
+            applyMutes();
+        }
+    }
+
+    private void applyMutes() {
+        for (int number = 0; number < muted.length; number++) {
+            engine.track(number).muted = muted[number];
+        }
+    }
+
     private ChannelState state(int number, DbmTrack track) {
         final double volume = Math.min(1.0, (double) (track.gainLeft + track.gainRight) / (2 * GAIN_UNIT));
         final double[] waveform = new double[WAVEFORM_SAMPLES];
-        if (!track.playing || track.wavetable == null || volume <= 0) {
-            return new ChannelState(number + 1, 0, 0, waveform);
+        if (track.muted || !track.playing || track.wavetable == null || volume <= 0) {
+            return new ChannelState(number + 1, 0, 0, waveform, track.muted);
         }
         final short[] sample = track.wavetable.sample();
         final int start = track.wavetable.position();
         for (int at = 0; at < WAVEFORM_SAMPLES && start + at < sample.length; at++) {
             waveform[at] = (double) sample[start + at] / Short.MAX_VALUE * volume;
         }
-        return new ChannelState(number + 1, track.instrument, volume, waveform);
+        return new ChannelState(number + 1, track.instrument, volume, waveform, track.muted);
     }
 
     private void catchUp() {

@@ -22,6 +22,7 @@
 package com.adeptum.paula.playback.javamod;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.javamod.JavaModLoader;
@@ -40,6 +41,7 @@ class JavaModRendererTest {
     private static final int SAMPLE_RATE = 8000;
     private static final int FRAMES = 1024;
     private static final int MAX_BUFFERS = SAMPLE_RATE * 120 / FRAMES;
+    private static final int PLAYING_CHANNEL = 1;
 
     @Test
     void rendersAudioAndEventuallyFinishes(@TempDir Path dir) throws Exception {
@@ -93,6 +95,42 @@ class JavaModRendererTest {
         assertTrue(Arrays.stream(first.waveform()).anyMatch(v -> Math.abs(v) > 0.1), "a square wave is not flat");
         assertEquals(0, channels.get(1).volume(), "silent channels report no volume");
         assertEquals(0, channels.get(1).instrument());
+    }
+
+    @Test
+    void silencesTheChannelThatWasMuted(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        renderer.render(buffer);
+        assertTrue(peak(buffer) > 0, "the note in the pattern is heard");
+
+        renderer.mute(PLAYING_CHANNEL, true);
+        renderer.render(buffer);
+        assertEquals(0, peak(buffer), "the only channel with a note on it went quiet");
+        assertTrue(renderer.channels().get(PLAYING_CHANNEL - 1).muted(), "and says so");
+        assertFalse(renderer.channels().get(PLAYING_CHANNEL).muted(), "while the others are left alone");
+
+        renderer.mute(PLAYING_CHANNEL, false);
+        renderer.render(buffer);
+        assertTrue(peak(buffer) > 0, "and is heard again once it is let back in");
+    }
+
+    /**
+     * A seek replays the song from the start on the mixer's own channels, which is where the flag lives, so
+     * what the listener silenced has to be put back afterwards.
+     */
+    @Test
+    void keepsTheMuteAcrossASeek(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        renderer.mute(PLAYING_CHANNEL, true);
+        renderer.seek(Duration.ofSeconds(1));
+        renderer.render(buffer);
+
+        assertTrue(renderer.channels().get(PLAYING_CHANNEL - 1).muted());
+        assertEquals(0, peak(buffer));
     }
 
     @Test
