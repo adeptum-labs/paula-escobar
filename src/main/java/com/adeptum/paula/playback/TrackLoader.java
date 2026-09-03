@@ -52,6 +52,7 @@ public final class TrackLoader implements AutoCloseable {
     private static final String THREAD_NAME = "paula-loader";
 
     private final Executor executor;
+    private final Progress progress = new Progress();
     private CompletableFuture<Result> pending;
 
     public TrackLoader(Executor executor) {
@@ -67,7 +68,15 @@ public final class TrackLoader implements AutoCloseable {
      * lands in the cache.
      */
     public void request(Track track, Resolver resolver) {
+        progress.clear();
         pending = CompletableFuture.supplyAsync(() -> resolve(track, resolver), executor);
+    }
+
+    /**
+     * Where whoever resolves a track says what it is busy with, so the screen can say so too.
+     */
+    public Progress progress() {
+        return progress;
     }
 
     public boolean loading() {
@@ -80,6 +89,7 @@ public final class TrackLoader implements AutoCloseable {
         }
         final Result result = pending.join();
         pending = null;
+        progress.clear();
         return Optional.of(result);
     }
 

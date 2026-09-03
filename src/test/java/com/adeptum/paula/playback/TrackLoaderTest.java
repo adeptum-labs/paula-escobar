@@ -87,4 +87,24 @@ class TrackLoaderTest {
         assertTrue(stalled.loading());
         assertEquals(Optional.empty(), stalled.poll());
     }
+
+    /**
+     * What the last track was busy with must not be left on the screen while the next one loads, nor after the
+     * result has been handed over.
+     */
+    @Test
+    void forgetsWhatItWasBusyWithBetweenTracks() {
+        final TrackLoader loader = new TrackLoader(Runnable::run);
+        loader.request(A, track -> {
+            loader.progress().report("Unpacking a.zip");
+            return Path.of("a");
+        });
+
+        assertEquals(Optional.of("Unpacking a.zip"), loader.progress().step(), "while it works");
+        loader.poll();
+        assertEquals(Optional.empty(), loader.progress().step(), "and not once it is done");
+
+        loader.request(B, track -> Path.of("b"));
+        assertEquals(Optional.empty(), loader.progress().step(), "nor carried into the next track");
+    }
 }

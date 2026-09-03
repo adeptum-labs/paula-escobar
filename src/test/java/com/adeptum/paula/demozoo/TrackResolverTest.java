@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
@@ -121,6 +122,29 @@ class TrackResolverTest {
 
         assertEquals(dir.resolve("files/7/extracted/music/tune.mod"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    /**
+     * A party archive can hold hundreds of entries, and unpacking one takes long enough that the screen should
+     * say so rather than sit on "Loading".
+     */
+    @Test
+    void tellsTheScreenWhatItIsUnpacking(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("readme.txt", README);
+        entries.put("music/tune.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
+        final Progress progress = new Progress();
+        final CacheDirectory cache = new CacheDirectory(dir);
+        final TrackResolver resolver = new TrackResolver(new DemozooClient(http, cache), http, cache,
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
+
+        resolver.resolve(ENTRY);
+
+        final String said = progress.step().orElseThrow();
+        assertTrue(said.startsWith("Unpacking funkyeeh.zip"), "it names the archive, said " + said);
+        assertTrue(said.endsWith("2 entries"), "and counts its way through, said " + said);
     }
 
     @Test

@@ -26,6 +26,7 @@ import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.module.sid.SidLoader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -65,6 +67,9 @@ public final class TrackResolver {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
     private static final String FILES = "files";
     private static final String EXTRACTED = "extracted";
+    private static final String UNPACKING = "Unpacking ";
+    private static final String COUNT_SEPARATOR = " · ";
+    private static final String ENTRIES = " entries";
     private static final String DEFAULT_NAME = "download";
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
@@ -75,8 +80,15 @@ public final class TrackResolver {
     private final HttpFetcher http;
     private final CacheDirectory cache;
     private final ModuleLoaderRegistry loaders;
+    private final Progress progress;
 
     public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders) {
+        this(demozoo, http, cache, loaders, new Progress());
+    }
+
+    public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders,
+            Progress progress) {
+        this.progress = progress;
         this.demozoo = demozoo;
         this.http = http;
         this.cache = cache;
@@ -207,7 +219,7 @@ public final class TrackResolver {
             throw new IOException(download.getFileName() + " for " + entry.title() + " is not a module or archive");
         }
         final Path extracted = download.resolveSibling(EXTRACTED);
-        archive.get().extract(download, extracted, wantedEntry());
+        archive.get().extract(download, extracted, wantedEntry(download.getFileName().toString()));
         unpackNested(extracted);
         final Optional<Path> playable = firstPlayable(extracted, entry);
         if (playable.isEmpty() && loaders.loaderFor(download).isPresent()) {
@@ -248,7 +260,7 @@ public final class TrackResolver {
                     unpackedAny = true;
                 }
             } else {
-                nested.get().extract(file, directory, wantedEntry());
+                nested.get().extract(file, directory, wantedEntry(file.getFileName().toString()));
                 unpackedAny = true;
             }
         }
@@ -259,8 +271,16 @@ public final class TrackResolver {
      * Archives are taken out along with the modules, since a disk image or a further archive may hold what is
      * being looked for, and so is the text art a release was packed with.
      */
-    private Predicate<String> wantedEntry() {
-        return name -> loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name) || isArt(name);
+    /**
+     * Every entry the archive holds is offered here, wanted or not, so counting the offers is the one place
+     * that knows how far along the unpacking is without an extractor having to say.
+     */
+    private Predicate<String> wantedEntry(String archive) {
+        final AtomicInteger seen = new AtomicInteger();
+        return name -> {
+            progress.report(UNPACKING + archive + COUNT_SEPARATOR + seen.incrementAndGet() + ENTRIES);
+            return loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name) || isArt(name);
+        };
     }
 
     private static boolean isArt(String name) {

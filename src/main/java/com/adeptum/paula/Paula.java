@@ -137,7 +137,7 @@ public final class Paula implements Runnable {
             final DemozooClient demozoo = new DemozooClient(http, cache);
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
-            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
+            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress());
             final Browser browser = new Browser(demozoo, browsing, new FetchingReleaseArt(new CachedReleaseArt(cache), resolver, fetchingArt),
                     new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, deadline()).run();

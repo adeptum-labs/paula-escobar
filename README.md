@@ -163,6 +163,10 @@ name order when none is. Modules wrapped by the
 Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
 SQSH packers, which is what tracker modules of the time were packed with.
 
+A party archive can hold hundreds of entries, so unpacking one says so on
+the status line, naming the archive and counting its way through rather
+than sitting on "Loading".
+
 Party archives are often packed with a `file_id.diz` or an information file
 carrying a hand drawn banner for the competition. Opening a competition
 brings down its first entry in the background — the download playing it

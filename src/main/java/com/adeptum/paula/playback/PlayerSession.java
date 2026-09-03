@@ -328,6 +328,9 @@ public final class PlayerSession {
         if (status != null) {
             return status;
         }
-        return loader.loading() ? LOADING + playlist.current().label() : null;
+        if (!loader.loading()) {
+            return null;
+        }
+        return loader.progress().step().orElseGet(() -> LOADING + playlist.current().label());
     }
 }
