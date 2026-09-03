@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,6 +75,7 @@ public final class TrackResolver {
     private static final int PERCENT = 100;
     private static final int KILOBYTE = 1024;
     private static final long REPORT_OVER = 500L * KILOBYTE;
+    private static final long NOTHING_REPORTED = -1;
     private static final String COUNT_SEPARATOR = " · ";
     private static final String ENTRIES = " entries";
     private static final String DEFAULT_NAME = "download";
@@ -140,7 +142,7 @@ public final class TrackResolver {
     private Path download(Link link, Path directory, CompoEntry entry) throws IOException {
         final URI uri = downloadUri(link);
         final String name = lastSegment(uri);
-        final HttpFetcher.Response response = http.get(uri, (read, total) -> reportDownload(name, read, total));
+        final HttpFetcher.Response response = http.get(uri, downloadWatcher(name));
         final Path download = directory.resolve(fileName(response, uri));
         cache.writeAtomically(download, response.body());
         return playableFile(download, entry)
@@ -214,15 +216,28 @@ public final class TrackResolver {
 
     /**
      * A recorded track runs to megabytes where a module runs to kilobytes, and a wait with nothing said looks
-     * like a refusal. Only a download long enough to be waited on is reported, and only as each part of a
-     * hundred is reached, since the line is read thirty times a second and rebuilt for nothing otherwise.
+     * like a refusal. Only a download long enough to be waited on is reported, and only where the part of a
+     * hundred has moved on since the block before, the line being read thirty times a second and rebuilt for
+     * nothing otherwise. A server that will not say how much is coming leaves the end unknown, so what has
+     * arrived is counted instead of measured.
      */
-    private void reportDownload(String name, long read, long total) {
-        if (total < REPORT_OVER || read * PERCENT / total == (read - 1) * PERCENT / total) {
-            return;
-        }
-        progress.measured(DOWNLOADING + name + COUNT_SEPARATOR + read * PERCENT / total + PERCENT_OF
-                + total / KILOBYTE + KILOBYTES, (double) read / total);
+    private HttpFetcher.Watcher downloadWatcher(String name) {
+        final AtomicLong reported = new AtomicLong(NOTHING_REPORTED);
+        return (read, total) -> {
+            if (total >= 0 && total < REPORT_OVER) {
+                return;
+            }
+            final long reach = total > 0 ? read * PERCENT / total : read / KILOBYTE;
+            if (reported.getAndSet(reach) == reach) {
+                return;
+            }
+            if (total > 0) {
+                progress.measured(DOWNLOADING + name + COUNT_SEPARATOR + reach + PERCENT_OF
+                        + total / KILOBYTE + KILOBYTES, (double) read / total);
+            } else {
+                progress.counted(DOWNLOADING + name + COUNT_SEPARATOR + read / KILOBYTE + KILOBYTES, reach);
+            }
+        };
     }
 
     private static String lastSegment(URI uri) {

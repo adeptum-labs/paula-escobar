@@ -38,6 +38,15 @@ public final class FakeHttp implements HttpFetcher {
     private final Map<URI, Response> responses = new HashMap<>();
     private int requests;
     private boolean offline;
+    private Runnable afterBlock = () -> { };
+
+    /**
+     * Run after every block is handed over, for a test that wants to see what the world looked like partway
+     * through a download rather than only when it finished.
+     */
+    public void afterEachBlock(Runnable listener) {
+        afterBlock = listener;
+    }
 
     public void put(String url, String body) {
         put(url, body.getBytes(StandardCharsets.UTF_8), Optional.empty());
@@ -80,6 +89,7 @@ public final class FakeHttp implements HttpFetcher {
         }
         for (int read = 0; read < response.body().length; read += BLOCK) {
             watcher.read(Math.min(read + BLOCK, response.body().length), response.body().length);
+            afterBlock.run();
         }
         return response;
     }

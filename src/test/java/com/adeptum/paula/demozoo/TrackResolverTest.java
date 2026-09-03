@@ -38,6 +38,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,6 +169,29 @@ class TrackResolverTest {
         final String said = progress.step().orElseThrow().text();
         assertTrue(said.startsWith("Downloading funkyeeh.mod"), "it names the file, said " + said);
         assertTrue(said.endsWith("% of 700 kB"), "and how far along it is, said " + said);
+    }
+
+    /**
+     * Counting only at the end is the same as saying nothing: the wait is the whole point, and a line that
+     * moves once the download is already done tells nobody anything.
+     */
+    @Test
+    void countsUpThroughoutTheDownloadRatherThanOnlyAtTheEnd(@TempDir Path dir) throws IOException {
+        final byte[] big = new byte[3 * 1024 * 1024];
+        System.arraycopy(TestModules.proTracker(), 0, big, 0, TestModules.proTracker().length);
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW.replace(".zip", ".mod")));
+        http.put(SCENE_ORG_FILE.replace(".zip", ".mod"), big, Optional.empty());
+        final Progress progress = new Progress();
+        final List<Double> reached = new ArrayList<>();
+        http.afterEachBlock(() -> progress.step().filter(Progress.Step::measured).map(Progress.Step::fraction)
+                .filter(f -> reached.isEmpty() || Double.compare(reached.get(reached.size() - 1), f) != 0)
+                .ifPresent(reached::add));
+
+        resolver(dir, progress).resolve(ENTRY);
+
+        assertTrue(reached.size() > 10, "it was counted up along the way, not once at the end: " + reached.size());
+        assertTrue(reached.get(0) < 0.5, "starting well before the end, first was " + reached.get(0));
+        assertEquals(reached.stream().sorted().toList(), reached, "and only ever going up");
     }
 
     @Test
