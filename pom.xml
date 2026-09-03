@@ -41,13 +41,15 @@
     <slf4j.version>2.0.17</slf4j.version>
     <junit.version>5.12.2</junit.version>
     <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
+    <shade-plugin.version>3.6.2</shade-plugin.version>
+    <versions-plugin.version>2.20.1</versions-plugin.version>
   </properties>
 
   <repositories>
     <repository>
       <id>project-libs</id>
       <name>Libraries vendored in lib/</name>
-      <url>file://${project.basedir}/lib</url>
+      <url>${project.baseUri}lib</url>
     </repository>
   </repositories>
 
@@ -203,6 +205,66 @@
           </buildArgs>
         </configuration>
       </plugin>
+      <!--
+        Attached under a classifier rather than replacing the jar: native-image is handed the project's
+        main artifact, and a fat jar in its place would feed it every dependency twice.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${shade-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>runnable-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <shadedClassifierName>all</shadedClassifierName>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>module-info.class</exclude>
+                    <exclude>META-INF/versions/*/module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <manifestEntries>
+                    <Main-Class>com.adeptum.paula.Paula</Main-Class>
+                    <Implementation-Title>${project.name}</Implementation-Title>
+                    <Implementation-Version>${project.version}</Implementation-Version>
+                  </manifestEntries>
+                </transformer>
+                <!-- JLine finds its terminal providers, and Parsson its JSON provider, through these. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
+    <pluginManagement>
+      <plugins>
+        <!-- The release script sets the version with this; a backup pom would litter the tree it checks. -->
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>versions-maven-plugin</artifactId>
+          <version>${versions-plugin.version}</version>
+          <configuration>
+            <generateBackupPoms>false</generateBackupPoms>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
   </build>
 </project>
