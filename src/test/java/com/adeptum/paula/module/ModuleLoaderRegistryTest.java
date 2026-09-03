@@ -31,6 +31,7 @@ import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
+import com.adeptum.paula.module.wav.WavLoader;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, DigiBoosterLoader.FORMAT, Mp3Loader.FORMAT,
-                FlacLoader.FORMAT), registry.formats());
+                FlacLoader.FORMAT, WavLoader.FORMAT), registry.formats());
     }
 
     @Test
@@ -52,6 +53,9 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.dbm")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.mp3")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.flac")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.wav")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.au")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.aif")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());
     }
 
