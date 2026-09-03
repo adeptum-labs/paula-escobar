@@ -430,12 +430,16 @@ public final class Browser {
     }
 
     /**
-     * Entries of a competition often share the one file the party was handed, and its art with it, so an entry
-     * downloaded from the same place as the one the competition was opened with is left alone.
+     * Art travels inside an archive, beside the module it belongs to. A release handed in as a bare recording
+     * carries none, and fetching one to find that out costs the whole of it: a streaming competition is a list
+     * of them, many megabytes apiece. Entries of a competition also often share the one file the party was
+     * handed, so an entry downloaded from the same place as the one the competition was opened with is left
+     * alone as well.
      */
     private boolean hasArtOfItsOwn(CompoEntry entry) {
         final String source = downloads.get(entry.productionId());
-        return source != null && !source.equals(NO_FILE) && !source.equals(downloads.get(levels.peek().artProduction));
+        return source != null && !source.equals(NO_FILE) && Archives.looksLikeArchive(source)
+                && !source.equals(downloads.get(levels.peek().artProduction));
     }
 
     /**

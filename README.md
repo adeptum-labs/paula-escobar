@@ -179,7 +179,10 @@ sweeps a block to and fro at the pace it is working rather than claiming
 a share it cannot know.
 
 Party archives are often packed with a `file_id.diz` or an information file
-carrying a hand drawn banner for the competition. Opening a competition
+carrying a hand drawn banner for the competition. Art travels inside such
+an archive, so a release handed in as a bare recording is left where it is
+rather than brought down to be looked inside: a streaming competition is a
+list of them, many megabytes apiece. Opening a competition
 brings down its first entry in the background — the download playing it
 would have cost anyway — and the art that comes with it is shown above the
 list for every entry in that competition, an entry's own art taking

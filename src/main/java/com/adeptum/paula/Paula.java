@@ -138,7 +138,10 @@ public final class Paula implements Runnable {
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress());
-            final Browser browser = new Browser(demozoo, browsing, new FetchingReleaseArt(new CachedReleaseArt(cache), resolver, fetchingArt),
+            // Art is fetched behind the browser's back and must not write over what the player is waiting for.
+            final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders);
+            final Browser browser = new Browser(demozoo, browsing,
+                    new FetchingReleaseArt(new CachedReleaseArt(cache), artResolver, fetchingArt),
                     new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, deadline()).run();
         } catch (AudioException | IOException e) {

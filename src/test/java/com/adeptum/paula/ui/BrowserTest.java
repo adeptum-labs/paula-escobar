@@ -152,6 +152,41 @@ class BrowserTest {
         assertEquals(12, fetched.getFirst().productionId());
     }
 
+    /**
+     * Art travels inside an archive. A streaming competition is a list of bare recordings of many megabytes
+     * apiece, and fetching one to find it holds no art costs the whole of it.
+     */
+    @Test
+    void leavesABareRecordingAloneRatherThanFetchItForArtItCannotHold() {
+        final List<CompoEntry> fetched = new ArrayList<>();
+        final MutableClock clock = new MutableClock();
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void fetch(CompoEntry entry) {
+                fetched.add(entry);
+            }
+        }, Duration.ofMillis(500), clock);
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD.replace("x.zip", "tune.mp3"));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        fetched.clear();
+
+        press(Key.Special.DOWN);
+        browser.tick();
+        clock.advance(Duration.ofSeconds(1));
+        browser.tick();
+
+        assertEquals(List.of(), fetched, "a bare recording is not brought down to be looked inside");
+    }
+
     @Test
     void leavesAloneAnEntryDownloadedFromTheSamePlaceAsTheCompetition() {
         final List<CompoEntry> fetched = new ArrayList<>();
