@@ -80,10 +80,11 @@ class DemozooJsonTest {
     }
 
     @Test
-    void flagsStreamingAndExecutableMusicAsUnplayable() {
+    void flagsExecutableMusicAsUnplayableAndStreamingAsPlayable() {
         assertTrue(new CompoEntry(1, "1", 1, "t", "a", Set.of(29)).likelyPlayable());
-        assertFalse(new CompoEntry(1, "1", 1, "t", "a", Set.of(30)).likelyPlayable());
+        assertTrue(new CompoEntry(1, "1", 1, "t", "a", Set.of(30)).likelyPlayable(), "streaming music, now that MP3 plays");
         assertFalse(new CompoEntry(1, "1", 1, "t", "a", Set.of(14, 31)).likelyPlayable());
+        assertFalse(new CompoEntry(1, "1", 1, "t", "a", Set.of(38)).likelyPlayable());
     }
 
     @Test

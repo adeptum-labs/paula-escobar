@@ -94,7 +94,7 @@ class BrowserTest {
               {"id":2,"name":"Multichannel Music","production_type":{"id":29,"name":"Tracked Music","supertype":"music"},"results":[
                 {"position":1,"ranking":"1","production":{"id":11,"title":"First","author_nicks":[{"name":"A"}],"types":[{"id":29}]}},
                 {"position":2,"ranking":"2","production":{"id":12,"title":"Second","author_nicks":[{"name":"B"}],"types":[{"id":29}]}},
-                {"position":3,"ranking":"3","production":{"id":13,"title":"Stream","author_nicks":[{"name":"C"}],"types":[{"id":30}]}},
+                {"position":3,"ranking":"3","production":{"id":13,"title":"Exe","author_nicks":[{"name":"C"}],"types":[{"id":31}]}},
                 {"position":4,"ranking":"4","production":{"id":14,"title":"Fourth","author_nicks":[{"name":"D"}],"types":[{"id":29}]}}]}]}
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
@@ -395,7 +395,7 @@ class BrowserTest {
         openCompo();
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
         assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"));
-        assertTrue(lines.get(4).toString().startsWith("│    3  Stream  C"));
+        assertTrue(lines.get(4).toString().startsWith("│    3  Exe  C"));
         assertEquals(Palette.DIMMED, lines.get(4).styleAt(8), "dimmed title");
         assertEquals(Palette.VALUE, lines.get(3).styleAt(8));
         assertEquals(Palette.SILVER, lines.get(3).styleAt(5), "second place is silver");
@@ -426,7 +426,7 @@ class BrowserTest {
         press(Key.Special.ENTER);
 
         final Playlist playlist = browser.takeSelection().orElseThrow();
-        assertEquals("Stream", ((DemozooTrack) playlist.current()).entry().title());
+        assertEquals("Exe", ((DemozooTrack) playlist.current()).entry().title());
         assertEquals(2, playlist.size());
     }
 
@@ -568,7 +568,7 @@ class BrowserTest {
         assertTrue(lines.get(3).toString().startsWith("│    2  Second  B  (no download)"), lines.get(3).toString());
         assertEquals(Palette.DIMMED, lines.get(3).styleAt(8));
         assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"), "known downloads are not annotated");
-        assertTrue(lines.get(4).toString().startsWith("│    3  Stream  C"), "an entry Demozoo cannot describe is left alone");
+        assertTrue(lines.get(4).toString().startsWith("│    3  Exe  C"), "an entry Demozoo cannot describe is left alone");
 
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();

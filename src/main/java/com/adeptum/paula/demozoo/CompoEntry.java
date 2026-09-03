@@ -28,13 +28,16 @@ import java.util.Set;
  */
 public record CompoEntry(int position, String ranking, int productionId, String title, String author, Set<Integer> typeIds) {
 
-    private static final int STREAMING_MUSIC = 30;
     private static final int EXECUTABLE_MUSIC = 31;
     private static final int EXECUTABLE_MUSIC_32K = 32;
     private static final int EXECUTABLE_MUSIC_64K = 38;
-    private static final Set<Integer> UNPLAYABLE_TYPES = Set.of(STREAMING_MUSIC, EXECUTABLE_MUSIC, EXECUTABLE_MUSIC_32K, EXECUTABLE_MUSIC_64K);
+    private static final Set<Integer> UNPLAYABLE_TYPES = Set.of(EXECUTABLE_MUSIC, EXECUTABLE_MUSIC_32K, EXECUTABLE_MUSIC_64K);
     private static final String UNRANKED = "-";
 
+    /**
+     * A streaming competition counts as playable now that MPEG audio does, though it is the one competition
+     * whose entries may still turn out to be in a format the player has no decoder for.
+     */
     public boolean likelyPlayable() {
         return typeIds.stream().noneMatch(UNPLAYABLE_TYPES::contains);
     }

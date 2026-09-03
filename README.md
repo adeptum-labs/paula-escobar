@@ -21,7 +21,10 @@ files among others. Commodore 64 SID tunes play through the libsidplay2
 port with reSID chip emulation that JavaMod bundles. Its jar is vendored
 under `lib/` as a small Maven repository because no current release is
 published to Maven Central. DigiBooster modules, which JavaMod does not
-read, have a replayer of their own inside Paula Escobar.
+read, have a replayer of their own inside Paula Escobar. MPEG audio, which
+is what a streaming music competition is handed in as, is decoded frame by
+frame through the JLayer decoder in that same jar and resampled to the rate
+the engine mixes at; `--rate 44100` hands a CD-rate file through untouched.
 
 ## Building
 
@@ -128,9 +131,11 @@ bottom has no room for among them, and any key puts them away again.
 
 The browser starts with the party series, opens into the parties by year,
 then into every music competition of that party and finally into the ranked
-entries. Entries in streaming or executable music competitions are shown
-dimmed because Paula cannot play them, but they stay in the list so the
-results are complete. C64 competitions play through the SID emulation.
+entries. Entries in executable music competitions are shown dimmed because
+Paula cannot play them, but they stay in the list so the results are
+complete. Streaming competitions are not dimmed, since MPEG audio plays,
+though an entry handed in as Ogg or FLAC instead is skipped when its turn
+comes. C64 competitions play through the SID emulation.
 Entries Demozoo has no download for are marked "(no download)" as soon as
 their details have been fetched, since some releases never made it to any
 archive.
@@ -298,6 +303,7 @@ thrown away without a trace — before anyone sees it.
 | `com.adeptum.paula.module.javamod` | loads tracker modules through JavaMod                     |
 | `com.adeptum.paula.module.sid`   | SID loader and renderer, HVSC song lengths                  |
 | `com.adeptum.paula.module.digibooster` | reads and plays DigiBooster modules                   |
+| `com.adeptum.paula.module.mp3`   | MPEG audio loader, renderer and ID3 tags                    |
 | `com.adeptum.paula.audio`        | `AudioSink`, the audio backends and PCM encoding            |
 | `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
