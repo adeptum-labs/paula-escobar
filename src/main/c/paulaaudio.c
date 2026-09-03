@@ -32,6 +32,16 @@
 
 enum { CHANNELS = 2, RING_PERIODS = 4, FRAME_BYTES = CHANNELS * sizeof(int16_t) };
 
+/* The backend the Java side numbers 6, which is paced by the clock rather than by a device. */
+enum { SILENT = 6 };
+
+/*
+ * The finest step the writer waits in. The device frees a whole period at a time, and taking a fraction of a
+ * period to notice would quantise the pace the writer is let go at to that fraction. The visuals on screen
+ * are drawn from that pace, which is where a coarse step is seen, as a stutter.
+ */
+enum { POLL_MILLIS = 1 };
+
 /*
  * A suspended PulseAudio sink (headphones unplugged, lid closed) stops the callbacks without stopping the
  * device, so the writer waits this long for it to come back before giving the song up, which is also the
@@ -57,8 +67,13 @@ static const ma_backend AUTO_ORDER[] = {
 static ma_context context;
 static ma_device device;
 static ma_pcm_rb ring;
-static ma_uint32 poll_millis;
 static ma_result last_failure = MA_SUCCESS;
+
+static ma_bool32 silent;
+static ma_timer silent_clock;
+static double frame_millis;
+static double lead_millis;
+static ma_uint64 silent_frames;
 
 static int fail(ma_result result)
 {
@@ -99,7 +114,14 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
     }
     order = backend == 0 ? AUTO_ORDER : &BACKENDS[backend];
     count = backend == 0 ? sizeof AUTO_ORDER / sizeof *AUTO_ORDER : 1;
-    poll_millis = ma_max(1, (ma_uint32) buffer_frames * 1000 / (ma_uint32) sample_rate / 4);
+    silent = backend == SILENT;
+    if (silent) {
+        frame_millis = 1000.0 / sample_rate;
+        lead_millis = buffer_frames * RING_PERIODS * frame_millis;
+        silent_frames = 0;
+        ma_timer_init(&silent_clock);
+        return 0;
+    }
     result = ma_context_init(order, count, &context_config, &context);
     if (result != MA_SUCCESS) {
         return fail(result);
@@ -127,10 +149,32 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
     return 0;
 }
 
+/*
+ * Nothing is listening, so the frames are only counted and handed back at the moment a device would have taken
+ * them: on the clock, as far ahead of it as the ring would have let the writer run. Miniaudio's own silent
+ * device is not used for this, waiting as it does in steps of ten milliseconds, coarse enough beside a buffer
+ * to be seen on screen.
+ */
+static int pace(int count)
+{
+    double due;
+    double wait;
+    silent_frames += (ma_uint64) count;
+    due = silent_frames * frame_millis - lead_millis;
+    while ((wait = due - ma_timer_get_time_in_seconds(&silent_clock) * 1000.0) > 0) {
+        ma_sleep(wait < POLL_MILLIS ? POLL_MILLIS : (ma_uint32) wait);
+    }
+    return 0;
+}
+
 int paula_audio_write(const int16_t *frames, int count)
 {
     ma_uint32 remaining = (ma_uint32) count;
     ma_uint32 waited = 0;
+
+    if (silent) {
+        return pace(count);
+    }
     while (remaining > 0) {
         ma_uint32 chunk = remaining;
         void *destination;
@@ -142,8 +186,8 @@ int paula_audio_write(const int16_t *frames, int count)
             if (ma_device_get_state(&device) != ma_device_state_started) {
                 return fail(MA_DEVICE_NOT_STARTED);
             }
-            ma_sleep(poll_millis);
-            waited += poll_millis;
+            ma_sleep(POLL_MILLIS);
+            waited += POLL_MILLIS;
             if (waited >= WAIT_LIMIT_MILLIS) {
                 return fail(MA_TIMEOUT);
             }
@@ -161,10 +205,13 @@ int paula_audio_write(const int16_t *frames, int count)
 void paula_audio_close(void)
 {
     ma_uint32 waited = 0;
+    if (silent) {
+        return;
+    }
     while (ma_pcm_rb_available_read(&ring) > 0 && ma_device_get_state(&device) == ma_device_state_started
            && waited < WAIT_LIMIT_MILLIS) {
-        ma_sleep(poll_millis);
-        waited += poll_millis;
+        ma_sleep(POLL_MILLIS);
+        waited += POLL_MILLIS;
     }
     ma_device_uninit(&device);
     ma_pcm_rb_uninit(&ring);
@@ -173,7 +220,7 @@ void paula_audio_close(void)
 
 const char *paula_audio_backend(void)
 {
-    return ma_get_backend_name(context.backend);
+    return ma_get_backend_name(silent ? ma_backend_null : context.backend);
 }
 
 const char *paula_audio_error(void)
