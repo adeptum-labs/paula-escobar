@@ -58,15 +58,23 @@ jobs:
             tail -80 build.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ job.status }}" = "failure" ]; then
-            {
-              echo "### $NAME"
-              echo '```'
-              grep -E "ERROR|error:|Caused by|Exception" build.log | head -40
-              echo '```'
-            } > comment.md
-            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -F body=@comment.md || true
-          fi
+      - name: Keep the log where it can be read
+        if: failure()
+        shell: bash
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          branch="ci-log-$NAME"
+          git config user.name 'Build'
+          git config user.email 'build@adeptum.se'
+          git checkout --orphan "$branch"
+          git rm -rq --cached . || true
+          mkdir -p ci-logs
+          cp build.log "ci-logs/$NAME.log"
+          git add -f "ci-logs/$NAME.log"
+          git commit -qm "What the build said on $NAME"
+          git push -f origin "$branch"
 
       - name: Run what was built
         shell: bash
