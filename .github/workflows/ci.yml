@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -41,43 +41,7 @@ jobs:
         run: .github/toolchains.sh
 
       - name: Build, test and make the executable
-        shell: bash
-        run: |
-          set -o pipefail
-          mvn -B -ntp package 2>&1 | tee build.log
-
-      - name: Show the build output
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NAME: ${{ matrix.name }}
-        run: |
-          [ -f build.log ] || exit 0
-          tail -200 build.log
-          {
-            echo "## $NAME"
-            echo '```'
-            tail -80 build.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Keep the log where it can be read
-        if: failure()
-        shell: bash
-        env:
-          NAME: ${{ matrix.name }}
-        run: |
-          set -euo pipefail
-          branch="ci-log-$NAME"
-          git config user.name 'Build'
-          git config user.email 'build@adeptum.se'
-          git checkout --orphan "$branch"
-          git rm -rq --cached . || true
-          mkdir -p ci-logs
-          cp build.log "ci-logs/$NAME.log"
-          git add -f "ci-logs/$NAME.log"
-          git commit -qm "What the build said on $NAME"
-          git push -f origin "$branch"
+        run: mvn -B -ntp package
 
       - name: Run what was built
         shell: bash

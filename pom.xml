@@ -208,7 +208,6 @@
             -->
             <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets,java.awt.Toolkit</buildArg>
             <buildArg>-J-Djava.awt.headless=true</buildArg>
-            <buildArg>--trace-class-initialization=java.awt.Toolkit</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
           </buildArgs>
         </configuration>
