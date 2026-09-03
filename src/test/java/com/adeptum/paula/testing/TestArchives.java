@@ -24,9 +24,11 @@ package com.adeptum.paula.testing;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
@@ -39,6 +41,13 @@ import jp.gr.java_conf.dangan.util.lha.LhaOutputStream;
  * Builds small archives in memory; entry order follows the map's iteration order.
  */
 public final class TestArchives {
+
+    private static final int RAR_MAIN_HEAD = 0x73;
+    private static final int RAR_FILE_HEAD = 0x74;
+    private static final int RAR_LONG_BLOCK = 0x8000;
+    private static final int RAR_STORED = 0x30;
+    private static final int RAR_VERSION = 20;
+    private static final int RAR_DOS_TIME = 0x2D3A7BB0;
 
     private static final int D64_LENGTH = 174848;
     private static final int D64_DIRECTORY_TRACK = 18;
@@ -59,6 +68,45 @@ public final class TestArchives {
         return bytes.toByteArray();
     }
 
+
+    /**
+     * A RAR 4 archive whose entries are stored rather than packed, there being no RAR compressor to hand and
+     * the format allowing a file to be kept as it is.
+     */
+    public static byte[] rar(Map<String, byte[]> entries) {
+        final ByteArrayOutputStream archive = new ByteArrayOutputStream();
+        archive.writeBytes(new byte[] {'R', 'a', 'r', '!', 0x1A, 0x07, 0x00});
+        archive.writeBytes(block(RAR_MAIN_HEAD, 0, ByteBuffer.allocate(6).array()));
+        for (final Map.Entry<String, byte[]> entry : entries.entrySet()) {
+            archive.writeBytes(rarFileHeader(entry.getKey(), entry.getValue()));
+            archive.writeBytes(entry.getValue());
+        }
+        return archive.toByteArray();
+    }
+
+    private static byte[] rarFileHeader(String name, byte[] content) {
+        final byte[] named = name.getBytes(StandardCharsets.ISO_8859_1);
+        final CRC32 crc = new CRC32();
+        crc.update(content);
+        final ByteBuffer body = ByteBuffer.allocate(25 + named.length).order(ByteOrder.LITTLE_ENDIAN);
+        body.putInt(content.length).putInt(content.length).put((byte) 0).putInt((int) crc.getValue());
+        body.putInt(RAR_DOS_TIME).put((byte) RAR_VERSION).put((byte) RAR_STORED);
+        body.putShort((short) named.length).putInt(0).put(named);
+        return block(RAR_FILE_HEAD, RAR_LONG_BLOCK, body.array());
+    }
+
+    /**
+     * A block is its own checksum, type, flags and size, then whatever the type carries; the checksum covers
+     * everything after itself.
+     */
+    private static byte[] block(int type, int flags, byte[] body) {
+        final ByteBuffer block = ByteBuffer.allocate(7 + body.length).order(ByteOrder.LITTLE_ENDIAN);
+        block.putShort((short) 0).put((byte) type).putShort((short) flags);
+        block.putShort((short) (7 + body.length)).put(body);
+        final CRC32 crc = new CRC32();
+        crc.update(block.array(), 2, block.capacity() - 2);
+        return block.putShort(0, (short) crc.getValue()).array();
+    }
 
     /**
      * Packs entries the way 7-Zip does by default, which is LZMA2 over the lot of them at once.

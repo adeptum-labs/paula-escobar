@@ -144,8 +144,8 @@ after it in ranked order, so `n` walks through the results.
 
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
 fetched from scene.org when Demozoo knows the party release there, otherwise
-from ModArchive or Modland. Zip, 7z, LHA, Amiga LZX archives and 1541 disk
-images are unpacked, along with whatever archives they hold in turn, and
+from ModArchive or Modland. Zip, 7z, RAR, LHA, Amiga LZX archives and 1541
+disk images are unpacked, along with whatever archives they hold in turn, and
 the file inside named after the entry is played, or the first module in
 name order when none is. Modules wrapped by the
 Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
@@ -309,7 +309,7 @@ thrown away without a trace — before anyone sees it.
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
 | `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
 | `com.adeptum.paula.demozoo`      | Demozoo API model, cached client, track resolution and browsing art |
-| `com.adeptum.paula.archive`      | zip, 7z and LHA extraction, format detection by magic bytes |
+| `com.adeptum.paula.archive`      | zip, 7z, RAR and LHA extraction, detection by magic bytes   |
 | `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
 | `com.adeptum.paula.archive.xpk`  | Amiga XPK unpacker (NUKE, DUKE, SQSH)                       |
 | `com.adeptum.paula.cache`        | the XDG cache directory                                     |
@@ -326,8 +326,10 @@ Resources the native image must carry are listed in
 ## License
 
 Copyright © 2026 Adam Waldenberg, Adeptum AB. Licensed under the GNU General Public License,
-version 3 or later. See [LICENSE](LICENSE). JavaMod is copyright Daniel
-Becker and licensed under the GNU General Public License, version 3.
+version 3 or later. See [LICENSE](LICENSE), and
+[LICENSE.addendum](LICENSE.addendum) for the additional permission that
+covers linking the RAR reader. JavaMod is copyright Daniel Becker and
+licensed under the GNU General Public License, version 3.
 
 LHA archives are read with the LHA Library for Java, copyright Michel
 Ishizuka, distributed under the BSD 2-Clause License reproduced in
@@ -336,4 +338,10 @@ implementation in [XADMaster](https://github.com/MacPaw/XADMaster), copyright
 MacPaw Inc., licensed under the GNU Lesser General Public License version 2.1
 or later and used under the GPL as that licence permits. The XPK unpacker
 follows Teemu Suutari's [ancient](https://github.com/temisu/ancient),
-distributed under the BSD 2-Clause License.
+distributed under the BSD 2-Clause License. 7z archives are read with
+Apache Commons Compress over the XZ for Java library, both under the
+Apache License 2.0. RAR archives are read with
+[junrar](https://github.com/junrar/junrar), distributed under the UnRAR
+license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which
+allows unpacking RAR archives and forbids re-creating the RAR
+compression algorithm; Paula Escobar only unpacks.

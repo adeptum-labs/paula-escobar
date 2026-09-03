@@ -1,0 +1,26 @@
+          Additional permission under GNU GPL version 3 section 7
+
+  Paula Escobar is licensed under the GNU General Public License, version 3
+or later, as set out in LICENSE. The following additional permission is
+granted under section 7 of that licence.
+
+
+  Linking exception for UnRAR licensed code
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  If you modify this Program, or any covered work, by linking or
+  combining it with junrar <https://github.com/junrar/junrar>, or a
+  modified version of it, the licensors of this Program grant you
+  additional permission to convey the resulting work. Corresponding
+  Source for a non-source form of such a combination shall include the
+  source code for the parts of junrar used as well as that of the
+  covered work.
+
+  junrar is distributed under the UnRAR license, reproduced in
+UNRAR-LICENSE.txt. That licence allows the code to be used to unpack RAR
+archives, which is the whole of what Paula Escobar uses it for, while
+forbidding its use to re-create the RAR compression algorithm. Paula
+Escobar writes no RAR archives and carries no RAR compressor.
+
+  Granted by Adam Waldenberg, Adeptum AB, Org.nr 559494-1824, holder of the
+copyright in Paula Escobar.
