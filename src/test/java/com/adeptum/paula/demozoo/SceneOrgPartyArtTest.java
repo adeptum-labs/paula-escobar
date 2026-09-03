@@ -93,6 +93,21 @@ class SceneOrgPartyArtTest {
     }
 
     @Test
+    void forgettingAPartyFetchesItsLogoAgain(@TempDir Path dir) {
+        serveTheParty();
+        final SceneOrgPartyArt art = art(dir);
+        art.fetch(PARTY);
+        final int requests = http.requests();
+
+        art.forget(PARTY);
+
+        assertEquals(Optional.empty(), art.of(PARTY), "what was kept is gone");
+        art.fetch(PARTY);
+        assertTrue(art.of(PARTY).isPresent(), "and is fetched afresh");
+        assertTrue(http.requests() > requests, "which took the network");
+    }
+
+    @Test
     void aPartyWithoutAFolderOrALogoIsLeftAlone(@TempDir Path dir) {
         http.put(PARTY_URL, "{\"id\":601,\"name\":\"Icing 1995\",\"competitions\":[],\"external_links\":[]}");
         final SceneOrgPartyArt art = art(dir);

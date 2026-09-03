@@ -144,6 +144,7 @@ public final class Browser {
         private int offset;
         private int artProduction;
         private int partyId;
+        private int compoId;
 
         private Level(String title, String emptyText, List<Item> items) {
             this.title = title;
@@ -157,6 +158,15 @@ public final class Browser {
 
         private void move(int delta) {
             cursor = Math.clamp(cursor + delta, 0, Math.max(0, items.size() - 1));
+        }
+
+        private void cursorTo(int compoId) {
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i) instanceof CompoItem compo && compo.compo().id() == compoId) {
+                    cursor = i;
+                    return;
+                }
+            }
         }
 
         private void scrollTo(int rows) {
@@ -177,6 +187,7 @@ public final class Browser {
     private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "browse";
     private static final String NOW_PLAYING_MARK = "♪ ";
+    private static final char RELOAD = 'r';
     private static final int STRIP_BANDS = 16;
     private static final int PLACING_WIDTH = 3;
     private static final int CHROME_LINES = 6;
@@ -189,7 +200,19 @@ public final class Browser {
     private static final Duration TICKER_FRAME = Duration.ofMillis(100);
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
-            new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
+            new Frame.Key("b", "player"), new Frame.Key("?", "keys"), new Frame.Key("q", "quit"));
+    private static final List<Frame.Key> ALL_KEYS = List.of(
+            new Frame.Key("↑ ↓", "move the cursor"),
+            new Frame.Key("PgUp PgDn", "move a page"),
+            new Frame.Key("Home End", "jump to the first or last line"),
+            new Frame.Key("enter →", "open, or play an entry"),
+            new Frame.Key("backspace", "go back one level"),
+            new Frame.Key("← esc", "go back, or quit at the top"),
+            new Frame.Key("r", "fetch this list and its logo afresh"),
+            new Frame.Key("space", "pause or resume what is playing"),
+            new Frame.Key("b", "switch to the player"),
+            new Frame.Key("?", "close these keys"),
+            new Frame.Key("q", "quit"));
 
     private final DemozooClient demozoo;
     private final Executor executor;
@@ -204,6 +227,7 @@ public final class Browser {
     private Playlist selection;
     private int pageSize = 1;
     private int restingOn;
+    private int reopening;
     private Instant restingSince;
     private String nowPlayingLabel;
     private double[] nowPlayingSpectrum = new double[0];
@@ -241,10 +265,15 @@ public final class Browser {
     /**
      * Escape backs out of a level but is left to the player at the root, where it means quit.
      */
+    public static List<Frame.Key> keys() {
+        return ALL_KEYS;
+    }
+
     public boolean consumes(Key key) {
         return switch (key.special()) {
             case UP, DOWN, PAGE_UP, PAGE_DOWN, HOME, END, ENTER, BACKSPACE, LEFT, RIGHT -> true;
             case ESCAPE -> !atRoot();
+            case NONE -> Character.toLowerCase(key.character()) == RELOAD;
             default -> false;
         };
     }
@@ -260,6 +289,7 @@ public final class Browser {
             case END -> level.move(level.items.size());
             case ENTER, RIGHT -> open(level);
             case BACKSPACE, LEFT, ESCAPE -> back();
+            case NONE -> reload();
             default -> {
             }
         }
@@ -275,8 +305,10 @@ public final class Browser {
         } catch (CompletionException | CancellationException e) {
             final Throwable cause = e.getCause() == null ? e : e.getCause();
             error = cause.getMessage() == null ? cause.toString() : cause.getMessage();
+            reopening = 0;
         }
         pending = null;
+        stepBackIntoTheCompetitionReloaded();
     }
 
     /**
@@ -351,6 +383,16 @@ public final class Browser {
         return Screen.fit(lines, width, height);
     }
 
+    private void stepBackIntoTheCompetitionReloaded() {
+        if (reopening == 0) {
+            return;
+        }
+        final Level level = levels.peek();
+        level.cursorTo(reopening);
+        reopening = 0;
+        open(level);
+    }
+
     private void open(Level level) {
         if (pending != null) {
             return;
@@ -364,6 +406,37 @@ public final class Browser {
                 case EntryItem entry -> selection = playlistFrom(level, entry);
             }
         });
+    }
+
+    /**
+     * Throws away what was kept for the level in view and opens it again, so a list that has moved on since,
+     * or a logo that never arrived, can be had afresh without leaving the browser. The entries of a
+     * competition come with the party's answer, so reloading one goes back through the competition list and
+     * steps into it again once it has been fetched.
+     */
+    private void reload() {
+        if (atRoot() || pending != null) {
+            return;
+        }
+        final Level level = levels.peek();
+        reopening = level.compoId;
+        if (level.compoId != 0) {
+            partyArt.forget(level.partyId);
+            levels.pop();
+        }
+        levels.pop();
+        final Level parent = levels.peek();
+        parent.selected().ifPresent(this::forget);
+        open(parent);
+    }
+
+    private void forget(Item item) {
+        switch (item) {
+            case SeriesItem series -> demozoo.forgetSeries(series.series().id());
+            case PartyItem party -> demozoo.forgetParty(party.party().id());
+            default -> {
+            }
+        }
     }
 
     /**
@@ -404,6 +477,7 @@ public final class Browser {
         final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads)).toList();
         final Level level = new Level(compo.compoLabel(), NOTHING_HERE, items);
         level.partyId = compo.party().id();
+        level.compoId = compo.compo().id();
         partyArt.fetch(level.partyId);
         entries.stream().filter(CompoEntry::likelyPlayable).findFirst().ifPresent(entry -> {
             level.artProduction = entry.productionId();

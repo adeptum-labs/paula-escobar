@@ -101,6 +101,17 @@ public final class SceneOrgPartyArt implements PartyArt {
         return looking.contains(partyId);
     }
 
+    @Override
+    public void forget(int partyId) {
+        known.remove(partyId);
+        looked.remove(partyId);
+        try {
+            Files.deleteIfExists(cache.file(ART, partyId + SUFFIX));
+        } catch (IOException e) {
+            log.debug("Could not forget the logo of party {}: {}", partyId, e.getMessage());
+        }
+    }
+
     private Optional<List<String>> cached(int partyId) {
         try {
             final Path file = cache.file(ART, partyId + SUFFIX);

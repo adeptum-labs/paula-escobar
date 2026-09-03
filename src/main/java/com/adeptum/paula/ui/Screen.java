@@ -58,9 +58,22 @@ public final class Screen {
     private static final char PEAK_MARK = '─';
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("space", "pause"), new Frame.Key("←/→", "seek"), new Frame.Key("n", "next"),
-            new Frame.Key("p", "previous"), new Frame.Key("b", "browse"), new Frame.Key("q", "quit"));
+            new Frame.Key("p", "previous"), new Frame.Key("b", "browse"), new Frame.Key("?", "keys"),
+            new Frame.Key("q", "quit"));
+    private static final List<Frame.Key> ALL_KEYS = List.of(
+            new Frame.Key("space", "pause or resume"),
+            new Frame.Key("← →", "seek five seconds"),
+            new Frame.Key("n", "next track"),
+            new Frame.Key("p", "previous track"),
+            new Frame.Key("b", "switch to the browser"),
+            new Frame.Key("?", "close these keys"),
+            new Frame.Key("q", "quit"));
 
     private Screen() {
+    }
+
+    public static List<Frame.Key> keys() {
+        return ALL_KEYS;
     }
 
     public static List<AttributedString> render(PlayerView view, int width, int height) {

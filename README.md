@@ -68,6 +68,7 @@ Keys while playing:
 | `n`     | next track              |
 | `p`     | previous track          |
 | `b`     | switch to the browser   |
+| `?`     | show the keys           |
 | `q`     | quit                    |
 
 Keys while browsing:
@@ -80,6 +81,8 @@ Keys while browsing:
 | `enter` `→`         | open the line, or play an entry          |
 | `backspace` `←` `esc` | go back one level (`esc` at the top quits) |
 | `b`                 | switch to the player                     |
+| `r`                 | fetch this list and its logo afresh      |
+| `?`                 | show the keys                            |
 | `space`             | pause / resume what is playing           |
 | `q`                 | quit                                     |
 
@@ -103,6 +106,9 @@ is Approach by Nightbeat, which won the multichannel competition at Icing
 wrote into the sample names beside them.
 
 ### Browsing demo parties
+
+`?` lays the keys of the screen you are on over it, the ones the bar at the
+bottom has no room for among them, and any key puts them away again.
 
 The browser starts with the party series, opens into the parties by year,
 then into every music competition of that party and finally into the ranked
@@ -141,6 +147,12 @@ as a whole — is shown as the competition opens, until an entry's own art
 takes its place. A ticker turns beside an entry whose files are on their way
 down, and beside the competition while its logo is fetched, so a wait looks
 like a wait rather than like nothing happening.
+
+`r` fetches the list in view again: the answer Demozoo gave for it is thrown
+away and asked for anew, and in a competition its party's logo goes with it,
+so a list that has moved on since, or a logo that never arrived, can be had
+without leaving the browser. Downloaded modules are kept, being the
+expensive part.
 
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but

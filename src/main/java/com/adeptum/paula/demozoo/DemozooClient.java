@@ -80,8 +80,27 @@ public final class DemozooClient {
         return fetch(PARTIES, partyId, DemozooJson::sceneOrgFolder);
     }
 
+    /**
+     * Drops the cached answer for a series or a party, so what is asked for next comes from Demozoo again.
+     */
+    public void forgetSeries(int id) {
+        forget(SERIES, id);
+    }
+
+    public void forgetParty(int partyId) {
+        forget(PARTIES, partyId);
+    }
+
     public Production production(int id) throws IOException {
         return fetch(PRODUCTIONS, id, DemozooJson::production);
+    }
+
+    private void forget(String resource, int id) {
+        try {
+            Files.deleteIfExists(cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX));
+        } catch (IOException e) {
+            log.warn("Could not forget {} {}: {}", resource, id, e.getMessage());
+        }
     }
 
     /**

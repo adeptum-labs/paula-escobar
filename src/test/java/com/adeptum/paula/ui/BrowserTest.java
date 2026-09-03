@@ -226,6 +226,57 @@ class BrowserTest {
     }
 
     @Test
+    void reloadingACompetitionListFetchesItAgain() {
+        openParty();
+        final int requests = http.requests();
+
+        press('r');
+        browser.tick();
+
+        assertTrue(http.requests() > requests, "the party is asked for again");
+        assertTrue(render().stream().anyMatch(line -> line.contains("Multichannel Music")), "and the list comes back");
+    }
+
+    @Test
+    void reloadingACompetitionStepsBackIntoItAndForgetsItsLogo() {
+        final List<Integer> forgotten = new ArrayList<>();
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, new PartyArt() {
+
+            @Override
+            public Optional<List<String>> of(int partyId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void forget(int partyId) {
+                forgotten.add(partyId);
+            }
+        });
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        press('r');
+        browser.tick();
+
+        assertEquals(List.of(5), forgotten, "the logo of the party is thrown away");
+        final List<String> lines = render();
+        assertTrue(lines.stream().anyMatch(line -> line.contains("First")), "and the competition is open again");
+        assertTrue(lines.stream().anyMatch(line -> line.contains("Multichannel Music")));
+    }
+
+    @Test
+    void theRootIsLeftAloneByReload() {
+        final int requests = http.requests();
+
+        press('r');
+        browser.tick();
+
+        assertEquals(requests, http.requests(), "there is nothing cached behind the list of series");
+        assertTrue(render().stream().anyMatch(line -> line.contains("Parties")));
+    }
+
+    @Test
     void showsThePartyLogoWhereTheReleasesCarryNoneOfTheirOwn() {
         final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
         browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
@@ -558,6 +609,12 @@ class BrowserTest {
     private void openCompo() {
         openParty();
         press(Key.Special.ENTER);
+    }
+
+    private void press(char character) {
+        final Key key = Key.of(character);
+        assertTrue(browser.consumes(key), "the browser takes " + character);
+        browser.handle(key);
     }
 
     private void press(Key.Special special) {

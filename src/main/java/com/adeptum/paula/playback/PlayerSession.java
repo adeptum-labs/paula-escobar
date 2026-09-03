@@ -35,9 +35,11 @@ import com.adeptum.paula.ui.Browser;
 import com.adeptum.paula.ui.Key;
 import com.adeptum.paula.ui.PlayerView;
 import com.adeptum.paula.ui.Screen;
+import com.adeptum.paula.ui.Shortcuts;
 import com.adeptum.paula.ui.TerminalUi;
 import com.adeptum.paula.ui.visual.Spectrum;
 import com.adeptum.paula.ui.visual.Vu;
+import org.jline.utils.AttributedString;
 
 /**
  * Drives one interactive session: reacts to keys, hands tracks to the loader, plays them as they arrive and
@@ -47,6 +49,7 @@ import com.adeptum.paula.ui.visual.Vu;
 public final class PlayerSession {
 
     private static final long REDRAW_INTERVAL_MILLIS = 33;
+    private static final char KEYS = '?';
     private static final long DRAIN_TIMEOUT_MILLIS = 1;
     private static final int SPECTRUM_BANDS = 32;
     private static final int ANALYSIS_FRAMES = 2048;
@@ -61,6 +64,7 @@ public final class PlayerSession {
     private final TrackLoader loader;
     private final TrackLoader.Resolver resolver;
     private final Browser browser;
+    private boolean showingKeys;
     private final boolean exitWhenDone;
     private final Spectrum spectrum;
     private final Vu vu = new Vu();
@@ -97,7 +101,11 @@ public final class PlayerSession {
         while (true) {
             Key key = ui.poll(REDRAW_INTERVAL_MILLIS);
             while (!key.is(Key.Special.TIMEOUT)) {
-                if (browsing && browser.consumes(key)) {
+                if (showingKeys) {
+                    showingKeys = false;
+                } else if (key.character() == KEYS) {
+                    showingKeys = true;
+                } else if (browsing && browser.consumes(key)) {
                     browser.handle(key);
                 } else if (!handle(Action.of(key))) {
                     return;
@@ -117,7 +125,7 @@ public final class PlayerSession {
             spectrum.feed(audio);
             vu.feed(audio);
             browser.nowPlaying(module == null || playlist == null ? null : playlist.current().label(), spectrum.levels());
-            ui.draw(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height()));
+            ui.draw(withKeys(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height())));
         }
     }
 
@@ -154,6 +162,16 @@ public final class PlayerSession {
         engine.stop();
         module = null;
         loader.request(playlist.current(), resolver);
+    }
+
+    /**
+     * The keys of the screen in view are laid over it while they are asked for, so they can be read without
+     * losing sight of what is playing.
+     */
+    private List<AttributedString> withKeys(List<AttributedString> screen) {
+        return showingKeys
+                ? Shortcuts.over(screen, browsing ? Browser.keys() : Screen.keys(), ui.width(), ui.height())
+                : screen;
     }
 
     private boolean finished() {

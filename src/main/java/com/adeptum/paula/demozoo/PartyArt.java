@@ -43,4 +43,10 @@ public interface PartyArt {
     default boolean fetching(int partyId) {
         return false;
     }
+
+    /**
+     * Throws away what was kept for a party, so the next look fetches it again.
+     */
+    default void forget(int partyId) {
+    }
 }
