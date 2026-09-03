@@ -210,7 +210,7 @@ Resources the native image must carry are listed in
 
 ## License
 
-Copyright © 2026 Adeptum AB. Licensed under the GNU General Public License,
+Copyright © 2026 Adam Waldenberg, Adeptum AB. Licensed under the GNU General Public License,
 version 3 or later. See [LICENSE](LICENSE). JavaMod is copyright Daniel
 Becker and licensed under the GNU General Public License, version 3.
 

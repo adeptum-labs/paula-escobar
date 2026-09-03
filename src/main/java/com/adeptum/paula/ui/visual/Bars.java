@@ -1,6 +1,6 @@
 /*
- * Paula is a terminal music player for demoscene and chip music.
- * Copyright © 2026 Adeptum AB, Org.nr 559494-1824.
+ * Paula Escobar is a terminal music player for demoscene and chip music.
+ * Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
