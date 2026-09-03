@@ -32,6 +32,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <javamod.version>3.9.7</javamod.version>
     <jlha.version>0.0.11</jlha.version>
+    <commons-compress.version>1.28.0</commons-compress.version>
+    <xz.version>1.10</xz.version>
     <picocli.version>4.7.7</picocli.version>
     <jline.version>3.30.16</jline.version>
     <jansi.version>2.4.3</jansi.version>
@@ -66,6 +68,16 @@
       <groupId>jp.gr.dangan</groupId>
       <artifactId>jlha</artifactId>
       <version>${jlha.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-compress</artifactId>
+      <version>${commons-compress.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.tukaani</groupId>
+      <artifactId>xz</artifactId>
+      <version>${xz.version}</version>
     </dependency>
     <dependency>
       <groupId>info.picocli</groupId>

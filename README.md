@@ -139,8 +139,8 @@ after it in ranked order, so `n` walks through the results.
 
 Party data comes from [Demozoo](https://demozoo.org). The entry itself is
 fetched from scene.org when Demozoo knows the party release there, otherwise
-from ModArchive or Modland. Zip, LHA, Amiga LZX archives and 1541 disk images are unpacked, along with
-whatever archives they hold in turn, and
+from ModArchive or Modland. Zip, 7z, LHA, Amiga LZX archives and 1541 disk
+images are unpacked, along with whatever archives they hold in turn, and
 the file inside named after the entry is played, or the first module in
 name order when none is. Modules wrapped by the
 Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
@@ -303,7 +303,7 @@ thrown away without a trace — before anyone sees it.
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
 | `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
 | `com.adeptum.paula.demozoo`      | Demozoo API model, cached client, track resolution and browsing art |
-| `com.adeptum.paula.archive`      | zip and LHA extraction, format detection by magic bytes     |
+| `com.adeptum.paula.archive`      | zip, 7z and LHA extraction, format detection by magic bytes |
 | `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
 | `com.adeptum.paula.archive.xpk`  | Amiga XPK unpacker (NUKE, DUKE, SQSH)                       |
 | `com.adeptum.paula.cache`        | the XDG cache directory                                     |

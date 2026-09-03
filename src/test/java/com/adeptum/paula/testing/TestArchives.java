@@ -25,9 +25,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import jp.gr.java_conf.dangan.util.lha.LhaHeader;
 import jp.gr.java_conf.dangan.util.lha.LhaOutputStream;
 
@@ -55,6 +59,25 @@ public final class TestArchives {
         return bytes.toByteArray();
     }
 
+
+    /**
+     * Packs entries the way 7-Zip does by default, which is LZMA2 over the lot of them at once.
+     */
+    public static byte[] sevenZip(Map<String, byte[]> entries) throws IOException {
+        final SeekableInMemoryByteChannel channel = new SeekableInMemoryByteChannel();
+        try (SevenZOutputFile sevenZip = new SevenZOutputFile(channel)) {
+            for (final Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                final SevenZArchiveEntry header = new SevenZArchiveEntry();
+                header.setName(entry.getKey());
+                header.setSize(entry.getValue().length);
+                sevenZip.putArchiveEntry(header);
+                sevenZip.write(entry.getValue());
+                sevenZip.closeArchiveEntry();
+            }
+            sevenZip.finish();
+        }
+        return Arrays.copyOf(channel.array(), (int) channel.size());
+    }
 
     /**
      * Lays out a 35 track 1541 disk image: the programs go on track 17 as block chains and the directory on
