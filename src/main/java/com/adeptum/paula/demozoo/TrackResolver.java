@@ -221,8 +221,8 @@ public final class TrackResolver {
         if (total < REPORT_OVER || read * PERCENT / total == (read - 1) * PERCENT / total) {
             return;
         }
-        progress.report(DOWNLOADING + name + COUNT_SEPARATOR + read * PERCENT / total + PERCENT_OF
-                + total / KILOBYTE + KILOBYTES);
+        progress.measured(DOWNLOADING + name + COUNT_SEPARATOR + read * PERCENT / total + PERCENT_OF
+                + total / KILOBYTE + KILOBYTES, (double) read / total);
     }
 
     private static String lastSegment(URI uri) {
@@ -298,7 +298,8 @@ public final class TrackResolver {
     private Predicate<String> wantedEntry(String archive) {
         final AtomicInteger seen = new AtomicInteger();
         return name -> {
-            progress.report(UNPACKING + archive + COUNT_SEPARATOR + seen.incrementAndGet() + ENTRIES);
+            final int entries = seen.incrementAndGet();
+            progress.counted(UNPACKING + archive + COUNT_SEPARATOR + entries + ENTRIES, entries);
             return loaders.loaderFor(Path.of(name)).isPresent() || Archives.looksLikeArchive(name) || isArt(name);
         };
     }

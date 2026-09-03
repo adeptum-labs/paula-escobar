@@ -32,6 +32,7 @@ public final class Bars {
     private static final char[] VERTICAL_EIGHTHS = {' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'};
     private static final char[] HORIZONTAL_EIGHTHS = {' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉'};
     private static final int EIGHTHS = 8;
+    private static final int SWEEP_PARTS = 5;
 
     private Bars() {
     }
@@ -62,6 +63,21 @@ public final class Bars {
             cells.append(cellEighths == EIGHTHS ? FULL : HORIZONTAL_EIGHTHS[cellEighths]);
         }
         return cells.toString();
+    }
+
+    /**
+     * A block sweeping from one end to the other and back, for work whose end is not in sight. The step is
+     * whatever has been got through, so the block moves at the pace the work does.
+     */
+    public static String sweep(long step, int width) {
+        if (width <= 0) {
+            return "";
+        }
+        final int block = Math.clamp(width / SWEEP_PARTS, 1, width);
+        final int travel = Math.max(1, width - block);
+        final int at = (int) Math.floorMod(step, travel * 2L);
+        final int start = at <= travel ? at : travel * 2 - at;
+        return " ".repeat(start) + String.valueOf(FULL).repeat(block) + " ".repeat(width - start - block);
     }
 
     private static int eighths(double level, int cells) {

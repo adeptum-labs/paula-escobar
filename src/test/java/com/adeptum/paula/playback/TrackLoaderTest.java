@@ -96,11 +96,11 @@ class TrackLoaderTest {
     void forgetsWhatItWasBusyWithBetweenTracks() {
         final TrackLoader loader = new TrackLoader(Runnable::run);
         loader.request(A, track -> {
-            loader.progress().report("Unpacking a.zip");
+            loader.progress().counted("Unpacking a.zip", 1);
             return Path.of("a");
         });
 
-        assertEquals(Optional.of("Unpacking a.zip"), loader.progress().step(), "while it works");
+        assertEquals("Unpacking a.zip", loader.progress().step().orElseThrow().text(), "while it works");
         loader.poll();
         assertEquals(Optional.empty(), loader.progress().step(), "and not once it is done");
 

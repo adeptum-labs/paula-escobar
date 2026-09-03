@@ -29,17 +29,40 @@ import java.util.Optional;
  */
 public final class Progress {
 
-    private volatile String step;
+    /**
+     * What is being done, and how far along it is: a fraction where the whole of it is known, or a count of
+     * what has been got through where it is not.
+     */
+    public record Step(String text, double fraction, long count) {
 
-    public void report(String step) {
-        this.step = step;
+        public boolean measured() {
+            return fraction >= 0;
+        }
+    }
+
+    private static final double UNMEASURED = -1;
+
+    private volatile Step step;
+
+    /**
+     * Something being done whose end is not in sight; the count is what has been got through so far.
+     */
+    public void counted(String text, long count) {
+        step = new Step(text, UNMEASURED, count);
+    }
+
+    /**
+     * Something being done whose end is known, given as a part of one.
+     */
+    public void measured(String text, double fraction) {
+        step = new Step(text, Math.clamp(fraction, 0, 1), 0);
     }
 
     public void clear() {
         step = null;
     }
 
-    public Optional<String> step() {
+    public Optional<Step> step() {
         return Optional.ofNullable(step);
     }
 }

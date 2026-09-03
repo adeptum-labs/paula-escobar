@@ -51,4 +51,31 @@ class BarsTest {
         assertEquals("          ", Bars.row(0, 10));
         assertEquals("██████████", Bars.row(1, 10));
     }
+
+    @Test
+    void sweepsABlockToAndFroForWorkWithNoEndInSight() {
+        final String start = Bars.sweep(0, 20);
+        final String moved = Bars.sweep(3, 20);
+
+        assertEquals(20, start.length());
+        assertEquals(start.chars().filter(c -> c == '\u2588').count(), moved.chars().filter(c -> c == '\u2588').count(),
+                "the block keeps its size as it travels");
+        assertEquals(0, start.indexOf('\u2588'), "it starts against the left");
+        assertEquals(3, moved.indexOf('\u2588'), "and moves along with the work");
+    }
+
+    @Test
+    void sweepsBackWhenItReachesTheEnd() {
+        final int width = 10;
+        final int travel = width - width / 5;
+
+        assertEquals(travel, Bars.sweep(travel, width).indexOf('\u2588'), "as far as it goes");
+        assertEquals(travel - 1, Bars.sweep(travel + 1, width).indexOf('\u2588'), "then back the way it came");
+        assertEquals(0, Bars.sweep(travel * 2L, width).indexOf('\u2588'), "and round again");
+    }
+
+    @Test
+    void hasNothingToSweepAcrossNoWidth() {
+        assertEquals("", Bars.sweep(5, 0));
+    }
 }

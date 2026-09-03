@@ -27,6 +27,7 @@ import lombok.Builder;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.ui.visual.Waterfall;
 
 /**
@@ -50,6 +51,7 @@ public record PlayerView(
         List<ChannelState> channels,
         double[] mixed,
         double[] stereo,
+        Progress.Step progress,
         Visual visual,
         Waterfall waterfall) {
 

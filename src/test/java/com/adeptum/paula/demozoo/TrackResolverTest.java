@@ -147,7 +147,7 @@ class TrackResolverTest {
 
         resolver.resolve(ENTRY);
 
-        final String said = progress.step().orElseThrow();
+        final String said = progress.step().orElseThrow().text();
         assertTrue(said.startsWith("Unpacking funkyeeh.zip"), "it names the archive, said " + said);
         assertTrue(said.endsWith("2 entries"), "and counts its way through, said " + said);
     }
@@ -165,7 +165,7 @@ class TrackResolverTest {
 
         resolver(dir, progress).resolve(ENTRY);
 
-        final String said = progress.step().orElseThrow();
+        final String said = progress.step().orElseThrow().text();
         assertTrue(said.startsWith("Downloading funkyeeh.mod"), "it names the file, said " + said);
         assertTrue(said.endsWith("% of 700 kB"), "and how far along it is, said " + said);
     }

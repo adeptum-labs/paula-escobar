@@ -23,6 +23,7 @@ package com.adeptum.paula.ui;
 
 import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.playback.ChannelState;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.ui.visual.Bars;
 import com.adeptum.paula.ui.visual.Braille;
 import com.adeptum.paula.ui.visual.Palette;
@@ -127,7 +128,7 @@ public final class Screen {
         }
         final int body = Math.max(0, height - 2);
         final boolean wide = width >= WIDE_LAYOUT_WIDTH;
-        final int detailRows = wide ? 0 : detailRows(detailLines(view), body);
+        final int detailRows = wide ? 0 : detailRows(detailLines(view, width - 2), body);
         final Panels panels = Panels.of(body - detailRows);
         final int left = wide ? DETAILS_WIDTH : 0;
         final int top = 1 + detailRows;
@@ -144,7 +145,7 @@ public final class Screen {
         }
         final int body = Math.max(0, height - 2);
         final boolean wide = width >= WIDE_LAYOUT_WIDTH;
-        final int detailRows = wide ? 0 : detailRows(detailLines(view), body);
+        final int detailRows = wide ? 0 : detailRows(detailLines(view, width - 2), body);
         final Panels panels = Panels.of(body - detailRows);
         if (!panels.hasScopes()) {
             return Scopes.NONE;
@@ -194,7 +195,7 @@ public final class Screen {
     }
 
     private static List<AttributedString> playing(PlayerView view, Scopes grid, int width, int height) {
-        final List<AttributedString> detailLines = detailLines(view);
+        final List<AttributedString> detailLines = detailLines(view, (width >= WIDE_LAYOUT_WIDTH ? DETAILS_WIDTH : width) - 2);
         if (width >= WIDE_LAYOUT_WIDTH) {
             return Frame.sideBySide(Frame.box(DETAILS_TITLE, detailLines, DETAILS_WIDTH, height), visuals(view, grid, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
         }
@@ -208,7 +209,7 @@ public final class Screen {
         return Math.min(height, Math.max(MIN_BOX_ROWS, Math.min(detailLines.size() + 2, height / 2)));
     }
 
-    private static List<AttributedString> detailLines(PlayerView view) {
+    private static List<AttributedString> detailLines(PlayerView view, int width) {
         final ModuleMetadata meta = view.module().metadata();
         final Set<Integer> active = view.channels().stream().filter(c -> c.volume() > 0).map(ChannelState::instrument).collect(Collectors.toSet());
         final List<AttributedString> lines = new ArrayList<>();
@@ -220,7 +221,10 @@ public final class Screen {
             lines.add(line(b -> b.style(Palette.LABEL).append("       ").style(Palette.VALUE).append(view.trackLabel())));
         }
         lines.add(line(b -> b.style(Palette.LABEL).append("Status ").style(Palette.ACTIVE).append(view.state().name())));
-        if (view.status() != null) {
+        if (view.progress() != null) {
+            lines.add(line(b -> b.style(Palette.ACCENT).append(view.progress().text())));
+            lines.add(progressBar(view.progress(), width));
+        } else if (view.status() != null) {
             lines.add(line(b -> b.style(Palette.ACCENT).append(view.status())));
         }
         lines.add(AttributedString.EMPTY);
@@ -373,6 +377,15 @@ public final class Screen {
                 .style(Palette.VALUE).append(' ').append(clock(length))
                 .style(Palette.LABEL).append("  L ").style(Palette.level(view.vuLeft())).append(Bars.row(view.vuLeft(), VU_WIDTH))
                 .style(Palette.LABEL).append(" R ").style(Palette.level(view.vuRight())).append(Bars.row(view.vuRight(), VU_WIDTH)));
+    }
+
+    /**
+     * How far along whatever is being waited on has come. Work whose end is known fills from the left; work
+     * whose end is not in sight sweeps a block to and fro at the pace it is getting through.
+     */
+    private static AttributedString progressBar(Progress.Step step, int width) {
+        final String bar = step.measured() ? Bars.row(step.fraction(), width) : Bars.sweep(step.count(), width);
+        return line(b -> b.style(Palette.ACCENT).append(bar));
     }
 
     private static AttributedString field(String label, String value) {

@@ -29,6 +29,7 @@ import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.testing.TestModule;
 import com.adeptum.paula.ui.visual.Palette;
 import com.adeptum.paula.ui.visual.Waterfall;
@@ -231,6 +232,33 @@ class ScreenTest {
             assertEquals(OptionalInt.of(channel), Screen.channelAt(view, width, height, column + 1, row),
                     "a click anywhere in the cell picks channel " + channel);
         }
+    }
+
+    @Test
+    void drawsABarUnderWorkWhoseEndIsKnown() {
+        final PlayerView downloading = playing.progress(new Progress.Step("Downloading tune.mod · 50% of 700 kB", 0.5, 0)).build();
+
+        final List<String> lines = text(Screen.render(downloading, WIDTH, HEIGHT));
+
+        assertTrue(lines.stream().anyMatch(l -> l.contains("Downloading tune.mod")), "it says what it is doing");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("████") && !l.contains("Downloading")), "and draws a bar");
+    }
+
+    /**
+     * An archive says how many entries it has got through, never how many are left, so the bar sweeps rather
+     * than fills and claims nothing it does not know.
+     */
+    @Test
+    void sweepsABarUnderWorkWhoseEndIsNotInSight() {
+        final PlayerView unpacking = playing.progress(new Progress.Step("Unpacking party.zip · 12 entries", -1, 12)).build();
+
+        final List<String> lines = text(Screen.render(unpacking, WIDTH, HEIGHT));
+        final String bar = lines.stream().filter(l -> l.contains("█") && !l.contains("Unpacking")).findFirst().orElseThrow();
+
+        final String inside = bar.substring(bar.indexOf('│') + 1, bar.indexOf('│', 1));
+        assertTrue(inside.startsWith(" "), "the block has moved off the left: " + inside);
+        assertTrue(inside.strip().chars().allMatch(c -> c == '█'), "and it is one unbroken block: " + inside);
+        assertEquals(12, inside.indexOf('█'), "as far along as there are entries got through");
     }
 
     @Test

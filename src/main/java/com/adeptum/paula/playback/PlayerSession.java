@@ -292,6 +292,7 @@ public final class PlayerSession {
                 .channels(sounding ? renderer.channels() : List.of())
                 .mixed(mono(audio, SCOPE_FRAMES))
                 .stereo(stereo(audio, VECTOR_FRAMES))
+                .progress(loader.loading() ? loader.progress().step().orElse(null) : null)
                 .visual(visual)
                 .waterfall(waterfall)
                 .build();
@@ -328,9 +329,9 @@ public final class PlayerSession {
         if (status != null) {
             return status;
         }
-        if (!loader.loading()) {
+        if (!loader.loading() || loader.progress().step().isPresent()) {
             return null;
         }
-        return loader.progress().step().orElseGet(() -> LOADING + playlist.current().label());
+        return LOADING + playlist.current().label();
     }
 }
