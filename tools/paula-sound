@@ -95,5 +95,14 @@ paula=$(command -v paula || true)
 [ -n "$paula" ] || paula=$(dirname "$(readlink -f "$0")")/../target/paula
 [ -x "$paula" ] || die "no paula executable found on PATH or in target/"
 
+command_line() {
+    printf 'PULSE_SERVER=%s %s' "$server" "$paula"
+    if [ $# -gt 0 ]; then
+        printf ' %q' "$@"
+    fi
+    printf '\n'
+}
+
 export PULSE_SERVER=$server
+command_line "$@" >&2
 exec "$paula" "$@"
