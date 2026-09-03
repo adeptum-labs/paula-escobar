@@ -41,6 +41,7 @@ public final class FetchingReleaseArt implements ReleaseArt {
     private final TrackResolver resolver;
     private final Executor executor;
     private final Set<Integer> fetched = ConcurrentHashMap.newKeySet();
+    private final Set<Integer> fetching = ConcurrentHashMap.newKeySet();
 
     public FetchingReleaseArt(ReleaseArt art, TrackResolver resolver, Executor executor) {
         this.art = art;
@@ -54,15 +55,23 @@ public final class FetchingReleaseArt implements ReleaseArt {
     }
 
     @Override
+    public boolean fetching(int productionId) {
+        return fetching.contains(productionId);
+    }
+
+    @Override
     public void fetch(CompoEntry entry) {
         if (art.of(entry.productionId()).isPresent() || !fetched.add(entry.productionId())) {
             return;
         }
+        fetching.add(entry.productionId());
         executor.execute(() -> {
             try {
                 resolver.resolve(entry);
             } catch (IOException | RuntimeException e) {
                 log.debug("No files for the art of {}: {}", entry.title(), e.getMessage());
+            } finally {
+                fetching.remove(entry.productionId());
             }
         });
     }

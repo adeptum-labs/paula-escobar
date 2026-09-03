@@ -25,32 +25,22 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The text art a release carries: the file id or information file that party archives are packed with, which
- * often holds a hand drawn banner for the party and its competition.
+ * The logo a party carries in its own files, shown for a competition whose releases were packed without art of
+ * their own.
  */
-public interface ReleaseArt {
+public interface PartyArt {
 
-    ReleaseArt NONE = new ReleaseArt() {
+    PartyArt NONE = partyId -> Optional.empty();
 
-        @Override
-        public Optional<List<String>> of(int productionId) {
-            return Optional.empty();
-        }
-    };
-
-    Optional<List<String>> of(int productionId);
+    Optional<List<String>> of(int partyId);
 
     /**
-     * Brings down the files of a release so its art can be read, for a competition being looked at rather than
-     * played. Returns at once; the art turns up on a later look.
+     * Looks for the logo of a party being opened. Returns at once; the logo turns up on a later look.
      */
-    default void fetch(CompoEntry entry) {
+    default void fetch(int partyId) {
     }
 
-    /**
-     * Whether the files of a release are on their way down, so the wait can be shown next to it.
-     */
-    default boolean fetching(int productionId) {
+    default boolean fetching(int partyId) {
         return false;
     }
 }

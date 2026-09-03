@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.playlist.DemozooTrack;
@@ -76,6 +77,7 @@ class BrowserTest {
     }
 
 
+    private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final int WIDTH = 80;
     private static final int HEIGHT = 12;
     private static final int TALL = 24;
@@ -221,6 +223,88 @@ class BrowserTest {
         assertTrue(lines.get(1).startsWith("   "), "and is centred as a block");
         assertTrue(lines.get(4).contains("Multichannel Music"), "the list follows it");
         assertEquals(TALL, lines.size());
+    }
+
+    @Test
+    void showsThePartyLogoWhereTheReleasesCarryNoneOfTheirOwn() {
+        final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        final List<String> lines = browser.render(WIDTH, TALL).stream().map(AttributedString::toString).toList();
+
+        assertTrue(lines.get(2).contains("I C I N G"), "the logo of the party stands in for the competition");
+    }
+
+    @Test
+    void theArtOfAnEntryComesBeforeTheLogoOfTheParty() {
+        final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
+        final List<String> banner = List.of(".------------------.", "|  R E L E A S E   |", "`------------------'");
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, production -> Optional.of(banner), partyArt(logo, false));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        final List<String> lines = browser.render(WIDTH, TALL).stream().map(AttributedString::toString).toList();
+
+        assertTrue(lines.get(2).contains("R E L E A S E"), "what the release carried wins");
+        assertFalse(lines.stream().anyMatch(line -> line.contains("I C I N G")));
+    }
+
+    @Test
+    void tickerRunsBesideTheEntryWhoseFilesAreOnTheirWayDown() {
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean fetching(int productionId) {
+                return productionId == 12;
+            }
+        }, PartyArt.NONE);
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        final List<String> lines = render();
+
+        assertTrue(lines.stream().anyMatch(line -> line.contains("Second") && ticks(line)), "the entry being fetched ticks");
+        assertFalse(lines.stream().anyMatch(line -> line.contains("First") && ticks(line)), "the others do not");
+    }
+
+    @Test
+    void tickerRunsOnTheCompetitionWhileItsLogoIsFetched() {
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
+        openParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        assertTrue(render().stream().anyMatch(line -> line.contains("Multichannel Music") && ticks(line)),
+                "the competition ticks while its logo is on its way");
+    }
+
+    private static boolean ticks(String line) {
+        return TICKER_FRAMES.chars().anyMatch(frame -> line.indexOf(frame) >= 0);
+    }
+
+    private static PartyArt partyArt(List<String> logo, boolean fetching) {
+        return new PartyArt() {
+
+            @Override
+            public Optional<List<String>> of(int partyId) {
+                return logo.isEmpty() ? Optional.empty() : Optional.of(logo);
+            }
+
+            @Override
+            public boolean fetching(int partyId) {
+                return fetching;
+            }
+        };
     }
 
     @Test

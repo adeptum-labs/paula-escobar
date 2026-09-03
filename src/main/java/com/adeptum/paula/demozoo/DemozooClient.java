@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -73,6 +74,10 @@ public final class DemozooClient {
 
     public List<Competition> competitions(int partyId) throws IOException {
         return fetch(PARTIES, partyId, DemozooJson::competitions);
+    }
+
+    public Optional<String> sceneOrgFolder(int partyId) throws IOException {
+        return fetch(PARTIES, partyId, DemozooJson::sceneOrgFolder);
     }
 
     public Production production(int id) throws IOException {

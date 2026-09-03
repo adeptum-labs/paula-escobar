@@ -27,6 +27,7 @@ import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Link;
 import com.adeptum.paula.demozoo.Party;
+import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.playlist.DemozooTrack;
@@ -142,6 +143,7 @@ public final class Browser {
         private int cursor;
         private int offset;
         private int artProduction;
+        private int partyId;
 
         private Level(String title, String emptyText, List<Item> items) {
             this.title = title;
@@ -182,6 +184,9 @@ public final class Browser {
     private static final int FEWEST_ART_LINES = 3;
     private static final int FEWEST_ROWS = 6;
     private static final Duration DWELL = Duration.ofMillis(500);
+    private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+    private static final String TICKER_SPACE = "  ";
+    private static final Duration TICKER_FRAME = Duration.ofMillis(100);
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
             new Frame.Key("b", "player"), new Frame.Key("q", "quit"));
@@ -189,6 +194,7 @@ public final class Browser {
     private final DemozooClient demozoo;
     private final Executor executor;
     private final ReleaseArt art;
+    private final PartyArt partyArt;
     private final Duration dwell;
     private final Clock clock;
     private final Deque<Level> levels = new ArrayDeque<>();
@@ -207,13 +213,22 @@ public final class Browser {
     }
 
     public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art) {
-        this(demozoo, executor, art, DWELL, Clock.systemUTC());
+        this(demozoo, executor, art, PartyArt.NONE);
+    }
+
+    public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, PartyArt partyArt) {
+        this(demozoo, executor, art, partyArt, DWELL, Clock.systemUTC());
     }
 
     Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, Duration dwell, Clock clock) {
+        this(demozoo, executor, art, PartyArt.NONE, dwell, clock);
+    }
+
+    Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, PartyArt partyArt, Duration dwell, Clock clock) {
         this.demozoo = demozoo;
         this.executor = executor;
         this.art = art;
+        this.partyArt = partyArt;
         this.dwell = dwell;
         this.clock = clock;
         levels.push(new Level(ROOT_TITLE, NOTHING_HERE, CuratedSeries.ALL.stream().<Item>map(SeriesItem::new).toList()));
@@ -324,12 +339,12 @@ public final class Browser {
             rows.add(Screen.line(b -> b.style(Palette.LABEL).append(level.emptyText)));
         }
         for (int i = level.offset; i < Math.min(level.items.size(), level.offset + pageSize); i++) {
-            rows.add(row(level.items.get(i), i == level.cursor, width - 2));
+            rows.add(row(level.items.get(i), i == level.cursor, width - 2, ticker(level.items.get(i))));
         }
         final List<AttributedString> lines = new ArrayList<>();
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
         lines.addAll(art);
-        lines.addAll(Frame.box(breadcrumb(), rows, width, pageSize + 2));
+        lines.addAll(Frame.box(breadcrumb() + ticker(level), rows, width, pageSize + 2));
         lines.add(statusLine());
         lines.add(nowPlayingLine(width));
         lines.add(Frame.footer(KEYS, width));
@@ -388,6 +403,8 @@ public final class Browser {
         final List<CompoEntry> entries = compo.compo().entries();
         final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads)).toList();
         final Level level = new Level(compo.compoLabel(), NOTHING_HERE, items);
+        level.partyId = compo.party().id();
+        partyArt.fetch(level.partyId);
         entries.stream().filter(CompoEntry::likelyPlayable).findFirst().ifPresent(entry -> {
             level.artProduction = entry.productionId();
             art.fetch(entry);
@@ -431,9 +448,10 @@ public final class Browser {
     /**
      * The cursor row is painted edge to edge in one style; other rows colour the top three placings like medals.
      */
-    private static AttributedString row(Item item, boolean selected, int width) {
+    private static AttributedString row(Item item, boolean selected, int width, String ticker) {
         if (selected) {
-            return Frame.pad(new AttributedStringBuilder().style(Palette.SELECTED).append(CURSOR).append(item.label()).toAttributedString(), width, Palette.SELECTED);
+            return Frame.pad(new AttributedStringBuilder().style(Palette.SELECTED).append(CURSOR).append(item.label()).append(ticker).toAttributedString(),
+                    width, Palette.SELECTED);
         }
         final AttributedStringBuilder line = new AttributedStringBuilder().style(Palette.ACCENT).append(NO_CURSOR);
         final AttributedStyle text = item.dimmed() ? Palette.DIMMED : Palette.VALUE;
@@ -443,7 +461,25 @@ public final class Browser {
         } else {
             line.style(text).append(item.label());
         }
+        line.style(Palette.ACCENT).append(ticker);
         return line.toAttributedString();
+    }
+
+    /**
+     * A turning ticker beside whatever is being brought down, so a wait for a logo on its way is visible rather
+     * than looking like nothing happening.
+     */
+    private String ticker(Item item) {
+        return item instanceof EntryItem entry && art.fetching(entry.entry().productionId()) ? ticker() : "";
+    }
+
+    private String ticker(Level level) {
+        return level.partyId != 0 && partyArt.fetching(level.partyId) ? ticker() : "";
+    }
+
+    private String ticker() {
+        final long frame = clock.instant().toEpochMilli() / TICKER_FRAME.toMillis();
+        return TICKER_SPACE + TICKER_FRAMES.charAt((int) Math.floorMod(frame, TICKER_FRAMES.length()));
     }
 
     private static AttributedStyle medal(String placing, AttributedStyle fallback) {
@@ -468,7 +504,9 @@ public final class Browser {
         return level.selected()
                 .filter(EntryItem.class::isInstance)
                 .map(item -> ((EntryItem) item).entry().productionId())
-                .flatMap(production -> art.of(production).or(() -> art.of(level.artProduction)))
+                .flatMap(production -> art.of(production)
+                        .or(() -> art.of(level.artProduction))
+                        .or(() -> partyArt.of(level.partyId)))
                 .map(lines -> centred(lines.stream().limit(room).toList(), width))
                 .orElseGet(List::of);
     }

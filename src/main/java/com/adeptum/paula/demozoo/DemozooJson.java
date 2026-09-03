@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -44,6 +45,7 @@ public final class DemozooJson {
 
     private static final JsonProvider JSON = new JsonProviderImpl();
     private static final String MUSIC = "music";
+    private static final String SCENE_ORG_FOLDER = "SceneOrgFolder";
     private static final String UNKNOWN_AUTHOR = "unknown";
     private static final String AUTHOR_SEPARATOR = " & ";
 
@@ -69,6 +71,17 @@ public final class DemozooJson {
                 .filter(competition -> MUSIC.equals(object(competition, "production_type").getString("supertype", "")))
                 .map(DemozooJson::competition)
                 .toList());
+    }
+
+    /**
+     * Where the party's own files sit on scene.org, which is where the logo of a party that packed none with
+     * its releases can still be found.
+     */
+    public static Optional<String> sceneOrgFolder(byte[] body) throws IOException {
+        return parse(body, party -> links(party, "external_links").stream()
+                .filter(link -> SCENE_ORG_FOLDER.equals(link.linkClass()))
+                .map(Link::url)
+                .findFirst());
     }
 
     public static Production production(byte[] body) throws IOException {

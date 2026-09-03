@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -97,6 +98,17 @@ class DemozooJsonTest {
     @Test
     void malformedJsonIsAnIoException() {
         assertThrows(IOException.class, () -> DemozooJson.series(bytes("{")));
+    }
+
+    @Test
+    void findsTheSceneOrgFolderOfAParty() throws IOException {
+        final String party = PARTY.replace("\"competitions\":[", "\"external_links\":["
+                + "{\"link_class\":\"PouetParty\",\"url\":\"https://www.pouet.net/party.php?which=134\"},"
+                + "{\"link_class\":\"SceneOrgFolder\",\"url\":\"https://files.scene.org/browse/parties/1995/asm95/\"}],"
+                + "\"competitions\":[");
+
+        assertEquals(Optional.of("https://files.scene.org/browse/parties/1995/asm95/"), DemozooJson.sceneOrgFolder(bytes(party)));
+        assertEquals(Optional.empty(), DemozooJson.sceneOrgFolder(bytes(PARTY)));
     }
 
     @Test
