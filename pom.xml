@@ -200,7 +200,13 @@
           <buildArgs>
             <buildArg>--no-fallback</buildArg>
             <buildArg>--enable-url-protocols=https</buildArg>
-            <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets</buildArg>
+            <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers</buildArg>
+            <!--
+              Java Sound is unreachable in a native image, and the window toolkit it drags behind it must
+              not be started while the image is built: a machine with no display of its own has none to
+              start. Both are left to run time, where nothing asks for them.
+            -->
+            <buildArg>--initialize-at-run-time=java.awt.Toolkit,java.awt.Insets</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
           </buildArgs>
         </configuration>
