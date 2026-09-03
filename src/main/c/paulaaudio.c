@@ -32,6 +32,13 @@
 
 enum { CHANNELS = 2, RING_PERIODS = 4, FRAME_BYTES = CHANNELS * sizeof(int16_t) };
 
+/*
+ * A suspended PulseAudio sink (headphones unplugged, lid closed) stops the callbacks without stopping the
+ * device, so the writer waits this long for it to come back before giving the song up, which is also the
+ * longest quitting can ever take.
+ */
+enum { WAIT_LIMIT_MILLIS = 2000 };
+
 /* Numbered as the Java side numbers them; 0 is auto and tries the real backends in this order. */
 static const ma_backend BACKENDS[] = {
     ma_backend_null,
@@ -49,8 +56,7 @@ static const ma_backend AUTO_ORDER[] = {
 static ma_context context;
 static ma_device device;
 static ma_pcm_rb ring;
-static ma_event space;
-static volatile ma_bool32 stopped;
+static ma_uint32 poll_millis;
 static ma_result last_failure = MA_SUCCESS;
 
 static int fail(ma_result result)
@@ -77,15 +83,6 @@ static void pull(ma_device *unused, void *output, const void *input, ma_uint32 f
         remaining -= chunk;
     }
     memset(out, 0, remaining * FRAME_BYTES);
-    ma_event_signal(&space);
-}
-
-static void notify(const ma_device_notification *notification)
-{
-    if (notification->type == ma_device_notification_type_stopped) {
-        stopped = MA_TRUE;
-        ma_event_signal(&space);
-    }
 }
 
 int paula_audio_open(int backend, int sample_rate, int buffer_frames)
@@ -96,7 +93,7 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
     ma_device_config config = ma_device_config_init(ma_device_type_playback);
     ma_result result;
 
-    stopped = MA_FALSE;
+    poll_millis = ma_max(1, (ma_uint32) buffer_frames * 1000 / (ma_uint32) sample_rate / 4);
     result = ma_context_init(order, count, &context_config, &context);
     if (result != MA_SUCCESS) {
         return fail(result);
@@ -106,25 +103,17 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
         ma_context_uninit(&context);
         return fail(result);
     }
-    result = ma_event_init(&space);
-    if (result != MA_SUCCESS) {
-        ma_pcm_rb_uninit(&ring);
-        ma_context_uninit(&context);
-        return fail(result);
-    }
     config.playback.format = ma_format_s16;
     config.playback.channels = CHANNELS;
     config.sampleRate = (ma_uint32) sample_rate;
     config.periodSizeInFrames = (ma_uint32) buffer_frames;
     config.dataCallback = pull;
-    config.notificationCallback = notify;
     result = ma_device_init(&context, &config, &device);
     if (result == MA_SUCCESS) {
         result = ma_device_start(&device);
     }
     if (result != MA_SUCCESS) {
         ma_device_uninit(&device);
-        ma_event_uninit(&space);
         ma_pcm_rb_uninit(&ring);
         ma_context_uninit(&context);
         return fail(result);
@@ -135,34 +124,43 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
 int paula_audio_write(const int16_t *frames, int count)
 {
     ma_uint32 remaining = (ma_uint32) count;
+    ma_uint32 waited = 0;
     while (remaining > 0) {
         ma_uint32 chunk = remaining;
         void *destination;
-        if (stopped) {
-            return fail(MA_DEVICE_NOT_STARTED);
-        }
-        if (ma_pcm_rb_acquire_write(&ring, &chunk, &destination) != MA_SUCCESS) {
-            return fail(MA_ERROR);
+        const ma_result result = ma_pcm_rb_acquire_write(&ring, &chunk, &destination);
+        if (result != MA_SUCCESS) {
+            return fail(result);
         }
         if (chunk == 0) {
-            ma_event_wait(&space);
+            if (ma_device_get_state(&device) != ma_device_state_started) {
+                return fail(MA_DEVICE_NOT_STARTED);
+            }
+            ma_sleep(poll_millis);
+            waited += poll_millis;
+            if (waited >= WAIT_LIMIT_MILLIS) {
+                return fail(MA_TIMEOUT);
+            }
             continue;
         }
         memcpy(destination, frames, chunk * FRAME_BYTES);
         ma_pcm_rb_commit_write(&ring, chunk);
         frames += chunk * CHANNELS;
         remaining -= chunk;
+        waited = 0;
     }
     return 0;
 }
 
 void paula_audio_close(void)
 {
-    while (!stopped && ma_pcm_rb_available_read(&ring) > 0) {
-        ma_event_wait(&space);
+    ma_uint32 waited = 0;
+    while (ma_pcm_rb_available_read(&ring) > 0 && ma_device_get_state(&device) == ma_device_state_started
+           && waited < WAIT_LIMIT_MILLIS) {
+        ma_sleep(poll_millis);
+        waited += poll_millis;
     }
     ma_device_uninit(&device);
-    ma_event_uninit(&space);
     ma_pcm_rb_uninit(&ring);
     ma_context_uninit(&context);
 }
