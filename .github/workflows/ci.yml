@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -46,14 +46,27 @@ jobs:
       - name: Show the build output
         if: always()
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ matrix.name }}
         run: |
+          [ -f build.log ] || exit 0
           tail -200 build.log
           {
-            echo "## ${{ matrix.name }}"
+            echo "## $NAME"
             echo '```'
             tail -80 build.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ job.status }}" = "failure" ]; then
+            {
+              echo "### $NAME"
+              echo '```'
+              grep -E "ERROR|error:|Caused by|Exception" build.log | head -40
+              echo '```'
+            } > comment.md
+            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -F body=@comment.md || true
+          fi
 
       - name: Run what was built
         shell: bash
