@@ -29,6 +29,7 @@ import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
+import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.module.wav.WavLoader;
@@ -43,7 +44,7 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, DigiBoosterLoader.FORMAT, Mp3Loader.FORMAT,
-                FlacLoader.FORMAT, WavLoader.FORMAT), registry.formats());
+                FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT), registry.formats());
     }
 
     @Test
@@ -56,6 +57,8 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.wav")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.au")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.aif")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.ogg")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.oga")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());
     }
 

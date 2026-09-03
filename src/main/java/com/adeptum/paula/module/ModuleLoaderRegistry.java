@@ -25,6 +25,7 @@ import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
+import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.module.wav.WavLoader;
@@ -43,7 +44,8 @@ public final class ModuleLoaderRegistry {
 
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths),
-                new DigiBoosterLoader(), new Mp3Loader(), new FlacLoader(), new WavLoader()));
+                new DigiBoosterLoader(), new Mp3Loader(), new FlacLoader(), new WavLoader(),
+                new OggLoader()));
     }
 
     public List<ModuleFormat> formats() {
