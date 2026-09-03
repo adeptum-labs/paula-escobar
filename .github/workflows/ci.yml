@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built where the oldest still supported glibc is, so the executable runs on
+          # the distributions people have rather than only on the newest.
+          - { os: ubuntu-22.04, name: Linux, binary: target/paula }
+          - { os: macos-latest, name: macOS, binary: target/paula }
+          - { os: windows-latest, name: Windows, binary: target/paula.exe }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
+
+      - name: Register the GraalVM toolchain
+        shell: bash
+        run: .github/toolchains.sh
+
+      - name: Build, test and make the executable
+        run: mvn -B -ntp package
+
+      - name: Run what was built
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ matrix.binary }}" --version
+          "${{ matrix.binary }}" formats
+          java -jar target/paula-*-all.jar --version

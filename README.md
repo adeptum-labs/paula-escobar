@@ -233,6 +233,41 @@ machine it runs on. When a piece is missing it tells the two apart — no
 tunnel, or a tunnel with no sound server behind it — and prints what to run
 where.
 
+## Releases
+
+Every release hangs off its tag on GitHub and carries an executable for
+Linux, macOS and Windows, built on each of those machines by GitHub Actions,
+and the runnable jar. The jar is also kept in `releases/` here, so a checkout
+of any version holds the thing that version built.
+
+Which one to take: the executable, if there is one for your machine — it
+starts at once and needs no Java. It needs `pacat` or `aplay` on Linux, and
+`ffplay` or `play` (from ffmpeg or sox) on macOS and Windows, for the reason
+given under audio output above. The jar needs a Java 21 runtime and nothing
+else, and plays everywhere as it is:
+
+```
+java -jar paula-escobar-0.1.0.jar
+```
+
+Cutting one is a single command, and it pushes nothing:
+
+```
+./create-release.sh
+```
+
+It builds and tests at the version the pom is working towards, keeps the jar
+under `releases/`, records it in a `Release X.Y.Z` commit with an annotated
+tag, and opens the next snapshot. Sending the tag is what builds the three
+executables and drafts the release:
+
+```
+git push && git push origin v0.1.0
+```
+
+The release is drafted rather than published, so it can be read over — and
+thrown away without a trace — before anyone sees it.
+
 ## Layout
 
 | Package                          | Responsibility                                              |

@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'What to build. Builds the executables and keeps them as run artefacts; releases nothing.'
+        required: true
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  executables:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built where the oldest still supported glibc is, so the executable runs on
+          # the distributions people have rather than only on the newest.
+          - { os: ubuntu-22.04, target: linux-x86_64, binary: paula, archive: tar }
+          - { os: macos-latest, target: macos-aarch64, binary: paula, archive: tar }
+          - { os: windows-latest, target: windows-x86_64, binary: paula.exe, archive: zip }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
+
+      - name: Register the GraalVM toolchain
+        shell: bash
+        run: .github/toolchains.sh
+
+      - name: Build, test and make the executable
+        run: mvn -B -ntp package
+
+      - name: Gather the release archive
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARY: ${{ matrix.binary }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          set -euo pipefail
+          version="$(mvn -B -ntp -q help:evaluate -Dexpression=project.version -DforceStdout | tail -1)"
+          name="paula-$version-$TARGET"
+          mkdir -p "dist/$name"
+          cp "target/$BINARY" "dist/$name/"
+          # The Java Sound helper library is emitted beside the executable, under a
+          # name of its own on every platform, and is missing on none of them lightly.
+          cp target/libjsound.* target/jsound.* "dist/$name/" 2>/dev/null || true
+          cp LICENSE README.md "dist/$name/"
+          "dist/$name/$BINARY" --version
+          if [ "$ARCHIVE" = "zip" ]; then
+            (cd dist && 7z a -tzip "../$name.zip" "$name" > /dev/null)
+          else
+            tar -C dist -czf "$name.tar.gz" "$name"
+          fi
+          ls -l "$name."*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: paula-${{ matrix.target }}
+          path: |
+            paula-*.tar.gz
+            paula-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Draft the release
+    needs: executables
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Take the jar the release was cut with
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          jar="releases/paula-escobar-${TAG#v}.jar"
+          [ -f "$jar" ] || {
+            echo "No $jar at this tag. Releases are cut with ./create-release.sh, which keeps it." >&2
+            exit 1
+          }
+          cp "$jar" assets/
+          ls -l assets/
+
+      - name: Draft it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --draft \
+            --title "Paula Escobar ${TAG#v}" \
+            --generate-notes \
+            assets/*
