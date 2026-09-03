@@ -131,12 +131,21 @@ would have cost anyway — and the art that comes with it is shown above the
 list for every entry in that competition, an entry's own art taking
 precedence. It is read in the code page it was drawn in: the box characters
 of the PC or the accented letters of the Amiga, whichever the file leans
-towards. Art shaped by terminal escapes is left alone, and competitions
-whose files carry none show nothing.
+towards. Art shaped by terminal escapes is left alone.
+
+Competitions handed in as bare modules carry no such file, and there the
+party stands in for them. Demozoo names the folder a party keeps on
+scene.org, and the file id or information file found in it — the information
+directory first, since that is where a party keeps what belongs to the party
+as a whole — is shown as the competition opens, until an entry's own art
+takes its place. A ticker turns beside an entry whose files are on their way
+down, and beside the competition while its logo is fetched, so a wait looks
+like a wait rather than like nothing happening.
 
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
-still used when the network is down, and downloaded modules are kept for good.
+still used when the network is down, and downloaded modules and party logos
+are kept for good.
 Delete the directory to start over.
 
 ### SID tunes
@@ -179,6 +188,31 @@ on a JVM, for example from the tests, Java Sound is used instead
 Log output goes to `paula.log` in the working directory so it never
 disturbs the player screen.
 
+### Sound on the machine you are sitting at
+
+`tools/paula-sound` starts the player where it lives and plays it out of the
+machine you have ssh'd in from. That machine opens the way itself: it serves
+its sound on its own loopback,
+
+```
+pactl load-module module-native-protocol-tcp listen=127.0.0.1
+```
+
+and carries a reverse tunnel to it with the ssh connection, once and for all
+in its `~/.ssh/config`:
+
+```
+Host <the machine running paula>
+    RemoteForward 4713 127.0.0.1:4713
+```
+
+Nothing listens on the network at either end. The script finds the near end
+of the tunnel, makes sure a sound server answers through it and starts Paula
+on the PULSE backend so the route does not depend on the ALSA setup of the
+machine it runs on. When a piece is missing it tells the two apart — no
+tunnel, or a tunnel with no sound server behind it — and prints what to run
+where.
+
 ## Layout
 
 | Package                          | Responsibility                                              |
@@ -193,7 +227,7 @@ disturbs the player screen.
 | `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
 | `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
-| `com.adeptum.paula.demozoo`      | Demozoo API model, cached client and track resolution       |
+| `com.adeptum.paula.demozoo`      | Demozoo API model, cached client, track resolution and browsing art |
 | `com.adeptum.paula.archive`      | zip and LHA extraction, format detection by magic bytes     |
 | `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
 | `com.adeptum.paula.archive.xpk`  | Amiga XPK unpacker (NUKE, DUKE, SQSH)                       |
