@@ -1,0 +1,8 @@
+#!/bin/sh
+# Compiles the miniaudio shim into the static library native-image links.
+set -eu
+out=$1
+src=$(dirname "$0")/../src/main/c
+mkdir -p "$out"
+${CC:-cc} -O2 -c "$src/paulaaudio.c" -o "$out/paulaaudio.o"
+ar rcs "$out/libpaulaaudio.a" "$out/paulaaudio.o"

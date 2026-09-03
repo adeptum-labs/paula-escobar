@@ -43,6 +43,9 @@
     <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <versions-plugin.version>2.20.1</versions-plugin.version>
+    <graalvm.sdk.version>23.1.7</graalvm.sdk.version>
+    <exec-plugin.version>3.5.0</exec-plugin.version>
+    <audio.shim.builder>${project.basedir}/tools/build-audio-shim</audio.shim.builder>
   </properties>
 
   <repositories>
@@ -177,6 +180,26 @@
         <version>3.5.5</version>
       </plugin>
       <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>${exec-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>build-audio-shim</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>${audio.shim.builder}</executable>
+              <arguments>
+                <argument>${project.build.directory}/native</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.graalvm.buildtools</groupId>
         <artifactId>native-maven-plugin</artifactId>
         <version>${native-maven-plugin.version}</version>
@@ -209,6 +232,7 @@
             <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets,java.awt.Toolkit</buildArg>
             <buildArg>-J-Djava.awt.headless=true</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+            <buildArg>-H:CLibraryPath=${project.build.directory}/native</buildArg>
           </buildArgs>
         </configuration>
       </plugin>
@@ -274,4 +298,18 @@
       </plugins>
     </pluginManagement>
   </build>
+
+  <profiles>
+    <profile>
+      <id>windows-audio-shim</id>
+      <activation>
+        <os>
+          <family>windows</family>
+        </os>
+      </activation>
+      <properties>
+        <audio.shim.builder>${project.basedir}\tools\build-audio-shim.cmd</audio.shim.builder>
+      </properties>
+    </profile>
+  </profiles>
 </project>
