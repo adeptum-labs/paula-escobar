@@ -106,7 +106,12 @@ int paula_audio_open(int backend, int sample_rate, int buffer_frames)
         ma_context_uninit(&context);
         return fail(result);
     }
-    ma_event_init(&space);
+    result = ma_event_init(&space);
+    if (result != MA_SUCCESS) {
+        ma_pcm_rb_uninit(&ring);
+        ma_context_uninit(&context);
+        return fail(result);
+    }
     config.playback.format = ma_format_s16;
     config.playback.channels = CHANNELS;
     config.sampleRate = (ma_uint32) sample_rate;
