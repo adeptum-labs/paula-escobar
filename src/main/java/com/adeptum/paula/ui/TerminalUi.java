@@ -40,12 +40,23 @@ public final class TerminalUi implements AutoCloseable {
     private static final char FIRST_FINAL_BYTE = 0x40;
     private static final char LAST_FINAL_BYTE = 0x7E;
     private static final long SEQUENCE_TIMEOUT_MILLIS = 50;
+    private static final int FALLBACK_WIDTH = 80;
+    private static final int FALLBACK_HEIGHT = 24;
 
     private final Terminal terminal;
     private final Display display;
+    private final boolean keyboardless;
 
-    public TerminalUi() throws IOException {
-        terminal = TerminalBuilder.builder().system(true).dumb(false).build();
+    /**
+     * A dumb terminal is accepted only when the caller can do without keys, since it has none to give.
+     */
+    public TerminalUi(boolean keyboardOptional) throws IOException {
+        this(TerminalBuilder.builder().system(true).dumb(keyboardOptional).build());
+    }
+
+    TerminalUi(Terminal terminal) throws IOException {
+        this.terminal = terminal;
+        this.keyboardless = terminal.getType().startsWith(Terminal.TYPE_DUMB);
         display = new Display(terminal, true);
         terminal.enterRawMode();
         terminal.puts(Capability.enter_ca_mode);
@@ -53,7 +64,15 @@ public final class TerminalUi implements AutoCloseable {
         terminal.flush();
     }
 
+    public TerminalUi() throws IOException {
+        this(false);
+    }
+
     public Key poll(long timeoutMillis) throws IOException {
+        if (keyboardless) {
+            sleepQuietly(timeoutMillis);
+            return Key.of(Key.Special.TIMEOUT);
+        }
         final int key = terminal.reader().read(timeoutMillis);
         return key == ESCAPE ? escapedKey() : Key.forByte(key);
     }
@@ -96,16 +115,24 @@ public final class TerminalUi implements AutoCloseable {
     }
 
     public int width() {
-        return terminal.getWidth();
+        return terminal.getWidth() > 0 ? terminal.getWidth() : FALLBACK_WIDTH;
     }
 
     public int height() {
-        return terminal.getHeight();
+        return terminal.getHeight() > 0 ? terminal.getHeight() : FALLBACK_HEIGHT;
     }
 
     public void draw(List<AttributedString> lines) {
-        display.resize(terminal.getHeight(), terminal.getWidth());
+        display.resize(height(), width());
         display.update(lines, 0);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
