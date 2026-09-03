@@ -29,13 +29,10 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -49,26 +46,7 @@ public final class CachedReleaseArt implements ReleaseArt {
 
     private static final String FILES = "files";
     private static final String FILE_ID = "file_id.diz";
-    private static final Set<String> EXTENSIONS = Set.of("diz", "nfo", "asc");
-    /**
-     * The upper half of the code page the PC scene drew in, from 0x80 up; the lower half is plain ASCII.
-     */
-    private static final String CODE_PAGE_437 =
-            "ÇüéâäàåçêëèïîìÄÅ" +
-            "ÉæÆôöòûùÿÖÜ¢£¥₧ƒ" +
-            "áíóúñÑªº¿⌐¬½¼¡«»" +
-            "░▒▓│┤╡╢╖╕╣║╗╝╜╛┐" +
-            "└┴┬├─┼╞╟╚╔╩╦╠═╬╧" +
-            "╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀" +
-            "αßΓπΣσµτΦΘΩδ∞φε∩" +
-            "≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
-
-    private static final int HIGH_HALF = 0x80;
-    private static final int BOX_FIRST = 0xB0;
-    private static final int BOX_LAST = 0xDF;
     private static final long LONGEST = 8192;
-    private static final int MOST_LINES = 12;
-    private static final int FEWEST_LINES = 2;
     private static final Duration RECHECK = Duration.ofSeconds(2);
     private static final char ESCAPE = 0x1B;
 
@@ -116,7 +94,7 @@ public final class CachedReleaseArt implements ReleaseArt {
             return files.filter(Files::isRegularFile)
                     .filter(CachedReleaseArt::isArtFile)
                     .sorted(Comparator.comparing((Path file) -> isFileId(file) ? 0 : 1).thenComparing(Path::toString))
-                    .map(CachedReleaseArt::art)
+                    .map(TextArt::read)
                     .flatMap(Optional::stream)
                     .findFirst();
         } catch (IOException | UncheckedIOException e) {
@@ -125,63 +103,11 @@ public final class CachedReleaseArt implements ReleaseArt {
         }
     }
 
-    /**
-     * Art drawn on a PC is full of the box characters of code page 437, while art from an Amiga holds the
-     * accented letters of Latin-1 in the same byte range; whichever the file leans towards is what it is read
-     * as.
-     */
-    private static String decoded(byte[] bytes) {
-        final StringBuilder text = new StringBuilder(bytes.length);
-        final boolean drawsBoxes = drawsBoxes(bytes);
-        for (final byte character : bytes) {
-            final int value = character & 0xFF;
-            text.append(drawsBoxes && value >= HIGH_HALF ? CODE_PAGE_437.charAt(value - HIGH_HALF) : (char) value);
-        }
-        return text.toString();
-    }
-
-    private static boolean drawsBoxes(byte[] bytes) {
-        for (final byte character : bytes) {
-            final int value = character & 0xFF;
-            if (value >= BOX_FIRST && value <= BOX_LAST) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean isArtFile(Path file) {
-        final String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        final int dot = name.lastIndexOf('.');
-        return dot > 0 && EXTENSIONS.contains(name.substring(dot + 1)) && file.toFile().length() <= LONGEST;
+        return TextArt.isArtName(file.getFileName().toString()) && file.toFile().length() <= LONGEST;
     }
 
     private static boolean isFileId(Path file) {
         return file.getFileName().toString().equalsIgnoreCase(FILE_ID);
-    }
-
-    /**
-     * Art was drawn in the code page of the machine that made it and is read back in it. A file carrying
-     * terminal escapes is left alone: its shape lives in the cursor moves, which a plain block of text cannot
-     * hold.
-     */
-    private static Optional<List<String>> art(Path file) {
-        final String text;
-        try {
-            text = decoded(Files.readAllBytes(file));
-        } catch (IOException e) {
-            return Optional.empty();
-        }
-        if (text.indexOf(ESCAPE) >= 0) {
-            return Optional.empty();
-        }
-        final List<String> lines = new ArrayList<>(text.lines().map(line -> line.replace('\t', ' ').stripTrailing()).toList());
-        while (!lines.isEmpty() && lines.getLast().isBlank()) {
-            lines.removeLast();
-        }
-        while (!lines.isEmpty() && lines.getFirst().isBlank()) {
-            lines.removeFirst();
-        }
-        return lines.size() < FEWEST_LINES ? Optional.empty() : Optional.of(List.copyOf(lines.subList(0, Math.min(lines.size(), MOST_LINES))));
     }
 }
