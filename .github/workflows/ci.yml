@@ -41,7 +41,19 @@ jobs:
         run: .github/toolchains.sh
 
       - name: Build, test and make the executable
-        run: mvn -B -ntp package
+        run: mvn -B -ntp -l build.log package
+
+      - name: Show the build output
+        if: always()
+        shell: bash
+        run: |
+          tail -200 build.log
+          {
+            echo "## ${{ matrix.name }}"
+            echo '```'
+            tail -80 build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run what was built
         shell: bash
