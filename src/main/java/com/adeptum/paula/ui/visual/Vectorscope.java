@@ -33,21 +33,45 @@ public final class Vectorscope {
 
     private static final int STEREO = 2;
     private static final double CENTRE = 0.5;
-    private static final double SCALE = 0.25;
+    private static final double HALF = 0.5;
+    private static final double MOST_GAIN = 8;
 
     private Vectorscope() {
     }
 
     /**
-     * Plots interleaved frames in the range -1..1 across the given cell grid.
+     * Plots interleaved frames in the range -1..1 across the given cell grid. The figure is drawn as wide as
+     * it is tall, since a braille dot is about square and a shape stretched to the panel would read as more
+     * width than the music has, and it is turned up to fill that square: music rarely comes near full scale,
+     * and drawn to that scale it would sit in a knot in the middle. Near silence is left small rather than
+     * amplified into a shape of its own.
      */
     public static List<String> plot(double[] interleavedStereo, int widthCells, int heightCells) {
         final BrailleCanvas canvas = new BrailleCanvas(widthCells, heightCells);
+        final double reach = reachOf(interleavedStereo);
+        final double gain = reach > 0 ? Math.min(MOST_GAIN, 1 / reach) : 0;
+        final int square = Math.min(canvas.dotColumns(), canvas.dotRows());
+        final double across = square / (double) Math.max(1, canvas.dotColumns());
+        final double down = square / (double) Math.max(1, canvas.dotRows());
         for (int frame = 0; frame + 1 < interleavedStereo.length; frame += STEREO) {
             final double left = Math.clamp(interleavedStereo[frame], -1, 1);
             final double right = Math.clamp(interleavedStereo[frame + 1], -1, 1);
-            canvas.set(CENTRE + (left - right) * SCALE, CENTRE + (left + right) * SCALE);
+            canvas.set(CENTRE + (left - right) * gain * HALF * across,
+                    CENTRE + (left + right) * gain * HALF * down);
         }
         return canvas.rows();
+    }
+
+    /**
+     * How far the widest frame reaches from the middle, along whichever of the two diagonals goes further.
+     */
+    private static double reachOf(double[] interleavedStereo) {
+        double reach = 0;
+        for (int frame = 0; frame + 1 < interleavedStereo.length; frame += STEREO) {
+            final double left = Math.clamp(interleavedStereo[frame], -1, 1);
+            final double right = Math.clamp(interleavedStereo[frame + 1], -1, 1);
+            reach = Math.max(reach, Math.max(Math.abs(left - right), Math.abs(left + right)));
+        }
+        return reach;
     }
 }

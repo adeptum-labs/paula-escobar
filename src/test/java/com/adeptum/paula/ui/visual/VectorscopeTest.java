@@ -63,6 +63,40 @@ class VectorscopeTest {
         assertTrue(rowsDrawnOn(apart).size() > 1, "and height");
     }
 
+    /**
+     * Music rarely comes near full scale. Drawn to that scale a quiet tune would sit in a knot in the middle,
+     * so the figure is turned up to fill the panel whatever the level.
+     */
+    @Test
+    void fillsThePanelWhetherTheMusicIsLoudOrQuiet() {
+        final int loud = rowsDrawnOn(Vectorscope.plot(scaled(circle(), 1.0), WIDTH, HEIGHT)).size();
+        final int quiet = rowsDrawnOn(Vectorscope.plot(scaled(circle(), 0.25), WIDTH, HEIGHT)).size();
+
+        assertEquals(loud, quiet, "a quarter of full scale draws as large as full scale");
+        assertEquals(HEIGHT, loud, "and reaches the whole height of the panel");
+    }
+
+    @Test
+    void leavesNearSilenceSmallRatherThanAmplifyingIt() {
+        final int hush = rowsDrawnOn(Vectorscope.plot(scaled(circle(), 0.001), WIDTH, HEIGHT)).size();
+
+        assertTrue(hush < HEIGHT, "a hush is not blown up into a shape of its own, filled " + hush + " rows");
+    }
+
+    /**
+     * A braille dot is about as tall as it is wide, so a round figure has to come out round rather than
+     * stretched across a panel that is far wider than it is tall.
+     */
+    @Test
+    void drawsARoundFigureRoundRatherThanStretched() {
+        final List<String> rows = Vectorscope.plot(circle(), WIDTH, HEIGHT);
+
+        final int wide = columnsDrawnOn(rows).size() * 2;
+        final int tall = rowsDrawnOn(rows).size() * 4;
+        assertTrue(Math.abs(wide - tall) <= tall / 4,
+                "the figure spans " + wide + " dots across and " + tall + " down");
+    }
+
     @Test
     void drawsNothingForSilenceButKeepsTheGrid() {
         final List<String> rows = Vectorscope.plot(new double[64], WIDTH, HEIGHT);
@@ -85,6 +119,14 @@ class VectorscopeTest {
             frames[frame * 2 + 1] = value * rightGain;
         }
         return frames;
+    }
+
+    private static double[] scaled(double[] frames, double gain) {
+        final double[] quieter = new double[frames.length];
+        for (int i = 0; i < frames.length; i++) {
+            quieter[i] = frames[i] * gain;
+        }
+        return quieter;
     }
 
     private static double[] circle() {
