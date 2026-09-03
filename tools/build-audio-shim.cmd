@@ -1,5 +1,26 @@
 @echo off
+rem
+rem Paula Escobar is a terminal music player for demoscene and chip music.
+rem Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
+rem
+rem This program is free software: you can redistribute it and/or modify it
+rem under the terms of the GNU General Public License as published by the Free
+rem Software Foundation, either version 3 of the License, or (at your option)
+rem any later version.
+rem
+rem This program is distributed in the hope that it will be useful, but
+rem WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+rem or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+rem more details.
+rem
+rem You should have received a copy of the GNU General Public License along
+rem with this program. If not, see <https://www.gnu.org/licenses/>.
+rem
+rem Website: https://www.adeptum.se
+rem Contact: info@adeptum.se
+rem
 rem Compiles the miniaudio shim into the static library native-image links.
+
 setlocal
 set "out=%~1"
 set "src=%~dp0..\src\main\c"
