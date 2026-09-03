@@ -33,9 +33,16 @@ public enum AudioBackend {
     AUTO(null),
     JAVASOUND(null),
     PULSE("pacat"),
-    ALSA("aplay");
+    ALSA("aplay"),
+    FFPLAY("ffplay"),
+    SOX("play");
 
-    private static final List<AudioBackend> COMMAND_BACKENDS = List.of(PULSE, ALSA);
+    /**
+     * The sound servers of Linux first and the two players that carry raw sound anywhere after them, since
+     * those are all a native executable has to reach for away from Linux.
+     */
+    private static final List<AudioBackend> COMMAND_BACKENDS = List.of(PULSE, ALSA, FFPLAY, SOX);
+    private static final String WINDOWS_SUFFIX = ".exe";
 
     private final String executable;
 
@@ -47,7 +54,7 @@ public enum AudioBackend {
         return switch (this) {
             case AUTO -> detect().createSink();
             case JAVASOUND -> new JavaSoundSink();
-            case PULSE, ALSA -> new CommandAudioSink(this::command);
+            case PULSE, ALSA, FFPLAY, SOX -> new CommandAudioSink(this::command);
         };
     }
 
@@ -56,6 +63,9 @@ public enum AudioBackend {
         return switch (this) {
             case PULSE -> List.of(executable, "--raw", "--format=s16le", "--channels=2", "--rate=" + rate);
             case ALSA -> List.of(executable, "-q", "-t", "raw", "-f", "S16_LE", "-c", "2", "-r", rate, "-");
+            case FFPLAY -> List.of(executable, "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                    "-f", "s16le", "-ar", rate, "-ac", "2", "-i", "-");
+            case SOX -> List.of(executable, "-q", "-t", "raw", "-e", "signed", "-b", "16", "-c", "2", "-r", rate, "-");
             case AUTO, JAVASOUND -> throw new IllegalStateException(this + " has no playback command");
         };
     }
@@ -67,13 +77,22 @@ public enum AudioBackend {
         return COMMAND_BACKENDS.stream()
                 .filter(AudioBackend::isInstalled)
                 .findFirst()
-                .orElseThrow(() -> new AudioException("No audio backend found; install pacat or aplay", null));
+                .orElseThrow(() -> new AudioException("No audio backend found; install pacat, aplay, ffplay or sox", null));
     }
 
     private boolean isInstalled() {
-        return Stream.of(System.getenv("PATH").split(File.pathSeparator))
-                .map(dir -> Path.of(dir).resolve(executable))
+        return Stream.of(Optional.ofNullable(System.getenv("PATH")).orElse("").split(File.pathSeparator))
+                .flatMap(directory -> names().map(Path.of(directory)::resolve))
                 .anyMatch(Files::isExecutable);
+    }
+
+    /**
+     * Windows keeps its programs under a suffix, and a bare name would be looked for in vain there.
+     */
+    private Stream<String> names() {
+        return System.getProperty("os.name", "").startsWith("Windows")
+                ? Stream.of(executable + WINDOWS_SUFFIX, executable)
+                : Stream.of(executable);
     }
 
     private static boolean runningOnJvm() {

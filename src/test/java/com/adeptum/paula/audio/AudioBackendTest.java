@@ -46,6 +46,16 @@ class AudioBackendTest {
     }
 
     @Test
+    void thePlayersThatCarrySoundAwayFromLinuxTakeTheSameRawStream() throws AudioException {
+        assertEquals(List.of("ffplay", "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                "-f", "s16le", "-ar", "48000", "-ac", "2", "-i", "-"), AudioBackend.FFPLAY.command(48000));
+        assertEquals(List.of("play", "-q", "-t", "raw", "-e", "signed", "-b", "16", "-c", "2", "-r", "44100", "-"),
+                AudioBackend.SOX.command(44100));
+        assertInstanceOf(CommandAudioSink.class, AudioBackend.FFPLAY.createSink());
+        assertInstanceOf(CommandAudioSink.class, AudioBackend.SOX.createSink());
+    }
+
+    @Test
     void javaSoundHasNoCommand() {
         assertThrows(IllegalStateException.class, () -> AudioBackend.JAVASOUND.command(48000));
     }

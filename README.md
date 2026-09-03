@@ -192,10 +192,18 @@ offers the tune itself.
 ### Audio output
 
 The native executable streams raw PCM into a system audio command, chosen
-automatically: `pacat` (PulseAudio or PipeWire) first, then `aplay` (ALSA).
-Pick one explicitly with `--output pulse` or `--output alsa`. When Paula runs
-on a JVM, for example from the tests, Java Sound is used instead
-(`--output javasound`).
+automatically: `pacat` (PulseAudio or PipeWire) first, then `aplay` (ALSA),
+then `ffplay` (ffmpeg) and `play` (sox), which carry raw sound on macOS and
+Windows where the first two do not exist. Pick one explicitly with
+`--output pulse`, `--output alsa`, `--output ffplay` or `--output sox`. When
+Paula runs on a JVM, from the runnable jar or from the tests, Java Sound is
+used instead (`--output javasound`), and nothing needs installing.
+
+Java Sound is not open to the native executable: a native image finds no
+mixer providers, which [GraalVM does not intend to
+fix](https://github.com/oracle/graal/issues/9620). That is why the native
+executable reaches for a player of its own, and why the jar is the artefact
+that plays anywhere as it stands.
 
 Log output goes to `paula.log` in the working directory so it never
 disturbs the player screen.
