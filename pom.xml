@@ -200,7 +200,15 @@
           <buildArgs>
             <buildArg>--no-fallback</buildArg>
             <buildArg>--enable-url-protocols=https</buildArg>
-            <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers</buildArg>
+            <!--
+              JavaMod's helpers must be ready before the image is built, or the executable dies reaching
+              for a library name it has not got, and they reach for the window toolkit as they come up.
+              The toolkit is told to come up without a screen, since the machine building the image may
+              have none and nothing in the executable ever draws a window.
+            -->
+            <buildArg>--initialize-at-build-time=de.quippy.javamod.system.Helpers,java.awt.Insets,java.awt.Toolkit</buildArg>
+            <buildArg>-J-Djava.awt.headless=true</buildArg>
+            <buildArg>--trace-class-initialization=java.awt.Toolkit</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
           </buildArgs>
         </configuration>
