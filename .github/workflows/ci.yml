@@ -49,5 +49,8 @@ jobs:
           set -euo pipefail
           "${{ matrix.binary }}" --version
           "${{ matrix.binary }}" formats
-          "${{ matrix.binary }}" --output null --quit-after 2 src/test/resources/mod/paula-test.mod < /dev/null
+          : > paula.log
+          "${{ matrix.binary }}" --output null --quit-after 4 src/test/resources/mod/paula-test.mod < /dev/null > /dev/null
+          grep -q 'Playing through' paula.log || { cat paula.log; echo 'no playback started'; exit 1; }
+          ! grep -q ' ERROR ' paula.log || { cat paula.log; exit 1; }
           java -jar target/paula-*-all.jar --version
