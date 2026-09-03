@@ -69,7 +69,7 @@ public final class Screen {
             new Frame.Key("b", "switch to the browser"),
             new Frame.Key("v", "next visualiser: spectrum, waterfall, vectorscope"),
             new Frame.Key("?", "close these keys"),
-            new Frame.Key("click", "mute a channel"),
+            new Frame.Key("click", "next visualiser, or mute the channel clicked"),
             new Frame.Key("shift/double click", "solo a channel"),
             new Frame.Key("q", "quit"));
 
@@ -116,6 +116,22 @@ public final class Screen {
      */
     public static OptionalInt channelAt(PlayerView view, int width, int height, int column, int row) {
         return view.channels().isEmpty() ? OptionalInt.empty() : scopes(view, width, height).channelAt(column, row);
+    }
+
+    /**
+     * True where the upper panel is drawn, which a click turns over to the next visualiser.
+     */
+    public static boolean onVisual(PlayerView view, int width, int height, int column, int row) {
+        if (view.module() == null) {
+            return false;
+        }
+        final int body = Math.max(0, height - 2);
+        final boolean wide = width >= WIDE_LAYOUT_WIDTH;
+        final int detailRows = wide ? 0 : detailRows(detailLines(view), body);
+        final Panels panels = Panels.of(body - detailRows);
+        final int left = wide ? DETAILS_WIDTH : 0;
+        final int top = 1 + detailRows;
+        return panels.hasSpectrum() && column >= left && row >= top && row < top + panels.spectrum();
     }
 
     /**

@@ -86,14 +86,15 @@ Keys while playing:
 | `?`     | show the keys           |
 | `q`     | quit                    |
 
-The mouse silences channels: click a scope to turn that channel off and
-click it again to bring it back, or shift-click it to leave it alone
-sounding and shift-click it once more for the rest. A double click does
-what a shift-click does, for the terminals that keep shift-click to
-themselves for selecting text. A silenced channel keeps its scope, flat
-and its number struck through, and is let back in the moment it is asked
-for. What is silenced belongs to the track being played and starts afresh
-with the next one.
+The mouse works the panels. A click on the upper one turns it to the next
+visualiser, as `v` does. Down among the scopes it silences channels: click
+one to turn that channel off and click it again to bring it back, or
+shift-click it to leave it alone sounding and shift-click it once more for
+the rest. A double click does what a shift-click does, for the terminals
+that keep shift-click to themselves for selecting text. A silenced channel
+keeps its scope, flat and its number struck through, and is let back in the
+moment it is asked for. What is silenced belongs to the track being played
+and starts afresh with the next one.
 
 Keys while browsing:
 
@@ -122,15 +123,15 @@ instrument that is sounding lit up, and on the right a 32-band spectrum
 analyser with peak hold, one braille-dot oscilloscope per channel (a
 single one for SID tunes, which is nobody's to silence), a position bar
 with elapsed and total time and stereo VU meters, all redrawn thirty times
-a second. `v` turns the upper panel over to the next of three: the
-spectrum, a waterfall of where it has been with the newest reading at the
-top, and a vectorscope plotting the left channel against the right, where
+a second. `v`, or a click on the upper panel, turns it over to the next of
+three: the spectrum, a waterfall of where it has been with the newest
+reading at the top, and a vectorscope plotting left against right, where
 a mono mix stands upright, opposed channels lie flat, and the hard panned
-channels of an Amiga module draw a shape of their own. The browser colours the first three placings gold, silver and
-bronze, highlights the cursor row across the list and shows what is playing
-with a small spectrum strip above the key bar, so music keeps going while
-you browse. The shot above
-is Approach by Nightbeat, which won the multichannel competition at Icing
+channels of an Amiga module draw a shape of their own. The browser colours
+the first three placings gold, silver and bronze, highlights the cursor row
+across the list and shows what is playing with a small spectrum strip above
+the key bar, so music keeps going while you browse. The shot above is
+Approach by Nightbeat, which won the multichannel competition at Icing
 1999, with a scope for each of its 31 channels and the message the musician
 wrote into the sample names beside them.
 

@@ -171,7 +171,12 @@ public final class PlayerSession {
         if (browsing || renderer == null) {
             return;
         }
-        Screen.channelAt(view(NO_AUDIO), ui.width(), ui.height(), mouse.column(), mouse.row())
+        final PlayerView shown = view(NO_AUDIO);
+        if (Screen.onVisual(shown, ui.width(), ui.height(), mouse.column(), mouse.row())) {
+            visual = visual.next();
+            return;
+        }
+        Screen.channelAt(shown, ui.width(), ui.height(), mouse.column(), mouse.row())
                 .ifPresent(channel -> muting.click(renderer, channel, mouse.shift()));
     }
 
