@@ -239,8 +239,6 @@
             <buildArg>-J-Djava.awt.headless=true</buildArg>
             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
             <buildArg>-H:CLibraryPath=${project.build.directory}/native</buildArg>
-            <!-- miniaudio's DSP code calls into libm for sin/pow/log/exp/sqrt. -->
-            <buildArg>-H:NativeLinkerOption=-lm</buildArg>
           </buildArgs>
         </configuration>
       </plugin>
@@ -308,6 +306,28 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>unix-audio-link</id>
+      <activation>
+        <os>
+          <family>unix</family>
+        </os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <configuration>
+              <buildArgs combine.children="append">
+                <!-- miniaudio's DSP code calls into libm for sin/pow/log/exp/sqrt; MSVC has no such flag. -->
+                <buildArg>-H:NativeLinkerOption=-lm</buildArg>
+              </buildArgs>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <profile>
       <id>windows-audio-shim</id>
       <activation>

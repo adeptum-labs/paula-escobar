@@ -235,12 +235,13 @@ Host <the machine running paula>
     RemoteForward 4713 127.0.0.1:4713
 ```
 
-Nothing listens on the network at either end. The script finds the near end
-of the tunnel, makes sure a sound server answers through it and starts Paula
-on the PULSE backend so the route does not depend on the ALSA setup of the
-machine it runs on. When a piece is missing it tells the two apart — no
-tunnel, or a tunnel with no sound server behind it — and prints what to run
-where.
+Nothing listens on the network at either end. The script points
+`PULSE_SERVER` at the near end of the tunnel, which the PulseAudio backend
+— the first one tried on Linux — picks up. Were nothing answering there,
+the sound would fall through to ALSA on the machine running Paula, so the
+script makes sure a sound server replies before it starts anything. When a
+piece is missing it tells the two apart — no tunnel, or a tunnel with no
+sound server behind it — and prints what to run where.
 
 ## Releases
 
