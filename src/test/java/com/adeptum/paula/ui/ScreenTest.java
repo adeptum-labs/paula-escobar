@@ -30,6 +30,7 @@ import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
 import com.adeptum.paula.testing.TestModule;
 import com.adeptum.paula.ui.visual.Palette;
+import com.adeptum.paula.ui.visual.Waterfall;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -151,6 +152,42 @@ class ScreenTest {
     }
 
     @Test
+    void namesTheVisualiserAboveTheUpperPanel() {
+        for (final Visual visual : Visual.values()) {
+            final String all = String.join("\n", text(Screen.render(playing.visual(visual).build(), WIDTH, HEIGHT)));
+            assertTrue(all.contains(visual.title()), visual + " names its panel");
+            assertTrue(all.contains("Channels"), "the scopes stay whatever the upper panel shows");
+        }
+    }
+
+    @Test
+    void drawsTheVectorscopeWithBrailleDots() {
+        final PlayerView scope = playing.visual(Visual.VECTORSCOPE).stereo(hardPanned()).build();
+
+        final String all = String.join("\n", text(Screen.render(scope, WIDTH, HEIGHT)));
+
+        assertTrue(all.matches("(?s).*[\u2801-\u28ff].*"), "a lit braille cell appears");
+    }
+
+    @Test
+    void drawsTheWaterfallAsShadedRows() {
+        final Waterfall history = new Waterfall(32, 8);
+        history.feed(full(32));
+        final PlayerView fall = playing.visual(Visual.WATERFALL).waterfall(history).build();
+
+        final String all = String.join("\n", text(Screen.render(fall, WIDTH, HEIGHT)));
+
+        assertTrue(all.contains("█"), "a loud row is drawn solid");
+    }
+
+    @Test
+    void cyclesThroughTheVisualisersAndBackAgain() {
+        assertEquals(Visual.WATERFALL, Visual.SPECTRUM.next());
+        assertEquals(Visual.VECTORSCOPE, Visual.WATERFALL.next());
+        assertEquals(Visual.SPECTRUM, Visual.VECTORSCOPE.next(), "and round to the start");
+    }
+
+    @Test
     void stacksPanelsOnNarrowTerminals() {
         final List<AttributedString> lines = Screen.render(view, 80, 30);
 
@@ -243,6 +280,19 @@ class ScreenTest {
         final List<AttributedString> lines = Screen.render(view, 20, 5);
         assertEquals(5, lines.size());
         assertTrue(lines.stream().allMatch(line -> line.columnLength() == 20));
+    }
+
+    /**
+     * A quarter turn of a circle in the scope, which is what a channel panned away from the other draws.
+     */
+    private static double[] hardPanned() {
+        final double[] frames = new double[512];
+        for (int frame = 0; frame < frames.length / 2; frame++) {
+            final double angle = 2 * Math.PI * frame / (frames.length / 2.0);
+            frames[frame * 2] = Math.sin(angle);
+            frames[frame * 2 + 1] = Math.cos(angle);
+        }
+        return frames;
     }
 
     private static double[] full(int bands) {

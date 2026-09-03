@@ -40,6 +40,8 @@ class ActionTest {
         assertEquals(Action.SEEK_BACKWARD, Action.of(Key.of(Key.Special.LEFT)));
         assertEquals(Action.BROWSE, Action.of(Key.of('b')));
         assertEquals(Action.BROWSE, Action.of(Key.of('B')));
+        assertEquals(Action.CYCLE_VISUAL, Action.of(Key.of('v')));
+        assertEquals(Action.CYCLE_VISUAL, Action.of(Key.of('V')));
     }
 
     @Test

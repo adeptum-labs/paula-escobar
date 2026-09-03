@@ -26,6 +26,7 @@ import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.ui.visual.Bars;
 import com.adeptum.paula.ui.visual.Braille;
 import com.adeptum.paula.ui.visual.Palette;
+import com.adeptum.paula.ui.visual.Vectorscope;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,6 +56,7 @@ public final class Screen {
     private static final int MIN_SPECTRUM_ROWS = 3;
     private static final int VU_WIDTH = 10;
     private static final char PEAK_MARK = '─';
+    private static final char[] SHADES = {' ', '░', '▒', '▓', '█'};
     private static final List<Frame.Key> KEYS = List.of(
             new Frame.Key("space", "pause"), new Frame.Key("←/→", "seek"), new Frame.Key("n", "next"),
             new Frame.Key("p", "previous"), new Frame.Key("b", "browse"), new Frame.Key("?", "keys"),
@@ -65,6 +67,7 @@ public final class Screen {
             new Frame.Key("n", "next track"),
             new Frame.Key("p", "previous track"),
             new Frame.Key("b", "switch to the browser"),
+            new Frame.Key("v", "next visualiser: spectrum, waterfall, vectorscope"),
             new Frame.Key("?", "close these keys"),
             new Frame.Key("click", "mute a channel"),
             new Frame.Key("shift/double click", "solo a channel"),
@@ -221,13 +224,52 @@ public final class Screen {
         }
         final Panels panels = Panels.of(height);
         if (panels.hasSpectrum()) {
-            lines.addAll(Frame.box("Spectrum", spectrum(view, width - 2, panels.spectrum() - 2), width, panels.spectrum()));
+            lines.addAll(Frame.box(view.visual().title(), chosen(view, width - 2, panels.spectrum() - 2), width, panels.spectrum()));
         }
         if (panels.hasScopes()) {
             lines.addAll(Frame.box("Channels", scopeCells(view, grid, panels.scopes() - 2), width, panels.scopes()));
         }
         lines.add(meters(view, width));
         return lines;
+    }
+
+    private static List<AttributedString> chosen(PlayerView view, int width, int height) {
+        return switch (view.visual()) {
+            case WATERFALL -> waterfall(view, width, height);
+            case VECTORSCOPE -> vectorscope(view, width, height);
+            case SPECTRUM -> spectrum(view, width, height);
+        };
+    }
+
+    /**
+     * The spectrum as it was, newest at the top, one cell per band and row, lit by how loud that band was.
+     */
+    private static List<AttributedString> waterfall(PlayerView view, int width, int height) {
+        final List<AttributedString> rows = new ArrayList<>();
+        if (view.waterfall() == null || view.spectrum().length == 0 || width <= 0) {
+            return rows;
+        }
+        final int bands = view.spectrum().length;
+        for (int age = 0; age < height; age++) {
+            final double[] levels = view.waterfall().row(age);
+            final AttributedStringBuilder line = new AttributedStringBuilder();
+            for (int column = 0; column < width; column++) {
+                final double level = levels[Math.min(bands - 1, column * bands / width)];
+                line.style(Palette.level(level)).append(shade(level));
+            }
+            rows.add(line.toAttributedString());
+        }
+        return rows;
+    }
+
+    private static char shade(double level) {
+        return SHADES[Math.clamp((int) (level * SHADES.length), 0, SHADES.length - 1)];
+    }
+
+    private static List<AttributedString> vectorscope(PlayerView view, int width, int height) {
+        return Vectorscope.plot(view.stereo(), width, height).stream()
+                .map(row -> line(b -> b.style(Palette.SCOPE).append(row)))
+                .toList();
     }
 
     /**

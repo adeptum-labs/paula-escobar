@@ -38,6 +38,8 @@ import com.adeptum.paula.ui.PlayerView;
 import com.adeptum.paula.ui.Screen;
 import com.adeptum.paula.ui.Shortcuts;
 import com.adeptum.paula.ui.TerminalUi;
+import com.adeptum.paula.ui.Visual;
+import com.adeptum.paula.ui.visual.Waterfall;
 import com.adeptum.paula.ui.visual.Spectrum;
 import com.adeptum.paula.ui.visual.Vu;
 import org.jline.utils.AttributedString;
@@ -55,6 +57,8 @@ public final class PlayerSession {
     private static final int SPECTRUM_BANDS = 32;
     private static final int ANALYSIS_FRAMES = 2048;
     private static final int SCOPE_FRAMES = 256;
+    private static final int VECTOR_FRAMES = 1024;
+    private static final int WATERFALL_DEPTH = 64;
     private static final Duration SEEK_STEP = Duration.ofSeconds(5);
     private static final String LOADING = "Loading ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
@@ -72,6 +76,8 @@ public final class PlayerSession {
     private final Spectrum spectrum;
     private final Vu vu = new Vu();
     private final ChannelMuting muting = new ChannelMuting();
+    private final Waterfall waterfall = new Waterfall(SPECTRUM_BANDS, WATERFALL_DEPTH);
+    private Visual visual = Visual.SPECTRUM;
     private Playlist playlist;
     private boolean browsing;
     private boolean everBrowsed;
@@ -131,6 +137,7 @@ public final class PlayerSession {
             final short[] audio = engine.state() == PlaybackState.PLAYING ? engine.tap().snapshot(ANALYSIS_FRAMES) : new short[ANALYSIS_FRAMES * 2];
             spectrum.feed(audio);
             vu.feed(audio);
+            waterfall.feed(spectrum.levels());
             browser.nowPlaying(module == null || playlist == null ? null : playlist.current().label(), spectrum.levels());
             ui.draw(withKeys(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height())));
         }
@@ -146,6 +153,7 @@ public final class PlayerSession {
             case PREVIOUS -> advance(false);
             case SEEK_FORWARD -> engine.seek(SEEK_STEP);
             case SEEK_BACKWARD -> engine.seek(SEEK_STEP.negated());
+            case CYCLE_VISUAL -> visual = visual.next();
             case BROWSE -> {
                 browsing = !browsing;
                 everBrowsed = true;
@@ -278,7 +286,26 @@ public final class PlayerSession {
                 .vuRight(vu.right())
                 .channels(sounding ? renderer.channels() : List.of())
                 .mixed(mono(audio, SCOPE_FRAMES))
+                .stereo(stereo(audio, VECTOR_FRAMES))
+                .visual(visual)
+                .waterfall(waterfall)
                 .build();
+    }
+
+    /**
+     * The newest frames as they were mixed, both channels kept apart, which is what a scope plotting one
+     * against the other needs.
+     */
+    private static double[] stereo(short[] interleaved, int frames) {
+        final int available = interleaved.length / 2;
+        final int used = Math.min(frames, available);
+        final double[] both = new double[used * 2];
+        for (int i = 0; i < used; i++) {
+            final int frame = available - used + i;
+            both[i * 2] = (double) interleaved[frame * 2] / Short.MAX_VALUE;
+            both[i * 2 + 1] = (double) interleaved[frame * 2 + 1] / Short.MAX_VALUE;
+        }
+        return both;
     }
 
     private static double[] mono(short[] interleaved, int frames) {

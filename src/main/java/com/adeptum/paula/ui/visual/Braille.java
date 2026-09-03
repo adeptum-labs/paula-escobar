@@ -21,18 +21,12 @@
 
 package com.adeptum.paula.ui.visual;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Draws a waveform with braille cells, which pack two columns and four rows of dots into one character.
  */
 public final class Braille {
-
-    private static final char BLANK = '⠀';
-    private static final int DOT_COLUMNS = 2;
-    private static final int DOT_ROWS = 4;
-    private static final int[][] DOT_BITS = {{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}};
 
     private Braille() {
     }
@@ -41,22 +35,13 @@ public final class Braille {
      * Plots samples in the range -1..1 across the given cell grid, resampling to one dot column per column.
      */
     public static List<String> plot(double[] samples, int widthCells, int heightCells) {
-        final int columns = widthCells * DOT_COLUMNS;
-        final int rows = heightCells * DOT_ROWS;
-        final int[] cells = new int[Math.max(0, widthCells * heightCells)];
+        final BrailleCanvas canvas = new BrailleCanvas(widthCells, heightCells);
+        final int columns = canvas.dotColumns();
+        final int rows = canvas.dotRows();
         for (int column = 0; column < columns && rows > 0 && samples.length > 0; column++) {
             final double value = Math.clamp(samples[(int) ((long) column * samples.length / columns)], -1, 1);
-            final int row = (int) Math.round((1 - value) / 2 * (rows - 1));
-            cells[(row / DOT_ROWS) * widthCells + column / DOT_COLUMNS] |= DOT_BITS[row % DOT_ROWS][column % DOT_COLUMNS];
+            canvas.lightDot(column, (int) Math.round((1 - value) / 2 * (rows - 1)));
         }
-        final List<String> lines = new ArrayList<>(heightCells);
-        for (int y = 0; y < heightCells; y++) {
-            final StringBuilder line = new StringBuilder(widthCells);
-            for (int x = 0; x < widthCells; x++) {
-                line.append((char) (BLANK + cells[y * widthCells + x]));
-            }
-            lines.add(line.toString());
-        }
-        return lines;
+        return canvas.rows();
     }
 }

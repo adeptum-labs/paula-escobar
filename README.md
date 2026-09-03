@@ -79,6 +79,7 @@ Keys while playing:
 | `n`     | next track              |
 | `p`     | previous track          |
 | `b`     | switch to the browser   |
+| `v`     | next visualiser         |
 | `?`     | show the keys           |
 | `q`     | quit                    |
 
@@ -118,7 +119,11 @@ instrument that is sounding lit up, and on the right a 32-band spectrum
 analyser with peak hold, one braille-dot oscilloscope per channel (a
 single one for SID tunes, which is nobody's to silence), a position bar
 with elapsed and total time and stereo VU meters, all redrawn thirty times
-a second. The browser colours the first three placings gold, silver and
+a second. `v` turns the upper panel over to the next of three: the
+spectrum, a waterfall of where it has been with the newest reading at the
+top, and a vectorscope plotting the left channel against the right, where
+a mono mix stands upright, opposed channels lie flat, and the hard panned
+channels of an Amiga module draw a shape of their own. The browser colours the first three placings gold, silver and
 bronze, highlights the cursor row across the list and shows what is playing
 with a small spectrum strip above the key bar, so music keeps going while
 you browse. The shot above

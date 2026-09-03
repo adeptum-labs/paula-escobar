@@ -27,6 +27,7 @@ import lombok.Builder;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.PlaybackState;
+import com.adeptum.paula.ui.visual.Waterfall;
 
 /**
  * What the player screen shows. The module is absent until a track has loaded, the status line is absent unless
@@ -47,12 +48,17 @@ public record PlayerView(
         double vuLeft,
         double vuRight,
         List<ChannelState> channels,
-        double[] mixed) {
+        double[] mixed,
+        double[] stereo,
+        Visual visual,
+        Waterfall waterfall) {
 
     public PlayerView {
         channels = channels == null ? List.of() : channels;
         spectrum = spectrum == null ? new double[0] : spectrum;
         peaks = peaks == null ? new double[spectrum.length] : peaks;
         mixed = mixed == null ? new double[0] : mixed;
+        stereo = stereo == null ? new double[0] : stereo;
+        visual = visual == null ? Visual.SPECTRUM : visual;
     }
 }

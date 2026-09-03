@@ -21,28 +21,27 @@
 
 package com.adeptum.paula.ui;
 
-public enum Action {
-    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD, BROWSE, CYCLE_VISUAL;
+/**
+ * What the upper panel of the player shows, and the name it goes by above it.
+ */
+public enum Visual {
 
-    public static Action of(Key key) {
-        return switch (key.special()) {
-            case ESCAPE, EOF -> QUIT;
-            case RIGHT -> SEEK_FORWARD;
-            case LEFT -> SEEK_BACKWARD;
-            case NONE -> forCharacter(key.character());
-            default -> NONE;
-        };
+    SPECTRUM("Spectrum"),
+    WATERFALL("Waterfall"),
+    VECTORSCOPE("Vectorscope");
+
+    private final String title;
+
+    Visual(String title) {
+        this.title = title;
     }
 
-    private static Action forCharacter(char character) {
-        return switch (Character.toLowerCase(character)) {
-            case 'q' -> QUIT;
-            case ' ' -> TOGGLE_PAUSE;
-            case 'n' -> NEXT;
-            case 'p' -> PREVIOUS;
-            case 'b' -> BROWSE;
-            case 'v' -> CYCLE_VISUAL;
-            default -> NONE;
-        };
+    public String title() {
+        return title;
+    }
+
+    public Visual next() {
+        final Visual[] all = values();
+        return all[(ordinal() + 1) % all.length];
     }
 }
