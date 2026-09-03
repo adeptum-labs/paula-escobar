@@ -40,6 +40,7 @@ public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
     private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64", "7z", "rar");
+    private static final Set<String> UNREADABLE_EXTENSIONS = Set.of("adf", "dms", "arj", "ace");
     private static final List<ArchiveExtractor> EXTRACTORS =
             List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor(),
                     new SevenZipExtractor(), new RarExtractor(), new D64Extractor());
@@ -58,8 +59,21 @@ public final class Archives {
      * its contents cannot be looked at yet.
      */
     public static boolean looksLikeArchive(String name) {
-        final int dot = name.lastIndexOf('.');
-        return dot >= 0 && ARCHIVE_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT));
+        return extensionOf(name).filter(ARCHIVE_EXTENSIONS::contains).isPresent();
+    }
+
+    /**
+     * Names a container Paula knows of but has no reader for, such as an Amiga disk image; a release handed in
+     * as one is shown for what it is rather than offered and then failed on.
+     */
+    public static boolean hasNoReader(String name) {
+        return extensionOf(name).filter(UNREADABLE_EXTENSIONS::contains).isPresent();
+    }
+
+    private static Optional<String> extensionOf(String name) {
+        final String file = name.replaceAll("[?#].*$", "");
+        final int dot = file.lastIndexOf('.');
+        return dot < 0 ? Optional.empty() : Optional.of(file.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 
     public static Path target(Path into, String entryName) throws IOException {

@@ -138,7 +138,8 @@ though an entry handed in as Ogg or FLAC instead is skipped when its turn
 comes. C64 competitions play through the SID emulation.
 Entries Demozoo has no download for are marked "(no download)" as soon as
 their details have been fetched, since some releases never made it to any
-archive.
+archive. One whose only download is a container Paula has no reader for,
+an Amiga disk image most often, is marked "(no reader)" the same way.
 Playing an entry queues the rest of the competition
 after it in ranked order, so `n` walks through the results.
 

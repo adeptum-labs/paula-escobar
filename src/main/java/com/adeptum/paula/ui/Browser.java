@@ -23,6 +23,7 @@ package com.adeptum.paula.ui;
 
 import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Link;
@@ -114,7 +115,10 @@ public final class Browser {
 
         String titleText() {
             final String text = "  " + entry.title() + "  " + entry.author();
-            return hasNoDownload() ? text + NO_DOWNLOAD : text;
+            if (hasNoDownload()) {
+                return text + NO_DOWNLOAD;
+            }
+            return hasNoReader() ? text + NO_READER : text;
         }
 
         @Override
@@ -123,11 +127,20 @@ public final class Browser {
         }
 
         boolean playable() {
-            return entry.likelyPlayable() && !hasNoDownload();
+            return entry.likelyPlayable() && !hasNoDownload() && !hasNoReader();
         }
 
         private boolean hasNoDownload() {
             return NO_FILE.equals(downloads.get(entry.productionId()));
+        }
+
+        /**
+         * The download is a container Paula cannot open, an Amiga disk image most often, so there is nothing
+         * to be had from asking for it.
+         */
+        private boolean hasNoReader() {
+            final String download = downloads.get(entry.productionId());
+            return download != null && Archives.hasNoReader(download);
         }
     }
 
@@ -183,6 +196,7 @@ public final class Browser {
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "  (no download)";
+    private static final String NO_READER = "  (no reader)";
     private static final String NO_FILE = "";
     private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "browse";

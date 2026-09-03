@@ -99,6 +99,7 @@ class BrowserTest {
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
     private static final String PRODUCTION_WITH_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/x.zip\"}],\"external_links\":[]}";
+    private static final String PRODUCTION_AS_DISK_IMAGE = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/tune.adf\"}],\"external_links\":[]}";
     private static final String PRODUCTION_WITHOUT_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[],\"external_links\":[{\"link_class\":\"PouetProduction\",\"url\":\"https://www.pouet.net/prod.php?which=1\"}]}";
 
     private static String productionUrl(int id) {
@@ -573,6 +574,27 @@ class BrowserTest {
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
         assertEquals(2, playlist.size(), "entries without a download are not queued");
+    }
+
+    /**
+     * An Amiga disk image is a container Paula has no reader for, so the entry says so and is left out of what
+     * playing one queues up.
+     */
+    @Test
+    void marksEntriesWhoseOnlyDownloadCannotBeOpened() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_AS_DISK_IMAGE);
+        http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
+        openCompo();
+        browser.tick();
+
+        final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
+        assertTrue(lines.get(3).toString().startsWith("│    2  Second  B  (no reader)"), lines.get(3).toString());
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8), "and it is greyed out");
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"), "a zip is left alone");
+
+        press(Key.Special.ENTER);
+        assertEquals(2, browser.takeSelection().orElseThrow().size(), "the disk image is not queued");
     }
 
     @Test
