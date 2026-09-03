@@ -39,7 +39,7 @@ enum { CHANNELS = 2, RING_PERIODS = 4, FRAME_BYTES = CHANNELS * sizeof(int16_t) 
  */
 enum { WAIT_LIMIT_MILLIS = 2000 };
 
-/* Numbered as the Java side numbers them; 0 is auto and tries the real backends in this order. */
+/* Numbered as the Java side numbers them; index 0 holds a placeholder, as auto never indexes the table. */
 static const ma_backend BACKENDS[] = {
     ma_backend_null,
     ma_backend_pulseaudio,
@@ -49,6 +49,7 @@ static const ma_backend BACKENDS[] = {
     ma_backend_wasapi,
     ma_backend_null
 };
+/* Backend 0 is auto, which tries the real backends in this order. */
 static const ma_backend AUTO_ORDER[] = {
     ma_backend_wasapi, ma_backend_coreaudio, ma_backend_pulseaudio, ma_backend_alsa, ma_backend_jack
 };
@@ -87,12 +88,17 @@ static void pull(ma_device *unused, void *output, const void *input, ma_uint32 f
 
 int paula_audio_open(int backend, int sample_rate, int buffer_frames)
 {
-    const ma_backend *order = backend == 0 ? AUTO_ORDER : &BACKENDS[backend];
-    const ma_uint32 count = backend == 0 ? sizeof AUTO_ORDER / sizeof *AUTO_ORDER : 1;
+    const ma_backend *order;
+    ma_uint32 count;
     ma_context_config context_config = ma_context_config_init();
     ma_device_config config = ma_device_config_init(ma_device_type_playback);
     ma_result result;
 
+    if (backend < 0 || backend >= (int) (sizeof BACKENDS / sizeof *BACKENDS)) {
+        return fail(MA_INVALID_ARGS);
+    }
+    order = backend == 0 ? AUTO_ORDER : &BACKENDS[backend];
+    count = backend == 0 ? sizeof AUTO_ORDER / sizeof *AUTO_ORDER : 1;
     poll_millis = ma_max(1, (ma_uint32) buffer_frames * 1000 / (ma_uint32) sample_rate / 4);
     result = ma_context_init(order, count, &context_config, &context);
     if (result != MA_SUCCESS) {
@@ -163,6 +169,11 @@ void paula_audio_close(void)
     ma_device_uninit(&device);
     ma_pcm_rb_uninit(&ring);
     ma_context_uninit(&context);
+}
+
+const char *paula_audio_backend(void)
+{
+    return ma_get_backend_name(context.backend);
 }
 
 const char *paula_audio_error(void)

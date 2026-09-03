@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.audio;
 
+import lombok.extern.slf4j.Slf4j;
 import org.graalvm.nativeimage.PinnedObject;
 import org.graalvm.nativeimage.c.function.CFunction;
 import org.graalvm.nativeimage.c.function.CLibrary;
@@ -32,6 +33,7 @@ import org.graalvm.word.PointerBase;
  * Plays through the miniaudio shim linked into the native executable. The samples are handed over as they
  * lie in memory, which is little-endian on every platform the executable is built for.
  */
+@Slf4j
 public final class NativeAudioSink implements AudioSink {
 
     private final AudioBackend backend;
@@ -49,6 +51,7 @@ public final class NativeAudioSink implements AudioSink {
             throw new AudioException(backend + ": " + lastError(), null);
         }
         open = true;
+        log.info("Playing through {} at {} Hz", CTypeConversion.toJavaString(Shim.backend()), sampleRate);
     }
 
     @Override
@@ -83,6 +86,9 @@ public final class NativeAudioSink implements AudioSink {
 
         @CFunction("paula_audio_close")
         static native void close();
+
+        @CFunction("paula_audio_backend")
+        static native CCharPointer backend();
 
         @CFunction("paula_audio_error")
         static native CCharPointer error();
