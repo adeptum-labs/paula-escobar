@@ -22,11 +22,16 @@
 package com.adeptum.paula.audio;
 
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.lang.ProcessBuilder.Redirect;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 /**
@@ -34,9 +39,15 @@ import java.util.function.IntFunction;
  */
 public final class CommandAudioSink implements AudioSink {
 
+    private static final int COMPLAINT_LINES = 5;
+    private static final long EXIT_WAIT_MILLIS = 500;
+
     private final IntFunction<List<String>> commandForRate;
+    private final Deque<String> complaints = new ArrayDeque<>();
+    private List<String> command;
     private Process process;
     private OutputStream stdin;
+    private Thread complaintReader;
     private byte[] bytes = new byte[0];
 
     public CommandAudioSink(IntFunction<List<String>> commandForRate) {
@@ -45,13 +56,15 @@ public final class CommandAudioSink implements AudioSink {
 
     @Override
     public void open(int sampleRate) throws AudioException {
-        final List<String> command = commandForRate.apply(sampleRate);
+        command = commandForRate.apply(sampleRate);
         try {
             process = new ProcessBuilder(command)
                     .redirectOutput(Redirect.DISCARD)
-                    .redirectError(Redirect.DISCARD)
                     .start();
             stdin = new BufferedOutputStream(process.getOutputStream());
+            complaintReader = new Thread(this::readComplaints, "paula-audio-stderr");
+            complaintReader.setDaemon(true);
+            complaintReader.start();
         } catch (IOException e) {
             throw new AudioException("Cannot start audio command " + command, e);
         }
@@ -63,7 +76,45 @@ public final class CommandAudioSink implements AudioSink {
         try {
             stdin.write(bytes, 0, frames * Pcm.BYTES_PER_FRAME);
         } catch (IOException e) {
-            throw new UncheckedIOException("Audio command stopped accepting data", e);
+            throw new UncheckedIOException(describeFailure(), e);
+        }
+    }
+
+    /**
+     * Keeps the tail of what the command wrote to stderr, since that is where it says why it gave up.
+     */
+    private void readComplaints() {
+        try (BufferedReader stderr = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            for (String line = stderr.readLine(); line != null; line = stderr.readLine()) {
+                remember(line);
+            }
+        } catch (IOException e) {
+            remember("(could not read what " + command.get(0) + " reported: " + e.getMessage() + ")");
+        }
+    }
+
+    private void remember(String complaint) {
+        synchronized (complaints) {
+            if (complaints.size() == COMPLAINT_LINES) {
+                complaints.removeFirst();
+            }
+            complaints.addLast(complaint);
+        }
+    }
+
+    private String describeFailure() {
+        final String name = command.get(0);
+        try {
+            if (!process.waitFor(EXIT_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
+                return name + " stopped accepting audio data";
+            }
+            complaintReader.join(EXIT_WAIT_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        synchronized (complaints) {
+            return name + " quit with status " + process.exitValue()
+                    + (complaints.isEmpty() ? "" : ": " + String.join(" | ", complaints));
         }
     }
 

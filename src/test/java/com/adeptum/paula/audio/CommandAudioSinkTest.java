@@ -23,7 +23,9 @@ package com.adeptum.paula.audio;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -46,6 +48,24 @@ class CommandAudioSinkTest {
 
         assertArrayEquals(new byte[] {0x02, 0x01, (byte) 0xFE, (byte) 0xFF, (byte) 0xFF, 0x7F, 0x00, (byte) 0x80},
                 Files.readAllBytes(capture));
+    }
+
+    @Test
+    void tellsWhyTheCommandQuit() throws Exception {
+        final CommandAudioSink sink = new CommandAudioSink(rate -> List.of("sh", "-c", "echo 'no sound device' >&2; exit 3"));
+
+        sink.open(48000);
+        final UncheckedIOException failure = assertThrows(UncheckedIOException.class, () -> writeUntilRefused(sink));
+
+        assertTrue(failure.getMessage().contains("status 3"), failure.getMessage());
+        assertTrue(failure.getMessage().contains("no sound device"), failure.getMessage());
+    }
+
+    private static void writeUntilRefused(CommandAudioSink sink) {
+        final int frames = 1 << 16;
+        for (int attempt = 0; attempt < 100; attempt++) {
+            sink.write(new short[frames * 2], frames);
+        }
     }
 
     @Test
