@@ -676,7 +676,7 @@ public final class Browser {
             final int gap = Math.max(COLUMN_GAP, layout.cellWidth() - ticker.length() - written - trailing);
             line.append(" ".repeat(gap)).append(fitted(item.trailing(), trailing).stripTrailing());
         }
-        line.style(Palette.ACCENT).append(ticker);
+        line.style(selected ? Palette.SELECTED_ACCENT : Palette.ACCENT).append(ticker);
         return Frame.pad(line.toAttributedString(), layout.cellWidth(),
                 selected ? Palette.SELECTED : AttributedStyle.DEFAULT);
     }

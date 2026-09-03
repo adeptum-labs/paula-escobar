@@ -28,6 +28,10 @@ import org.jline.utils.AttributedStyle;
  */
 public final class Palette {
 
+    private static final int SELECTED_RED = 70;
+    private static final int SELECTED_GREEN = 60;
+    private static final int SELECTED_BLUE = 130;
+
     public static final AttributedStyle TITLE_TEXT = AttributedStyle.BOLD.foreground(255, 255, 255);
     public static final AttributedStyle FOOTER = AttributedStyle.DEFAULT.foreground(200, 200, 210).background(40, 42, 54);
     public static final AttributedStyle FOOTER_KEY = AttributedStyle.BOLD.foreground(255, 200, 80).background(40, 42, 54);
@@ -38,7 +42,13 @@ public final class Palette {
     public static final AttributedStyle ACCENT = AttributedStyle.BOLD.foreground(255, 120, 200);
     public static final AttributedStyle ACTIVE = AttributedStyle.BOLD.foreground(120, 255, 160);
     public static final AttributedStyle DIMMED = AttributedStyle.DEFAULT.foreground(100, 105, 125);
-    public static final AttributedStyle SELECTED = AttributedStyle.BOLD.foreground(255, 255, 255).background(70, 60, 130);
+    public static final AttributedStyle SELECTED = AttributedStyle.BOLD.foreground(255, 255, 255)
+            .background(SELECTED_RED, SELECTED_GREEN, SELECTED_BLUE);
+    /**
+     * The accent on the line the cursor rests on, which has to carry that line's background or it punches a
+     * hole through the highlight.
+     */
+    public static final AttributedStyle SELECTED_ACCENT = ACCENT.background(SELECTED_RED, SELECTED_GREEN, SELECTED_BLUE);
     public static final AttributedStyle GOLD = AttributedStyle.BOLD.foreground(255, 215, 0);
     public static final AttributedStyle SILVER = AttributedStyle.BOLD.foreground(200, 205, 215);
     public static final AttributedStyle BRONZE = AttributedStyle.BOLD.foreground(205, 127, 50);

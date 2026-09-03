@@ -331,6 +331,34 @@ class BrowserTest {
         assertFalse(lines.stream().anyMatch(line -> line.contains("First") && ticks(line)), "the others do not");
     }
 
+    /**
+     * The ticker carries its own colour, and on the line the cursor rests on it has to carry that line's
+     * background with it or it leaves a black gap through the highlight.
+     */
+    @Test
+    void theTickerKeepsTheHighlightOnTheLineItRestsOn() {
+        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean fetching(int productionId) {
+                return true;
+            }
+        }, PartyArt.NONE);
+        openCompo();
+
+        final AttributedString cursorRow = browser.render(WIDTH, HEIGHT).get(2);
+        final int tick = TICKER_FRAMES.chars().boxed().map(c -> cursorRow.toString().indexOf(c))
+                .filter(at -> at >= 0).findFirst().orElseThrow();
+
+        assertEquals(Palette.SELECTED_ACCENT, cursorRow.styleAt(tick), "in " + cursorRow);
+        assertEquals(Palette.SELECTED_ACCENT, cursorRow.styleAt(tick - 1), "and the space before it is highlighted too");
+    }
+
     @Test
     void tickerRunsOnTheCompetitionWhileItsLogoIsFetched() {
         browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
