@@ -128,8 +128,8 @@ three: the spectrum, a waterfall of where it has been with the newest
 reading at the top, and a vectorscope plotting left against right, where
 a mono mix stands upright, opposed channels lie flat, and the hard panned
 channels of an Amiga module draw a shape of their own. The browser colours
-the first three placings gold, silver and bronze, highlights the cursor row
-across the list and shows what is playing with a small spectrum strip above
+the first three placings gold, silver and bronze, highlights the line the
+cursor rests on, and shows what is playing with a small spectrum strip above
 the key bar, so music keeps going while you browse. The shot above is
 Approach by Nightbeat, which won the multichannel competition at Icing
 1999, with a scope for each of its 31 channels and the message the musician
@@ -140,9 +140,14 @@ wrote into the sample names beside them.
 `?` lays the keys of the screen you are on over it, the ones the bar at the
 bottom has no room for among them, and any key puts them away again.
 
-The browser starts with the party series, opens into the parties by year,
-then into every music competition of that party and finally into the ranked
-entries. Entries in executable music competitions are shown dimmed because
+The browser starts with the party series listed by name, opens into the
+parties by year, then into every music competition of that party and
+finally into the ranked entries. The series and the parties are laid out
+in columns across the width, so fifty-two series sit on one screen rather
+than three; walking down runs to the foot of a column and on to the head
+of the next. A competition says what it was run in and how many entries it
+drew, a party the date it opened, and an entry keeps its title, its author
+and whatever is the matter with it in columns of their own. Entries in executable music competitions are shown dimmed because
 Paula cannot play them, but they stay in the list so the results are
 complete. Streaming competitions are not dimmed, since MPEG audio, FLAC,
 Ogg Vorbis and wave files all play. C64 competitions play through the SID

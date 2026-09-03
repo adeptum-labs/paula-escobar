@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
@@ -81,6 +82,7 @@ class BrowserTest {
     private static final int WIDTH = 80;
     private static final int HEIGHT = 12;
     private static final int TALL = 24;
+    private static final int THE_PARTY_SERIES = 19;
     private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/19/?format=json";
     private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/5/?format=json";
     private static final String SERIES = """
@@ -364,17 +366,57 @@ class BrowserTest {
         final List<String> lines = render();
         assertTrue(lines.get(0).contains("Paula Escobar") && lines.get(0).contains("browse"), "title bar");
         assertTrue(lines.get(1).contains("Parties"), "the box is titled with the breadcrumb");
-        assertTrue(lines.get(2).startsWith("│> The Party"));
-        assertTrue(lines.get(3).startsWith("│  Assembly"));
-        assertTrue(lines.get(4).startsWith("│  Mekka & Symposium"));
+        assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
+        assertTrue(lines.get(3).startsWith("│  Alternative Party"));
+        assertTrue(lines.get(4).contains("Árok"), "an accent sorts among the A's, not after the Z's");
+        assertTrue(lines.get(2).trim().split(" {2,}").length > 1, "and the list flows into columns");
         assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
         assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
         assertTrue(browser.atRoot());
     }
 
+    /**
+     * Fifty-two series down one column is three screens of scrolling for a list that fits on one.
+     */
+    @Test
+    void flowsTheLongListsIntoColumns() {
+        final List<String> lines = render();
+
+        final int perRow = lines.get(2).replaceAll("[│>]", "").strip().split(" {2,}").length;
+        assertTrue(perRow > 1, "the series go several across: " + lines.get(2));
+        final int rows = (int) lines.stream().filter(l -> l.startsWith("│") && !l.contains("─")).count();
+        assertTrue(rows * perRow > rows, "more series are on screen than there are rows for them");
+    }
+
+    /**
+     * Walking down runs to the foot of a column and on to the head of the next, so the cursor keys mean the
+     * same thing they always did whatever the list is laid out as.
+     */
+    @Test
+    void theCursorWalksDownAColumnAndOnToTheNext() {
+        final int rows = (int) render().stream().filter(l -> l.startsWith("│") && !l.contains("─")).count();
+        for (int i = 0; i < rows; i++) {
+            press(Key.Special.DOWN);
+        }
+
+        final List<String> lines = render();
+        assertTrue(lines.get(2).contains("> "), "the cursor is back at the top row");
+        assertFalse(lines.get(2).startsWith("│> "), "but in the second column now: " + lines.get(2));
+    }
+
+    @Test
+    void listsThePartySeriesByName() {
+        final List<String> names = render().stream().filter(l -> l.startsWith("│") && !l.contains("─"))
+                .map(l -> l.replaceAll("[│>]", "").strip().split(" {2,}")[0]).toList();
+
+        assertEquals(CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(CuratedSeries::name)
+                .limit(names.size()).toList(), names, "the first column reads by name: " + names);
+    }
+
     @Test
     void enterOnASeriesLoadsItsPartiesOldestFirst() {
         http.put(SERIES_URL, SERIES);
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
 
@@ -388,15 +430,19 @@ class BrowserTest {
     @Test
     void enterOnAPartyListsMusicCompetitionsWithEntryCounts() {
         openParty();
-        assertTrue(render().get(2).startsWith("│> Multichannel Music (4)"));
+        final String compo = render().get(2);
+        assertTrue(compo.startsWith("│> Multichannel Music"), compo);
+        assertTrue(compo.contains("Tracked Music"), "the competition says what it was run in: " + compo);
+        assertTrue(compo.stripTrailing().endsWith("4│"), "and how many entries it drew: " + compo);
     }
 
     @Test
     void enterOnACompetitionListsRankedEntriesAndDimsUnplayableOnes() {
         openCompo();
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"));
-        assertTrue(lines.get(4).toString().startsWith("│    3  Exe  C"));
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), lines.get(2).toString());
+        assertTrue(lines.get(2).toString().contains("A"), "the author has a column of its own");
+        assertTrue(lines.get(4).toString().startsWith("│    3  Exe"), lines.get(4).toString());
         assertEquals(Palette.DIMMED, lines.get(4).styleAt(8), "dimmed title");
         assertEquals(Palette.VALUE, lines.get(3).styleAt(8));
         assertEquals(Palette.SILVER, lines.get(3).styleAt(5), "second place is silver");
@@ -477,6 +523,7 @@ class BrowserTest {
 
         http.goOnline();
         http.put(SERIES_URL, SERIES);
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         assertFalse(browser.atRoot());
@@ -487,6 +534,7 @@ class BrowserTest {
     void showsAnEmptyLevelForPartiesWithoutMusic() {
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, EMPTY_PARTY);
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         press(Key.Special.DOWN);
@@ -520,6 +568,7 @@ class BrowserTest {
     @Test
     void showsUnexpectedAnswersAndClearsErrorsOnBack() {
         http.put(SERIES_URL, "{\"id\":19,\"name\":\"The Party\",\"parties\":[{\"name\":\"no id\"}]}");
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         assertTrue(render().stream().anyMatch(line -> line.contains("Demozoo response")));
@@ -545,6 +594,7 @@ class BrowserTest {
     void startsThePlaylistAtTheChosenLineEvenWhenEntriesRepeat() {
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, PARTY.replace("\"position\":4", "\"position\":4,\"ranking\":\"4\",\"production\":{\"id\":14,\"title\":\"Fourth\",\"author_nicks\":[{\"name\":\"D\"}],\"types\":[{\"id\":29}]}},{\"position\":4"));
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         press(Key.Special.DOWN);
@@ -566,10 +616,11 @@ class BrowserTest {
         browser.tick();
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(3).toString().startsWith("│    2  Second  B  (no download)"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().startsWith("│    2  Second"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().stripTrailing().endsWith("(no download)│"), lines.get(3).toString());
         assertEquals(Palette.DIMMED, lines.get(3).styleAt(8));
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"), "known downloads are not annotated");
-        assertTrue(lines.get(4).toString().startsWith("│    3  Exe  C"), "an entry Demozoo cannot describe is left alone");
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "known downloads are not annotated");
+        assertTrue(lines.get(4).toString().startsWith("│    3  Exe"), "an entry Demozoo cannot describe is left alone");
 
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
@@ -589,9 +640,10 @@ class BrowserTest {
         browser.tick();
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(3).toString().startsWith("│    2  Second  B  (no reader)"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().startsWith("│    2  Second"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().stripTrailing().endsWith("(no reader)│"), lines.get(3).toString());
         assertEquals(Palette.DIMMED, lines.get(3).styleAt(8), "and it is greyed out");
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First  A"), "a zip is left alone");
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "a zip is left alone");
 
         press(Key.Special.ENTER);
         assertEquals(2, browser.takeSelection().orElseThrow().size(), "the disk image is not queued");
@@ -612,20 +664,34 @@ class BrowserTest {
     void ignoresEnterWhileLoading(@TempDir Path dir) {
         final Browser stalled = new Browser(new DemozooClient(http, new CacheDirectory(dir)), runnable -> { });
         http.put(SERIES_URL, SERIES);
+        final String first = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).findFirst().orElseThrow().name();
         stalled.handle(Key.of(Key.Special.ENTER));
         stalled.handle(Key.of(Key.Special.ENTER));
-        assertTrue(stalled.render(WIDTH, HEIGHT).stream().map(AttributedString::toString).anyMatch(line -> line.contains("Loading The Party")));
+        assertTrue(stalled.render(WIDTH, HEIGHT).stream().map(AttributedString::toString)
+                .anyMatch(line -> line.contains("Loading " + first)), "it says which series it is fetching");
         assertEquals(0, http.requests(), "the stalled executor never ran");
     }
 
     private void openParty() {
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, PARTY);
+        cursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         press(Key.Special.DOWN);
         press(Key.Special.ENTER);
         browser.tick();
+    }
+
+    /**
+     * The series are listed by name, so the one the fake answers for is found by counting to it rather than
+     * assuming it sits at the top.
+     */
+    private void cursorToTheParty() {
+        final List<CuratedSeries> sorted = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).toList();
+        for (int i = 0; i < sorted.size() && sorted.get(i).id() != THE_PARTY_SERIES; i++) {
+            press(Key.Special.DOWN);
+        }
     }
 
     private void openCompo() {

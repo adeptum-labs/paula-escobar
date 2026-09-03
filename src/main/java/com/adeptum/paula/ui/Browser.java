@@ -52,6 +52,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
@@ -69,6 +70,27 @@ public final class Browser {
 
         String label();
 
+        /**
+         * What goes in the second column, where the kind of list has one.
+         */
+        default String detail() {
+            return "";
+        }
+
+        /**
+         * What is set against the right edge of the row, or of the cell when the list flows into columns.
+         */
+        default String trailing() {
+            return "";
+        }
+
+        /**
+         * True for the lists long enough to be worth flowing into columns rather than scrolling through.
+         */
+        default boolean flows() {
+            return false;
+        }
+
         default boolean dimmed() {
             return false;
         }
@@ -80,6 +102,11 @@ public final class Browser {
         public String label() {
             return series.name();
         }
+
+        @Override
+        public boolean flows() {
+            return true;
+        }
     }
 
     private record PartyItem(Party party) implements Item {
@@ -88,13 +115,33 @@ public final class Browser {
         public String label() {
             return party.name();
         }
+
+        @Override
+        public String trailing() {
+            return party.startDate() == null ? "" : party.startDate();
+        }
+
+        @Override
+        public boolean flows() {
+            return true;
+        }
     }
 
     private record CompoItem(Party party, Competition compo) implements Item {
 
         @Override
         public String label() {
-            return compo.name() + " (" + compo.entries().size() + ")";
+            return compo.name();
+        }
+
+        @Override
+        public String detail() {
+            return compo.typeName();
+        }
+
+        @Override
+        public String trailing() {
+            return String.valueOf(compo.entries().size());
         }
 
         String compoLabel() {
@@ -106,19 +153,24 @@ public final class Browser {
 
         @Override
         public String label() {
-            return placingText() + titleText();
+            return entry.title();
+        }
+
+        @Override
+        public String detail() {
+            return entry.author();
+        }
+
+        @Override
+        public String trailing() {
+            if (hasNoDownload()) {
+                return NO_DOWNLOAD;
+            }
+            return hasNoReader() ? NO_READER : "";
         }
 
         String placingText() {
             return String.format("%" + PLACING_WIDTH + "s", entry.placing());
-        }
-
-        String titleText() {
-            final String text = "  " + entry.title() + "  " + entry.author();
-            if (hasNoDownload()) {
-                return text + NO_DOWNLOAD;
-            }
-            return hasNoReader() ? text + NO_READER : text;
         }
 
         @Override
@@ -141,6 +193,17 @@ public final class Browser {
         private boolean hasNoReader() {
             final String download = downloads.get(entry.productionId());
             return download != null && Archives.hasNoReader(download);
+        }
+    }
+
+    /**
+     * How a level is laid out: the columns it flows into, and how a cell divides its width between the name,
+     * the second field and whatever is set against the right edge.
+     */
+    private record Layout(int columns, int rows, int cellWidth, int label, int detail, int trailing) {
+
+        private int page() {
+            return columns * rows;
         }
     }
 
@@ -182,8 +245,23 @@ public final class Browser {
             }
         }
 
-        private void scrollTo(int rows) {
-            offset = Math.clamp(offset, Math.max(0, cursor - rows + 1), cursor);
+        /**
+         * One column scrolls by the item, as it always did. Several scroll by the whole column, so that
+         * stepping past the foot of one does not shuffle every other column along by a row.
+         */
+        private void scrollTo(Layout layout) {
+            if (layout.columns() == 1) {
+                offset = Math.clamp(offset, Math.max(0, cursor - layout.page() + 1), cursor);
+                return;
+            }
+            final int column = cursor / layout.rows();
+            final int first = Math.clamp(offset / layout.rows(),
+                    Math.max(0, column - layout.columns() + 1), column);
+            offset = first * layout.rows();
+        }
+
+        private int widest(Function<Item, String> field) {
+            return items.stream().map(field).mapToInt(String::length).max().orElse(0);
         }
     }
 
@@ -195,8 +273,13 @@ public final class Browser {
     private static final String CRUMB_SEPARATOR = " › ";
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
-    private static final String NO_DOWNLOAD = "  (no download)";
-    private static final String NO_READER = "  (no reader)";
+    private static final String NO_DOWNLOAD = "(no download)";
+    private static final String NO_READER = "(no reader)";
+    private static final int COLUMN_GAP = 2;
+    private static final int MOST_COLUMNS = 4;
+    private static final int LEAST_DETAIL = 10;
+    private static final String ELLIPSIS = "…";
+    private static final String GAP = "  ";
     private static final String NO_FILE = "";
     private static final String APPLICATION = "Paula Escobar";
     private static final String SECTION = "browse";
@@ -269,7 +352,8 @@ public final class Browser {
         this.partyArt = partyArt;
         this.dwell = dwell;
         this.clock = clock;
-        levels.push(new Level(ROOT_TITLE, NOTHING_HERE, CuratedSeries.ALL.stream().<Item>map(SeriesItem::new).toList()));
+        levels.push(new Level(ROOT_TITLE, NOTHING_HERE,
+                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList()));
     }
 
     public boolean atRoot() {
@@ -378,19 +462,22 @@ public final class Browser {
     public List<AttributedString> render(int width, int height) {
         final Level level = levels.peek();
         final List<AttributedString> art = artLines(level, width, height);
-        pageSize = Math.max(1, height - CHROME_LINES - art.size());
-        level.scrollTo(pageSize);
+        final int listRows = Math.max(1, height - CHROME_LINES - art.size());
+        final Layout layout = layoutOf(level, width - 2, listRows);
+        level.scrollTo(layout);
+        pageSize = layout.page();
         final List<AttributedString> rows = new ArrayList<>();
         if (level.items.isEmpty()) {
             rows.add(Screen.line(b -> b.style(Palette.LABEL).append(level.emptyText)));
-        }
-        for (int i = level.offset; i < Math.min(level.items.size(), level.offset + pageSize); i++) {
-            rows.add(row(level.items.get(i), i == level.cursor, width - 2, ticker(level.items.get(i))));
+        } else {
+            for (int row = 0; row < layout.rows(); row++) {
+                rows.add(rowOf(level, layout, row));
+            }
         }
         final List<AttributedString> lines = new ArrayList<>();
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
         lines.addAll(art);
-        lines.addAll(Frame.box(breadcrumb() + ticker(level), rows, width, pageSize + 2));
+        lines.addAll(Frame.box(breadcrumb() + ticker(level), rows, width, layout.rows() + 2));
         lines.add(statusLine());
         lines.add(nowPlayingLine(width));
         lines.add(Frame.footer(KEYS, width));
@@ -534,23 +621,77 @@ public final class Browser {
     }
 
     /**
-     * The cursor row is painted edge to edge in one style; other rows colour the top three placings like medals.
+     * A list long enough to be worth it is filled column by column, so walking down with the cursor runs to
+     * the foot of one column and on to the head of the next rather than off the bottom of the screen.
      */
-    private static AttributedString row(Item item, boolean selected, int width, String ticker) {
-        if (selected) {
-            return Frame.pad(new AttributedStringBuilder().style(Palette.SELECTED).append(CURSOR).append(item.label()).append(ticker).toAttributedString(),
-                    width, Palette.SELECTED);
+    private Layout layoutOf(Level level, int width, int rows) {
+        final int trailing = level.widest(Item::trailing);
+        if (level.items.stream().noneMatch(Item::flows)) {
+            final int detail = Math.min(level.widest(Item::detail), Math.max(LEAST_DETAIL, width / 4));
+            return new Layout(1, rows, width, level.widest(Item::label), detail, trailing);
         }
-        final AttributedStringBuilder line = new AttributedStringBuilder().style(Palette.ACCENT).append(NO_CURSOR);
-        final AttributedStyle text = item.dimmed() ? Palette.DIMMED : Palette.VALUE;
+        final int cell = level.widest(Item::label) + trailing + NO_CURSOR.length() + COLUMN_GAP * 2;
+        final int columns = Math.clamp(width / Math.max(1, cell), 1, MOST_COLUMNS);
+        return new Layout(columns, rows, width / columns, level.widest(Item::label), 0, trailing);
+    }
+
+    private AttributedString rowOf(Level level, Layout layout, int row) {
+        final AttributedStringBuilder line = new AttributedStringBuilder();
+        for (int column = 0; column < layout.columns(); column++) {
+            final int index = level.offset + column * layout.rows() + row;
+            if (index < level.items.size()) {
+                line.append(cell(level.items.get(index), index == level.cursor, layout, ticker(level.items.get(index))));
+            }
+        }
+        return line.toAttributedString();
+    }
+
+    /**
+     * One item across its share of the width: the cursor mark, the name, the second field where there is one,
+     * and whatever is set against the right edge. The chosen one is painted across its own cell only, since
+     * with several columns to a row the rest of the row belongs to other items.
+     */
+    private static AttributedString cell(Item item, boolean selected, Layout layout, String ticker) {
+        final AttributedStyle text = selected ? Palette.SELECTED : item.dimmed() ? Palette.DIMMED : Palette.VALUE;
+        final AttributedStringBuilder line = new AttributedStringBuilder();
+        line.style(selected ? Palette.SELECTED : Palette.ACCENT).append(selected ? CURSOR : NO_CURSOR);
+        int written = NO_CURSOR.length();
         if (item instanceof EntryItem entry) {
-            line.style(medal(entry.entry().placing(), text)).append(entry.placingText());
-            line.style(text).append(entry.titleText());
-        } else {
-            line.style(text).append(item.label());
+            line.style(selected ? Palette.SELECTED : medal(entry.entry().placing(), text)).append(entry.placingText());
+            written += entry.placingText().length() + COLUMN_GAP;
+            line.style(text).append(GAP);
+        }
+        final int room = layout.cellWidth() - written - ticker.length();
+        final int detail = item.detail().isEmpty() ? 0 : Math.min(layout.detail(), room / 2);
+        final int trailing = Math.min(layout.trailing(), Math.max(0, room - detail - COLUMN_GAP));
+        final int gaps = (detail > 0 ? COLUMN_GAP : 0) + (trailing > 0 ? COLUMN_GAP : 0);
+        final int label = Math.max(1, Math.min(layout.label(), room - gaps - detail - trailing));
+        line.style(text).append(fitted(item.label(), label));
+        written += label;
+        if (detail > 0) {
+            line.append(GAP).append(fitted(item.detail(), detail));
+            written += COLUMN_GAP + detail;
+        }
+        if (trailing > 0) {
+            final int gap = Math.max(COLUMN_GAP, layout.cellWidth() - ticker.length() - written - trailing);
+            line.append(" ".repeat(gap)).append(fitted(item.trailing(), trailing).stripTrailing());
         }
         line.style(Palette.ACCENT).append(ticker);
-        return line.toAttributedString();
+        return Frame.pad(line.toAttributedString(), layout.cellWidth(),
+                selected ? Palette.SELECTED : AttributedStyle.DEFAULT);
+    }
+
+    /**
+     * The text padded out to its column, or cut short with an ellipsis where it will not go.
+     */
+    private static String fitted(String text, int width) {
+        if (width <= 0) {
+            return "";
+        }
+        if (text.length() <= width) {
+            return text + " ".repeat(width - text.length());
+        }
+        return width == 1 ? ELLIPSIS : text.substring(0, width - 1) + ELLIPSIS;
     }
 
     /**

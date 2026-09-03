@@ -21,7 +21,10 @@
 
 package com.adeptum.paula.demozoo;
 
+import java.text.Normalizer;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The party series Paula offers, identified by their Demozoo party series ids. Each one is a series whose
@@ -29,6 +32,18 @@ import java.util.List;
  * without any, so a series of those would open on nothing to play.
  */
 public record CuratedSeries(int id, String name) {
+
+    /**
+     * By name, reading past the accents so that Árok sits among the A's rather than after the Z's, and past
+     * case so that TRSAC sits among the T's.
+     */
+    public static final Comparator<CuratedSeries> BY_NAME = Comparator.comparing(CuratedSeries::sortKey);
+
+    private static final String MARKS = "\\p{M}";
+
+    private String sortKey() {
+        return Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll(MARKS, "").toLowerCase(Locale.ROOT);
+    }
 
     public static final List<CuratedSeries> ALL = List.of(
             new CuratedSeries(19, "The Party"),
