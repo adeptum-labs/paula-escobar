@@ -21,14 +21,17 @@
 
 package com.adeptum.paula.ui;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
- * One key press as the terminal delivered it: either a printable character or a special key.
+ * One press as the terminal delivered it: a printable character, a special key or a click of the mouse.
  */
-public record Key(Special special, char character) {
+public record Key(Special special, char character, Mouse mouse) {
 
     public enum Special { NONE, UP, DOWN, LEFT, RIGHT, ENTER, BACKSPACE, ESCAPE, PAGE_UP, PAGE_DOWN, HOME, END, EOF, TIMEOUT }
 
-    public static final Key NONE = new Key(Special.NONE, '\0');
+    public static final Key NONE = new Key(Special.NONE, '\0', null);
 
     private static final int END_OF_STREAM = -1;
     private static final int LINE_FEED = 10;
@@ -37,13 +40,23 @@ public record Key(Special special, char character) {
     private static final int DELETE_CODE = 127;
     private static final int ESCAPE_CODE = 27;
     private static final String MODIFIER_PARAMETER = "^\\[1;\\d+";
+    private static final Pattern MOUSE_PRESS = Pattern.compile("\\[<(\\d+);(\\d+);(\\d+)M");
+    private static final int BUTTON_MASK = 0x03;
+    private static final int LEFT_BUTTON = 0;
+    private static final int SHIFT_BIT = 0x04;
+    private static final int MOTION_BIT = 0x20;
+    private static final int WHEEL_BIT = 0x40;
 
     public static Key of(char character) {
-        return new Key(Special.NONE, character);
+        return new Key(Special.NONE, character, null);
     }
 
     public static Key of(Special special) {
-        return new Key(special, '\0');
+        return new Key(special, '\0', null);
+    }
+
+    public static Key of(Mouse mouse) {
+        return new Key(Special.NONE, '\0', mouse);
     }
 
     public static Key forByte(int value) {
@@ -61,6 +74,10 @@ public record Key(Special special, char character) {
      * sends the SS3 form, and modifiers such as ctrl are dropped.
      */
     public static Key forEscapeSequence(String sequence) {
+        final Matcher press = MOUSE_PRESS.matcher(sequence);
+        if (press.matches()) {
+            return forMouse(press);
+        }
         return switch (sequence.replaceFirst(MODIFIER_PARAMETER, "[")) {
             case "[A", "OA" -> of(Special.UP);
             case "[B", "OB" -> of(Special.DOWN);
@@ -72,6 +89,18 @@ public record Key(Special special, char character) {
             case "[6~" -> of(Special.PAGE_DOWN);
             default -> NONE;
         };
+    }
+
+    /**
+     * A press in the SGR form terminals use with mouse reporting on. Only the left button says anything to the
+     * player, and the cell it names is counted from one, while the screen is counted from zero.
+     */
+    private static Key forMouse(Matcher press) {
+        final int code = Integer.parseInt(press.group(1));
+        if ((code & (MOTION_BIT | WHEEL_BIT)) != 0 || (code & BUTTON_MASK) != LEFT_BUTTON) {
+            return NONE;
+        }
+        return of(new Mouse(Integer.parseInt(press.group(2)) - 1, Integer.parseInt(press.group(3)) - 1, (code & SHIFT_BIT) != 0));
     }
 
     public boolean is(char expected) {

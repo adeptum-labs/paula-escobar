@@ -22,6 +22,7 @@
 package com.adeptum.paula.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,23 @@ class KeyTest {
         assertEquals(Key.of(Key.Special.END), Key.forEscapeSequence("[4~"));
         assertEquals(Key.of(Key.Special.PAGE_UP), Key.forEscapeSequence("[5~"));
         assertEquals(Key.of(Key.Special.PAGE_DOWN), Key.forEscapeSequence("[6~"));
+    }
+
+    @Test
+    void mapsMousePressesToTheCellTheyLandOn() {
+        assertEquals(Key.of(new Mouse(11, 2, false)), Key.forEscapeSequence("[<0;12;3M"));
+        assertEquals(Key.of(new Mouse(11, 2, true)), Key.forEscapeSequence("[<4;12;3M"), "shift held");
+        assertEquals(new Mouse(299, 99, false), Key.forEscapeSequence("[<0;300;100M").mouse(), "past the old 223 column limit");
+    }
+
+    @Test
+    void ignoresEverythingTheMouseDoesBesidesALeftPress() {
+        assertEquals(Key.NONE, Key.forEscapeSequence("[<0;12;3m"), "the release of the press");
+        assertEquals(Key.NONE, Key.forEscapeSequence("[<2;12;3M"), "the right button");
+        assertEquals(Key.NONE, Key.forEscapeSequence("[<1;12;3M"), "the middle button");
+        assertEquals(Key.NONE, Key.forEscapeSequence("[<32;12;3M"), "dragging");
+        assertEquals(Key.NONE, Key.forEscapeSequence("[<64;12;3M"), "the wheel");
+        assertNull(Key.of('q').mouse());
     }
 
     @Test

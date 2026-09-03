@@ -42,6 +42,8 @@ public final class TerminalUi implements AutoCloseable {
     private static final long SEQUENCE_TIMEOUT_MILLIS = 50;
     private static final int FALLBACK_WIDTH = 80;
     private static final int FALLBACK_HEIGHT = 24;
+    private static final String MOUSE_ON = "\033[?1000h\033[?1006h";
+    private static final String MOUSE_OFF = "\033[?1006l\033[?1000l";
 
     private final Terminal terminal;
     private final Display display;
@@ -61,7 +63,18 @@ public final class TerminalUi implements AutoCloseable {
         terminal.enterRawMode();
         terminal.puts(Capability.enter_ca_mode);
         terminal.puts(Capability.cursor_invisible);
+        trackMouse(MOUSE_ON);
         terminal.flush();
+    }
+
+    /**
+     * Button presses in the SGR form, which is the one that survives a screen wider than 223 columns. A terminal
+     * without a keyboard has no mouse to report either.
+     */
+    private void trackMouse(String request) {
+        if (!keyboardless) {
+            terminal.writer().print(request);
+        }
     }
 
     public Key poll(long timeoutMillis) throws IOException {
@@ -133,6 +146,7 @@ public final class TerminalUi implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        trackMouse(MOUSE_OFF);
         terminal.puts(Capability.cursor_visible);
         terminal.puts(Capability.exit_ca_mode);
         terminal.flush();
