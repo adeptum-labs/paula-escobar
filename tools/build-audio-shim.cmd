@@ -23,6 +23,7 @@ rem Compiles the miniaudio shim into the static library native-image links.
 
 setlocal
 set "out=%~1"
+set "out=%out:/=\%"
 set "src=%~dp0..\src\main\c"
 if not exist "%out%" mkdir "%out%"
 where cl >nul 2>nul || call :vcvars || exit /b 1
