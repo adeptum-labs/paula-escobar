@@ -64,10 +64,6 @@ public final class TerminalUi implements AutoCloseable {
         terminal.flush();
     }
 
-    public TerminalUi() throws IOException {
-        this(false);
-    }
-
     public Key poll(long timeoutMillis) throws IOException {
         if (keyboardless) {
             sleepQuietly(timeoutMillis);

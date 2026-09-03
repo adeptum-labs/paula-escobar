@@ -64,6 +64,7 @@ public final class PlayerSession {
     private final TrackLoader loader;
     private final TrackLoader.Resolver resolver;
     private final Browser browser;
+    private final Deadline deadline;
     private boolean showingKeys;
     private final boolean exitWhenDone;
     private final Spectrum spectrum;
@@ -81,7 +82,7 @@ public final class PlayerSession {
      * player and exits when the last file ends, unless the browser was opened along the way.
      */
     public PlayerSession(Optional<Playlist> playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui,
-            TrackLoader loader, TrackLoader.Resolver resolver, Browser browser) {
+            TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, Deadline deadline) {
         this.playlist = playlist.orElse(null);
         this.exitWhenDone = playlist.isPresent();
         this.browsing = playlist.isEmpty();
@@ -91,6 +92,7 @@ public final class PlayerSession {
         this.loader = loader;
         this.resolver = resolver;
         this.browser = browser;
+        this.deadline = deadline;
         this.spectrum = new Spectrum(SPECTRUM_BANDS, engine.sampleRate());
     }
 
@@ -98,7 +100,7 @@ public final class PlayerSession {
         if (playlist != null) {
             requestCurrent();
         }
-        while (true) {
+        while (!deadline.passed()) {
             Key key = ui.poll(REDRAW_INTERVAL_MILLIS);
             while (!key.is(Key.Special.TIMEOUT)) {
                 if (showingKeys) {

@@ -23,6 +23,7 @@ package com.adeptum.paula;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +53,7 @@ import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playback.DaemonExecutors;
+import com.adeptum.paula.playback.Deadline;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
 import com.adeptum.paula.playback.TrackLoader;
@@ -85,6 +87,9 @@ public final class Paula implements Runnable {
     @Option(names = {"-o", "--output"}, paramLabel = "BACKEND", defaultValue = "auto", description = "Audio backend: ${COMPLETION-CANDIDATES} (default: ${DEFAULT-VALUE}).")
     private AudioBackend output;
 
+    @Option(names = "--quit-after", paramLabel = "SECONDS", description = "Stop after this many seconds; no terminal is needed then.")
+    private Integer quitAfterSeconds;
+
     @Parameters(paramLabel = "FILE", arity = "0..*", description = "Module files to play, in order.")
     private List<Path> files = List.of();
 
@@ -114,7 +119,7 @@ public final class Paula implements Runnable {
         final Optional<Playlist> playlist = files.isEmpty() ? Optional.empty() : Optional.of(new Playlist(localTracks()));
         final TerminalUi ui;
         try {
-            ui = new TerminalUi();
+            ui = new TerminalUi(quitAfterSeconds != null);
         } catch (IOException | IllegalStateException e) {
             if (playlist.isEmpty()) {
                 spec.commandLine().usage(spec.commandLine().getOut());
@@ -135,7 +140,7 @@ public final class Paula implements Runnable {
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders);
             final Browser browser = new Browser(demozoo, browsing, new FetchingReleaseArt(new CachedReleaseArt(cache), resolver, fetchingArt),
                     new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
-            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser).run();
+            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, deadline()).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
@@ -146,6 +151,10 @@ public final class Paula implements Runnable {
 
     private List<Track> localTracks() {
         return files.stream().<Track>map(LocalTrack::new).toList();
+    }
+
+    private Deadline deadline() {
+        return quitAfterSeconds == null ? Deadline.never() : Deadline.after(Duration.ofSeconds(quitAfterSeconds));
     }
 
     /**
