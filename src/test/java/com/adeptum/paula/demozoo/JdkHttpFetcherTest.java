@@ -47,6 +47,7 @@ class JdkHttpFetcherTest {
     private static final int ANY_PORT = 0;
     private static final int OK = 200;
     private static final int NOT_FOUND = 404;
+    private static final int FOUND = 302;
     private static final String DISPOSITION = "Content-Disposition";
     private static final int STALLED_LENGTH = 1_000_000;
 
@@ -126,6 +127,22 @@ class JdkHttpFetcherTest {
         serve("/download.php", "x".getBytes(StandardCharsets.UTF_8), Optional.of("attachment; filename=\"tune.mod\""));
 
         assertEquals(Optional.of("tune.mod"), fetcher.get(uri("/download.php")).fileName());
+    }
+
+    /**
+     * The scene archives hand out their modules through a query that says nothing about the file and then
+     * redirects to it, so the name is at the end of the redirect.
+     */
+    @Test
+    void takesTheNameFromWhereTheServerSentIt() throws IOException {
+        serve("/modules/M/Marauder/XM.survival.gz", "x".getBytes(StandardCharsets.UTF_8), Optional.empty());
+        server.createContext("/downmod.php", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/modules/M/Marauder/XM.survival.gz");
+            exchange.sendResponseHeaders(FOUND, -1);
+            exchange.close();
+        });
+
+        assertEquals(Optional.of("XM.survival.gz"), fetcher.get(uri("/downmod.php?index=45287")).fileName());
     }
 
     @Test

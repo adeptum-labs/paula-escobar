@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -78,8 +77,7 @@ public final class JavaModLoader implements ModuleLoader {
 
     @Override
     public boolean supports(Path path) {
-        final String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return FORMAT.extensions().contains(ModuleFormat.extensionOf(name)) || name.startsWith("mod.");
+        return FORMAT.matches(path.getFileName().toString());
     }
 
     @Override

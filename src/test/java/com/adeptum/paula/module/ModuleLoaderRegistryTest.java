@@ -63,6 +63,14 @@ class ModuleLoaderRegistryTest {
     }
 
     @Test
+    void findsLoaderWhereTheFormatIsNamedBeforeTheDot() {
+        assertTrue(registry.loaderFor(Path.of("MOD.crystal hammer")).isPresent(), "as Modland names its files");
+        assertTrue(registry.loaderFor(Path.of("XM.survival")).isPresent(), "and as AMP does");
+        assertTrue(registry.loaderFor(Path.of("S3M.illan viimeinen hidas")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("readme.first")).isEmpty(), "but an ordinary name is not a format");
+    }
+
+    @Test
     void loadingUnknownFormatFails() {
         assertThrows(UnsupportedModuleException.class, () -> registry.load(Path.of("x.xyz")));
     }

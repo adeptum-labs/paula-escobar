@@ -31,10 +31,23 @@ public record ModuleFormat(String id, String name, Set<String> extensions) {
     }
 
     /**
+     * The archives that keep a whole scene collection, Modland and AMP among them, name a file after the
+     * format it holds rather than after itself: MOD.tune, not tune.mod. Both readings count.
+     */
+    public boolean matches(String fileName) {
+        return extensions.contains(extensionOf(fileName)) || extensions.contains(prefixOf(fileName));
+    }
+
+    /**
      * The lower-cased text after the last dot, or nothing when the name has no dot.
      */
     public static String extensionOf(String fileName) {
         final int dot = fileName.lastIndexOf('.');
         return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static String prefixOf(String fileName) {
+        final int dot = fileName.indexOf('.');
+        return dot < 1 ? "" : fileName.substring(0, dot).toLowerCase(Locale.ROOT);
     }
 }

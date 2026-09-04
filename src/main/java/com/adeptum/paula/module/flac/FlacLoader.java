@@ -53,7 +53,7 @@ public final class FlacLoader implements ModuleLoader {
 
     @Override
     public boolean supports(Path path) {
-        return FORMAT.extensions().contains(ModuleFormat.extensionOf(path.getFileName().toString()));
+        return FORMAT.matches(path.getFileName().toString());
     }
 
     @Override

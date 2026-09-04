@@ -102,16 +102,29 @@ public final class JdkHttpFetcher implements HttpFetcher {
     }
 
     /**
-     * Created on first use so no networking is initialised while the native image is built.
+     * Created on first use so no networking is initialised while the native image is built. Redirects are
+     * followed even down to plain HTTP, since several of the scene archives still hop through it and nothing
+     * secret is ever sent or asked for.
      */
     private synchronized HttpClient client() {
         if (client == null) {
-            client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).followRedirects(HttpClient.Redirect.NORMAL).build();
+            client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).followRedirects(HttpClient.Redirect.ALWAYS).build();
         }
         return client;
     }
 
+    /**
+     * A download script such as AMP's names nothing itself and redirects to the file; the name is then the one
+     * at the end of the redirect rather than the query the request began as.
+     */
     private static Optional<String> fileName(HttpResponse<?> response) {
-        return response.headers().firstValue(CONTENT_DISPOSITION_HEADER).map(FILE_NAME::matcher).filter(Matcher::find).map(m -> m.group(1));
+        return response.headers().firstValue(CONTENT_DISPOSITION_HEADER).map(FILE_NAME::matcher)
+                .filter(Matcher::find).map(matcher -> matcher.group(1))
+                .or(() -> redirectedName(response));
+    }
+
+    private static Optional<String> redirectedName(HttpResponse<?> response) {
+        final String path = response.uri().getPath();
+        return Optional.ofNullable(path).map(name -> name.substring(name.lastIndexOf('/') + 1)).filter(name -> !name.isBlank());
     }
 }
