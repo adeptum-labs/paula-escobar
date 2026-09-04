@@ -40,7 +40,7 @@ grep -q "Playing through $BACKEND_NAME at $RATE Hz" paula.log || { cat paula.log
 ! grep -q ' ERROR ' paula.log || { cat paula.log; exit 1; }
 
 frames=$(( ($(wc -c < "$RECORDING") - WAVE_HEADER_BYTES) / BYTES_PER_FRAME ))
-sounding=$(tail -c +$((WAVE_HEADER_BYTES + 1)) "$RECORDING" | tr -d '\0' | wc -c)
+sounding=$(tail -c +$((WAVE_HEADER_BYTES + 1)) "$RECORDING" | LC_ALL=C tr -d '\0' | wc -c)
 echo "Recorded $((frames / RATE)) s ($frames frames), $sounding bytes of it not silence."
 [ "$sounding" -gt 0 ] || { echo 'The recording is all silence.'; exit 1; }
 [ "$frames" -ge $((RATE * (SECONDS_PLAYED - 1))) ] || { echo 'Less was recorded than was played.'; exit 1; }
