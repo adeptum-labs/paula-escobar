@@ -25,9 +25,9 @@ jobs:
           # Built where the oldest still supported glibc is, so the executable runs on
           # the distributions people have rather than only on the newest.
           #
-          # The runners have no sound device. macOS and Windows are given one so the
-          # executable plays through the backend people will use there; Linux keeps
-          # the clock-paced null backend, which needs none.
+          # The executable plays through the backend people will use on each system.
+          # macOS runners carry a virtual sound device, Windows runners are given one,
+          # and Linux plays through the clock-paced null backend, which needs none.
           - { os: ubuntu-22.04, name: Linux, binary: target/paula, output: 'null', backend: 'Null' }
           - { os: macos-latest, name: macOS, binary: target/paula, output: coreaudio, backend: Core Audio }
           - { os: windows-latest, name: Windows, binary: target/paula.exe, output: wasapi, backend: WASAPI }
@@ -47,10 +47,6 @@ jobs:
 
       - name: Build, test and make the executable
         run: mvn -B -ntp package
-
-      - name: List the sound devices
-        if: runner.os == 'macOS'
-        run: system_profiler SPAudioDataType
 
       - name: Give the runner a sound device
         if: runner.os == 'Windows'

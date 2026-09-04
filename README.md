@@ -255,9 +255,9 @@ with `--output pulse`, `--output alsa`, `--output jack`,
 `--output coreaudio` or `--output wasapi`; `--output null` plays into
 nothing at the right speed. The build proves the sound on every platform:
 it plays the test module through Core Audio on macOS and WASAPI on
-Windows, into a virtual sound device the runner is given for the purpose,
-and through the null backend on Linux, and checks the recording
-`--record` kept for sound of the length played.
+Windows, where the runner is given a virtual sound card to play into, and
+through the null backend on Linux, and checks the recording `--record`
+kept for sound of the length played.
 When Paula runs on a JVM, from the runnable jar or from the tests, Java
 Sound is used instead (`--output javasound`).
 
