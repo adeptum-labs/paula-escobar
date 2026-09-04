@@ -712,6 +712,34 @@ class BrowserTest {
         assertEquals(2, browser.takeSelection().orElseThrow().size(), "the disk image is not queued");
     }
 
+    /**
+     * A ReBirth song holds knob settings rather than audio, and sits inside an archive where nothing can see
+     * it. Demozoo calls it streaming music like any MP3, so the competition's name is the only warning there
+     * is, and it has to serve before anything is fetched.
+     */
+    @Test
+    void marksACompetitionRunForAFormatNothingCanPlay() {
+        http.put(SERIES_URL, SERIES);
+        http.put(PARTY_URL, PARTY.replace("Multichannel Music", "ReBirth Music"));
+        cursorToTheParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.ENTER);
+        final int fetchedSoFar = http.requests();
+
+        final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
+
+        assertTrue(lines.get(2).toString().contains("(unsupported music format)"), lines.get(2).toString());
+        assertEquals(fetchedSoFar, http.requests(), "and nothing was brought down to find that out");
+
+        press(Key.Special.ENTER);
+        assertEquals(1, browser.takeSelection().orElseThrow().size(),
+                "and choosing one queues only that one, the rest of the competition being no more playable");
+    }
+
     @Test
     void showsWhatIsPlayingWithASpectrumStripAboveTheKeyBar() {
         assertFalse(render().get(HEIGHT - 2).contains("♪"), "nothing playing, no now-playing line");

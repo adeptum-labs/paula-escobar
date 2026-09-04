@@ -22,6 +22,21 @@
 package com.adeptum.paula.demozoo;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public record Competition(int id, String name, int typeId, String typeName, List<CompoEntry> entries) {
+
+    /**
+     * Competitions run for a music format nothing here can decode. Demozoo calls their entries streaming
+     * music, the same as it calls an MP3, and the files sit inside archives, so the competition's own name is
+     * the only word on it before anything is fetched. A ReBirth song holds no audio at all: it is a page of
+     * knob settings for a synthesiser that went out of print, and only that synthesiser can sound it.
+     */
+    private static final Set<String> UNPLAYABLE = Set.of("rebirth");
+
+    public boolean unsupportedFormat() {
+        final String lower = name.toLowerCase(Locale.ROOT);
+        return UNPLAYABLE.stream().anyMatch(lower::contains);
+    }
 }

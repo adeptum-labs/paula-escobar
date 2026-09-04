@@ -163,6 +163,9 @@ public final class Browser {
 
         @Override
         public String trailing() {
+            if (compo.compo().unsupportedFormat()) {
+                return UNSUPPORTED_FORMAT;
+            }
             if (hasNoDownload()) {
                 return NO_DOWNLOAD;
             }
@@ -179,7 +182,8 @@ public final class Browser {
         }
 
         boolean playable() {
-            return entry.likelyPlayable() && !hasNoDownload() && !hasNoReader();
+            return entry.likelyPlayable() && !compo.compo().unsupportedFormat()
+                    && !hasNoDownload() && !hasNoReader();
         }
 
         private boolean hasNoDownload() {
@@ -275,6 +279,7 @@ public final class Browser {
     private static final String NO_CURSOR = "  ";
     private static final String NO_DOWNLOAD = "(no download)";
     private static final String NO_READER = "(no reader)";
+    private static final String UNSUPPORTED_FORMAT = "(unsupported music format)";
     private static final int COLUMN_GAP = 2;
     private static final int MOST_COLUMNS = 4;
     private static final int LEAST_DETAIL = 10;

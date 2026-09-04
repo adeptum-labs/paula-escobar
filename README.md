@@ -155,7 +155,12 @@ emulation.
 Entries Demozoo has no download for are marked "(no download)" as soon as
 their details have been fetched, since some releases never made it to any
 archive. One whose only download is a container Paula has no reader for,
-an Amiga disk image most often, is marked "(no reader)" the same way.
+an Amiga disk image most often, is marked "(no reader)" the same way. A
+competition run for a format nothing here can decode — the ReBirth songs
+of Alternative Party 2007 are pages of knob settings for a synthesiser
+rather than audio — is marked "(unsupported music format)" from the
+moment it opens, since its name is the only word on it and nothing need
+be fetched to know.
 Playing an entry queues the rest of the competition
 after it in ranked order, so `n` walks through the results.
 
