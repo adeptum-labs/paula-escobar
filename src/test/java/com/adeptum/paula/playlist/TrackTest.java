@@ -24,7 +24,10 @@ package com.adeptum.paula.playlist;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.demozoo.Competition;
+import com.adeptum.paula.demozoo.Party;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +42,7 @@ class TrackTest {
     void demozooTracksAreLabelledByCompoPlacingTitleAndAuthor() {
         final CompoEntry entry = new CompoEntry(1, "1", 7, "Funkyeeh", "Theseus", Set.of(29));
         assertEquals("Assembly 1995 · 4 Channel Music  #1 Funkyeeh by Theseus",
-                new DemozooTrack(entry, "Assembly 1995 · 4 Channel Music").label());
+                new DemozooTrack(entry, new Party(3, "Assembly 1995", "1995-08-11"),
+                        new Competition(2, "4 Channel Music", 29, "Tracked Music", List.of())).label());
     }
 }

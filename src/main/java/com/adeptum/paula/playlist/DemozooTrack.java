@@ -22,14 +22,23 @@
 package com.adeptum.paula.playlist;
 
 import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.demozoo.Competition;
+import com.adeptum.paula.demozoo.Party;
 
 /**
- * A competition entry from Demozoo; the compo label names the party and competition it was placed in.
+ * A competition entry from Demozoo, carrying the party and competition it was placed in so the browser can
+ * point back at the row it came from.
  */
-public record DemozooTrack(CompoEntry entry, String compoLabel) implements Track {
+public record DemozooTrack(CompoEntry entry, Party party, Competition compo) implements Track {
+
+    private static final String SEPARATOR = " · ";
+
+    public String compoLabel() {
+        return party.name() + SEPARATOR + compo.name();
+    }
 
     @Override
     public String label() {
-        return compoLabel + "  #" + entry.placing() + " " + entry.title() + " by " + entry.author();
+        return compoLabel() + "  #" + entry.placing() + " " + entry.title() + " by " + entry.author();
     }
 }

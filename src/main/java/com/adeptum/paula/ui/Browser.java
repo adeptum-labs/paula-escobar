@@ -331,7 +331,7 @@ public final class Browser {
     private int restingOn;
     private int reopening;
     private Instant restingSince;
-    private String nowPlayingLabel;
+    private Track nowPlaying;
     private double[] nowPlayingSpectrum = new double[0];
 
     public Browser(DemozooClient demozoo, Executor executor) {
@@ -463,8 +463,8 @@ public final class Browser {
     /**
      * Tells the browser what the player is doing so it can show it under the list while music keeps playing.
      */
-    public void nowPlaying(String label, double[] spectrum) {
-        nowPlayingLabel = label;
+    public void nowPlaying(Track track, double[] spectrum) {
+        nowPlaying = track;
         nowPlayingSpectrum = spectrum;
     }
 
@@ -618,7 +618,7 @@ public final class Browser {
         final List<Track> tracks = level.items.subList(chosen.index(), level.items.size()).stream()
                 .map(EntryItem.class::cast)
                 .filter(item -> item == chosen || item.playable())
-                .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().compoLabel()))
+                .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().party(), item.compo().compo()))
                 .toList();
         return new Playlist(tracks);
     }
@@ -660,10 +660,13 @@ public final class Browser {
      * and whatever is set against the right edge. The chosen one is painted across its own cell only, since
      * with several columns to a row the rest of the row belongs to other items.
      */
-    private static AttributedString cell(Item item, boolean selected, Layout layout, String ticker) {
-        final AttributedStyle text = selected ? Palette.SELECTED : item.dimmed() ? Palette.DIMMED : Palette.VALUE;
+    private AttributedString cell(Item item, boolean selected, Layout layout, String ticker) {
+        final boolean playing = playing(item);
+        final AttributedStyle text = selected ? Palette.SELECTED
+                : playing ? Palette.ACTIVE : item.dimmed() ? Palette.DIMMED : Palette.VALUE;
         final AttributedStringBuilder line = new AttributedStringBuilder();
-        line.style(selected ? Palette.SELECTED : Palette.ACCENT).append(selected ? CURSOR : NO_CURSOR);
+        line.style(selected ? Palette.SELECTED : Palette.ACCENT)
+                .append(playing ? NOW_PLAYING_MARK : selected ? CURSOR : NO_CURSOR);
         int written = NO_CURSOR.length();
         if (item instanceof EntryItem entry) {
             line.style(selected ? Palette.SELECTED : medal(entry.entry().placing(), text)).append(entry.placingText());
@@ -707,6 +710,23 @@ public final class Browser {
      * A turning ticker beside whatever is being brought down, so a wait for a logo on its way is visible rather
      * than looking like nothing happening.
      */
+    /**
+     * The song being played marks its own row and every row on the way down to it, so it can be found again
+     * from anywhere in the browser. Local files were never browsed to and mark nothing.
+     */
+    private boolean playing(Item item) {
+        if (!(nowPlaying instanceof DemozooTrack track)) {
+            return false;
+        }
+        return switch (item) {
+            case EntryItem entry -> entry.compo().compo().id() == track.compo().id()
+                    && entry.entry().productionId() == track.entry().productionId();
+            case CompoItem compo -> compo.compo().id() == track.compo().id();
+            case PartyItem party -> party.party().id() == track.party().id();
+            case SeriesItem series -> false;
+        };
+    }
+
     private String ticker(Item item) {
         return item instanceof EntryItem entry && art.fetching(entry.entry().productionId()) ? ticker() : "";
     }
@@ -775,11 +795,11 @@ public final class Browser {
     }
 
     private AttributedString nowPlayingLine(int width) {
-        if (nowPlayingLabel == null) {
+        if (nowPlaying == null) {
             return AttributedString.EMPTY;
         }
         final AttributedStringBuilder line = new AttributedStringBuilder()
-                .style(Palette.ACCENT).append(NOW_PLAYING_MARK).style(Palette.VALUE).append(nowPlayingLabel).append("  ");
+                .style(Palette.ACCENT).append(NOW_PLAYING_MARK).style(Palette.VALUE).append(nowPlaying.label()).append("  ");
         final int bands = Math.min(STRIP_BANDS, nowPlayingSpectrum.length);
         for (int band = 0; band < bands; band++) {
             double level = 0;

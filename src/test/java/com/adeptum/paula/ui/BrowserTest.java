@@ -27,12 +27,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.playlist.DemozooTrack;
+import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
@@ -46,6 +49,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.jline.utils.AttributedString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -744,11 +748,84 @@ class BrowserTest {
     void showsWhatIsPlayingWithASpectrumStripAboveTheKeyBar() {
         assertFalse(render().get(HEIGHT - 2).contains("♪"), "nothing playing, no now-playing line");
 
-        browser.nowPlaying("Assembly 1995 · Music  #1 Funkyeeh by Theseus", new double[] {1.0, 0.5, 0.25, 0});
+        browser.nowPlaying(secondPlace(), new double[] {1.0, 0.5, 0.25, 0});
 
         final String nowPlaying = render().get(HEIGHT - 2);
-        assertTrue(nowPlaying.contains("Funkyeeh"), nowPlaying);
+        assertTrue(nowPlaying.contains("Second"), nowPlaying);
         assertTrue(nowPlaying.contains("█"), "the spectrum strip shows the loud band");
+    }
+
+    @Test
+    void marksTheEntryThatIsPlayingInTheList() {
+        openCompo();
+        browser.nowPlaying(secondPlace(), new double[0]);
+
+        final List<String> lines = render();
+        assertTrue(lines.get(3).startsWith("│♪   2  Second"), lines.get(3));
+        assertFalse(lines.get(4).contains("♪"), "and only that one: " + lines.get(4));
+        assertTrue(lines.get(2).startsWith("│>   1  First"), "the cursor keeps its own mark: " + lines.get(2));
+    }
+
+    @Test
+    void paintsThePlayingRowAsActiveEvenWhereItCouldNotBeReached() {
+        openCompo();
+        browser.nowPlaying(secondPlace(), new double[0]);
+
+        final AttributedString row = browser.render(WIDTH, HEIGHT).get(3);
+        assertEquals(Palette.ACTIVE, row.styleAt(row.toString().indexOf("Second")),
+                "an entry with no download of its own still shows as the one being heard");
+    }
+
+    @Test
+    void leavesTheSameProductionInAnotherCompetitionUnmarked() {
+        openCompo();
+        browser.nowPlaying(new DemozooTrack(new CompoEntry(2, "2", 12, "Second", "B", Set.of(29)),
+                new Party(5, "The Party 1995", "1995-12-27"),
+                new Competition(9, "Amiga Music", 29, "Tracked Music", List.of())), new double[0]);
+
+        assertFalse(render().get(3).contains("♪"), "the same production placed elsewhere is not this row");
+    }
+
+    @Test
+    void marksTheCompetitionAndPartyThePlayingSongCameFrom() {
+        openCompo();
+        browser.nowPlaying(secondPlace(), new double[0]);
+
+        press(Key.Special.ESCAPE);
+        final List<String> compos = render();
+        assertTrue(compos.stream().anyMatch(line -> line.contains("♪ Multichannel Music")),
+                "the competition it was placed in: " + compos);
+
+        press(Key.Special.ESCAPE);
+        final List<String> parties = render();
+        assertTrue(parties.stream().anyMatch(line -> line.contains("♪ The Party 1995")),
+                "and the party it was held at: " + parties);
+        assertFalse(parties.stream().anyMatch(line -> line.contains("♪ The Party 1994")),
+                "but not the year before");
+    }
+
+    @Test
+    void forgetsTheMarksWhenNothingIsPlaying() {
+        openCompo();
+        browser.nowPlaying(secondPlace(), new double[0]);
+        browser.nowPlaying(null, new double[0]);
+
+        assertFalse(String.join("", render()).contains("♪"), "no song, no marks anywhere");
+    }
+
+    @Test
+    void marksNothingForAFileGivenOnTheCommandLine() {
+        openCompo();
+        browser.nowPlaying(new LocalTrack(Path.of("space.mod")), new double[0]);
+
+        assertFalse(String.join("", render().subList(0, HEIGHT - 2)).contains("♪"),
+                "a local file was never browsed to, so no row is its own");
+    }
+
+    private static DemozooTrack secondPlace() {
+        return new DemozooTrack(new CompoEntry(2, "2", 12, "Second", "B", Set.of(29)),
+                new Party(5, "The Party 1995", "1995-12-27"),
+                new Competition(2, "Multichannel Music", 29, "Tracked Music", List.of()));
     }
 
     @Test

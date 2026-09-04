@@ -138,7 +138,7 @@ public final class PlayerSession {
             spectrum.feed(audio);
             vu.feed(audio);
             waterfall.feed(spectrum.levels());
-            browser.nowPlaying(module == null || playlist == null ? null : playlist.current().label(), spectrum.levels());
+            browser.nowPlaying(module == null || playlist == null ? null : playlist.current(), spectrum.levels());
             ui.draw(withKeys(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height())));
         }
     }
