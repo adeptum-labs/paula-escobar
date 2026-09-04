@@ -290,7 +290,7 @@ public final class TrackResolver {
             }
             unpacked.add(file);
             if (nested.get().wrapsSingleFile()) {
-                if (loaders.loaderFor(file).isPresent()) {
+                if (loaders.loaderFor(Path.of(nested.get().unwrappedName(file.getFileName().toString()))).isPresent()) {
                     nested.get().extract(file, file.getParent(), name -> true);
                     unpackedAny = true;
                 }

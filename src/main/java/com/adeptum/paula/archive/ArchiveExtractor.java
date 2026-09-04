@@ -48,4 +48,12 @@ public interface ArchiveExtractor {
     default boolean wrapsSingleFile() {
         return false;
     }
+
+    /**
+     * What the one file inside is called once unwrapped, which is the archive's own name unless the format
+     * marks the wrapping in it.
+     */
+    default String unwrappedName(String archive) {
+        return archive;
+    }
 }

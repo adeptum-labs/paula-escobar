@@ -50,8 +50,13 @@ public final class GzipExtractor implements ArchiveExtractor {
     }
 
     @Override
+    public String unwrappedName(String archive) {
+        return archive.toLowerCase(Locale.ROOT).endsWith(SUFFIX) ? archive.substring(0, archive.length() - SUFFIX.length()) : archive;
+    }
+
+    @Override
     public void extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
-        final String name = unwrapped(archive.getFileName().toString());
+        final String name = unwrappedName(archive.getFileName().toString());
         if (!wanted.test(name)) {
             return;
         }
@@ -60,9 +65,5 @@ public final class GzipExtractor implements ArchiveExtractor {
             unpacked = in.readAllBytes();
         }
         Files.write(Archives.target(into, name), unpacked);
-    }
-
-    private static String unwrapped(String name) {
-        return name.toLowerCase(Locale.ROOT).endsWith(SUFFIX) ? name.substring(0, name.length() - SUFFIX.length()) : name;
     }
 }

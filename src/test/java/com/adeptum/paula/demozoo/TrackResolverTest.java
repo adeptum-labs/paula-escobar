@@ -275,6 +275,29 @@ class TrackResolverTest {
     }
 
     @Test
+    void unwrapsGzippedModulesInsideArchives(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("MOD.tune.gz", TestArchives.gzip(TestModules.proTracker()))),
+                Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(dir.resolve("files/7/extracted/MOD.tune"), resolved);
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
+    void unwrapsAGzippedDirectDownload(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestArchives.gzip(TestModules.proTracker()), Optional.of("XM.survival.gz"));
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(dir.resolve("files/7/extracted/XM.survival"), resolved);
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
     void unwrapsAPackedDirectDownload(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
         http.put(MODLAND_FILE, TestArchives.xpk(TestModules.proTracker(), "NUKE", 1000), Optional.empty());

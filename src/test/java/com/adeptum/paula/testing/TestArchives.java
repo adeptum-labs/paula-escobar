@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.zip.CRC32;
+import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
@@ -68,6 +69,14 @@ public final class TestArchives {
         return bytes.toByteArray();
     }
 
+
+    public static byte[] gzip(byte[] content) throws IOException {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(bytes)) {
+            gzip.write(content);
+        }
+        return bytes.toByteArray();
+    }
 
     /**
      * A RAR 4 archive whose entries are stored rather than packed, there being no RAR compressor to hand and
