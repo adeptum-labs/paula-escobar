@@ -38,6 +38,8 @@ import picocli.CommandLine.ParseResult;
 import picocli.CommandLine.Spec;
 import com.adeptum.paula.audio.AudioBackend;
 import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.audio.AudioSink;
+import com.adeptum.paula.audio.WaveRecorder;
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.cli.BuildInfo;
 import com.adeptum.paula.cli.FormatsCommand;
@@ -90,6 +92,9 @@ public final class Paula implements Runnable {
     @Option(names = "--quit-after", paramLabel = "SECONDS", description = "Stop after this many seconds; no terminal is needed then.")
     private Integer quitAfterSeconds;
 
+    @Option(names = "--record", paramLabel = "FILE", description = "Keep a copy of everything played in this wave file.")
+    private Path record;
+
     @Parameters(paramLabel = "FILE", arity = "0..*", description = "Module files to play, in order.")
     private List<Path> files = List.of();
 
@@ -130,7 +135,7 @@ public final class Paula implements Runnable {
         final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
         final ExecutorService fetchingArt = DaemonExecutors.singleThread(ART_THREAD);
         try (ui;
-                PlaybackEngine engine = new PlaybackEngine(output.createSink(bufferFrames), sampleRate, bufferFrames);
+                PlaybackEngine engine = new PlaybackEngine(sink(), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
@@ -150,6 +155,11 @@ public final class Paula implements Runnable {
             browsing.shutdownNow();
             fetchingArt.shutdownNow();
         }
+    }
+
+    private AudioSink sink() throws AudioException {
+        final AudioSink sink = output.createSink(bufferFrames);
+        return record == null ? sink : new WaveRecorder(sink, record);
     }
 
     private List<Track> localTracks() {

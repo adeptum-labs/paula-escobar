@@ -263,7 +263,9 @@ fix](https://github.com/oracle/graal/issues/9620). That is why the
 executable carries a sound library of its own.
 
 `--quit-after SECONDS` stops Paula by itself after that long and lets it
-run without a terminal, for scripts and for the build.
+run without a terminal, for scripts and for the build. `--record FILE`
+keeps a copy of everything played in that wave file, at the output rate,
+whichever backend the sound went to.
 
 Log output goes to `paula.log` in the working directory so it never
 disturbs the player screen.
