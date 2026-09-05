@@ -26,6 +26,7 @@ import com.adeptum.paula.cache.CachedResource;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -46,6 +47,7 @@ public final class DemozooClient {
     private static final String SERIES = "party_series";
     private static final String PARTIES = "parties";
     private static final String PRODUCTIONS = "productions";
+    private static final String RELEASERS = "releasers";
     private static final Duration DEFAULT_TTL = Duration.ofDays(7);
 
     private final HttpFetcher http;
@@ -89,12 +91,33 @@ public final class DemozooClient {
         return fetch(PRODUCTIONS, id, DemozooJson::production);
     }
 
+    public List<Work> works(int releaserId) throws IOException {
+        return resource.read(worksFile(releaserId),
+                () -> http.get(API.resolve(RELEASERS + "/" + releaserId + "/" + PRODUCTIONS + JSON_FORMAT)).body(), DemozooJson::works);
+    }
+
+    public void forgetWorks(int releaserId) {
+        forget(() -> worksFile(releaserId));
+    }
+
+    private Path worksFile(int releaserId) throws IOException {
+        return cache.file(CACHE_SEGMENT, RELEASERS, String.valueOf(releaserId), PRODUCTIONS + JSON_SUFFIX);
+    }
+
     private void forget(String resource, int id) {
+        forget(() -> cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX));
+    }
+
+    private void forget(CachedFile file) {
         try {
-            Files.deleteIfExists(cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX));
+            Files.deleteIfExists(file.path());
         } catch (IOException e) {
-            log.warn("Could not forget {} {}: {}", resource, id, e.getMessage());
+            log.warn("Could not forget a cached answer: {}", e.getMessage());
         }
+    }
+
+    private interface CachedFile {
+        Path path() throws IOException;
     }
 
     private <T> T fetch(String resource, int id, CachedResource.Parser<T> parser) throws IOException {

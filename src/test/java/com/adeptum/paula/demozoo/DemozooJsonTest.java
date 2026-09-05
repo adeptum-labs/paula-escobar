@@ -60,6 +60,18 @@ class DemozooJsonTest {
              "external_links":[{"link_class":"ModarchiveModule","url":"https://modarchive.org/index.php?request=view_by_moduleid&query=5"}]}
             """;
 
+    static final String WORKS = """
+            [
+              {"id":10,"title":"Cyberpunk","supertype":"music","release_date":"2026-01-24",
+               "platforms":[{"id":1,"name":"Commodore 64"}],"types":[{"id":1,"name":"Music"}],
+               "author_nicks":[{"name":"Theseus","abbreviation":"","releaser":{"id":5887,"name":"NightBeat","is_group":false}}]},
+              {"id":11,"title":"A Picture","supertype":"graphics","platforms":[],"types":[],"author_nicks":[]},
+              {"id":12,"title":"Oldskool","supertype":"music","release_date":"1999-05-01",
+               "platforms":[{"id":2,"name":"Amiga"}],"types":[{"id":2,"name":"Music"}],
+               "author_nicks":[{"name":"Theseus","abbreviation":"","releaser":{"id":5887,"name":"NightBeat","is_group":false}}]}
+            ]
+            """;
+
     @Test
     void parsesSeriesWithPartiesSortedByDate() throws IOException {
         final PartySeries series = DemozooJson.series(bytes(SERIES));
@@ -147,6 +159,31 @@ class DemozooJsonTest {
     @Test
     void malformedJsonIsAnIoException() {
         assertThrows(IOException.class, () -> DemozooJson.series(bytes("{")));
+        assertThrows(IOException.class, () -> DemozooJson.works(bytes("{")));
+    }
+
+    @Test
+    void keepsOnlyMusicWorksInServedOrderWithPositions() throws IOException {
+        final List<Work> works = DemozooJson.works(bytes(WORKS));
+
+        assertEquals(2, works.size(), "the graphics production is dropped");
+        assertEquals("2026", works.get(0).year());
+        assertEquals("Commodore 64", works.get(0).platform());
+        assertEquals(1, works.get(0).entry().position());
+        assertEquals("Cyberpunk", works.get(0).entry().title());
+        assertEquals(List.of(new Nick("Theseus", 5887, false)), works.get(0).entry().authors());
+        assertEquals("1999", works.get(1).year());
+        assertEquals("Amiga", works.get(1).platform());
+        assertEquals(2, works.get(1).entry().position());
+    }
+
+    @Test
+    void aWorkWithoutAReleaseDateGetsAnEmptyYear() throws IOException {
+        final String works = """
+                [{"id":20,"title":"Unknown","supertype":"music","platforms":[],"types":[],"author_nicks":[]}]
+                """;
+
+        assertEquals("", DemozooJson.works(bytes(works)).get(0).year());
     }
 
     @Test
@@ -167,6 +204,7 @@ class DemozooJsonTest {
         assertTrue(error.getMessage().startsWith("Unexpected Demozoo response"));
         assertThrows(IOException.class, () -> DemozooJson.competitions(bytes("{\"competitions\":[{\"production_type\":{\"supertype\":\"music\"}}]}")));
         assertThrows(IOException.class, () -> DemozooJson.production(bytes("{\"title\":\"no id\"}")));
+        assertThrows(IOException.class, () -> DemozooJson.works(bytes("[{\"supertype\":\"music\",\"title\":\"no id\"}]")));
     }
 
     static byte[] bytes(String json) {

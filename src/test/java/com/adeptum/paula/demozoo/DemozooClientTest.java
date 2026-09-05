@@ -42,6 +42,7 @@ class DemozooClientTest {
     private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/2/?format=json";
     private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/103/?format=json";
     private static final String PRODUCTION_URL = "https://demozoo.org/api/v1/productions/7/?format=json";
+    private static final String WORKS_URL = "https://demozoo.org/api/v1/releasers/5887/productions/?format=json";
     private static final Duration TTL = Duration.ofDays(7);
 
     private final FakeHttp http = new FakeHttp();
@@ -111,5 +112,33 @@ class DemozooClientTest {
         http.goOffline();
         assertThrows(IOException.class, () -> client(dir).series(2));
         assertFalse(Files.exists(dir.resolve("api/party_series/2.json")), "failures are never cached");
+    }
+
+    @Test
+    void fetchesAndCachesTheWorksOfAReleaser(@TempDir Path dir) throws IOException {
+        http.put(WORKS_URL, DemozooJsonTest.WORKS);
+        assertEquals(2, client(dir).works(5887).size());
+        client(dir).works(5887);
+        assertEquals(1, http.requests());
+        assertTrue(Files.exists(dir.resolve("api/releasers/5887/productions.json")));
+    }
+
+    @Test
+    void servesStaleWorksWhenTheFetchFails(@TempDir Path dir) throws IOException {
+        http.put(WORKS_URL, DemozooJsonTest.WORKS);
+        client(dir).works(5887);
+        clock = Clock.offset(clock, TTL.plusDays(1));
+        http.goOffline();
+        assertEquals(2, client(dir).works(5887).size());
+    }
+
+    @Test
+    void forgetsWorksThenRefetches(@TempDir Path dir) throws IOException {
+        http.put(WORKS_URL, DemozooJsonTest.WORKS);
+        final DemozooClient client = client(dir);
+        client.works(5887);
+        client.forgetWorks(5887);
+        client.works(5887);
+        assertEquals(2, http.requests());
     }
 }

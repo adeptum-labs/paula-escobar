@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.eclipse.parsson.JsonProviderImpl;
 
@@ -122,6 +123,40 @@ public final class DemozooJson {
     }
 
     /**
+     * Everything else a releaser has made, kept in the order Demozoo serves it so a musician's newest work
+     * leads, and narrowed to music since a musician's page has no use for their graphics or demos.
+     */
+    public static List<Work> works(byte[] body) throws IOException {
+        final JsonArray array = readArray(body);
+        try {
+            final List<JsonObject> music = array.getValuesAs(JsonObject.class).stream().filter(DemozooJson::isMusicProduction).toList();
+            return IntStream.range(0, music.size()).mapToObj(index -> work(music.get(index), index + 1)).toList();
+        } catch (RuntimeException e) {
+            throw new IOException("Unexpected Demozoo response: " + e, e);
+        }
+    }
+
+    private static boolean isMusicProduction(JsonObject production) {
+        return MUSIC.equals(production.getString("supertype", ""));
+    }
+
+    private static Work work(JsonObject production, int position) {
+        final Set<Integer> types = objects(production, "types").map(type -> type.getInt("id")).collect(Collectors.toUnmodifiableSet());
+        final CompoEntry entry = new CompoEntry(position, "", production.getInt("id"), production.getString("title", ""),
+                nicks(production), types);
+        return new Work(entry, releaseYear(production), platform(production));
+    }
+
+    private static String releaseYear(JsonObject production) {
+        final String date = has(production, "release_date") ? production.getString("release_date") : "";
+        return date.length() < 4 ? "" : date.substring(0, 4);
+    }
+
+    private static String platform(JsonObject production) {
+        return objects(production, "platforms").findFirst().map(platform -> platform.getString("name", "")).orElse("");
+    }
+
+    /**
      * Fields Demozoo always sends are read without null checks; a payload missing them is reported as bad data
      * rather than escaping as an unchecked exception.
      */
@@ -169,6 +204,14 @@ public final class DemozooJson {
     private static JsonObject read(byte[] body) throws IOException {
         try (JsonReader reader = JSON.createReader(new ByteArrayInputStream(body))) {
             return reader.readObject();
+        } catch (JsonException e) {
+            throw new IOException("Malformed Demozoo response: " + e.getMessage(), e);
+        }
+    }
+
+    private static JsonArray readArray(byte[] body) throws IOException {
+        try (JsonReader reader = JSON.createReader(new ByteArrayInputStream(body))) {
+            return reader.readArray();
         } catch (JsonException e) {
             throw new IOException("Malformed Demozoo response: " + e.getMessage(), e);
         }
