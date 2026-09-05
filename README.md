@@ -149,11 +149,11 @@ wrote into the sample names beside them.
 `?` lays the keys of the screen you are on over it, the ones the bar at the
 bottom has no room for among them, and any key puts them away again.
 
-The browser starts on two sections, Parties and ModArchive charts. Parties
-walks the demoscene archives as before, now one level down from the root.
-ModArchive charts opens into Top Favourites, Most Downloads and the weekly
-Featured picks, and each of those opens in turn into All, MOD, XM, IT, S3M
-and Other by file extension. A chart list shows forty rows and fetches the
+The browser starts on two sections, Parties and ModArchive charts. The Parties
+section walks the party archives as before, one level down from where it
+began. The charts section opens into Top Favourites, Most Downloads and the
+weekly Featured picks, and each of those opens in turn into All, MOD, XM, IT,
+S3M and Other by file extension. A chart list shows forty rows and fetches the
 next forty as the cursor reaches its end, a narrow format reading a few
 pages on to stay ahead of it. The right-hand column says how many
 favourites or downloads a tune has, or the week it was featured. A module
