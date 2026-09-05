@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.testing;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +31,8 @@ import java.util.Arrays;
 
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
- * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note.
+ * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note, and an
+ * AHX and a HivelyTracker module playing one synthesised square instead.
  */
 public final class TestModules {
 
@@ -47,6 +49,14 @@ public final class TestModules {
     public static final int ECHO_MIX = 0x70;
     public static final int ECHO_CROSS = 0x80;
 
+    public static final String HIVELY_TITLE = "Paula Hively";
+    public static final String HIVELY_INSTRUMENT = "square";
+    public static final int HIVELY_POSITIONS = 1;
+    public static final int HIVELY_TRACK_LENGTH = 4;
+    public static final int HIVELY_CHANNELS = 8;
+    public static final int HIVELY_MIX_GAIN = 100;
+    public static final int HIVELY_STEREO = 2;
+
     private static final int HEADER_LENGTH = 1084;
     private static final int PATTERN_LENGTH = 64 * 4 * 4;
     private static final int SAMPLE_LENGTH = 64;
@@ -55,6 +65,13 @@ public final class TestModules {
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int DBM_LENGTH = 1024;
+    private static final int AHX_HEADER_LENGTH = 14;
+    private static final int HVL_HEADER_LENGTH = 16;
+    private static final int BLANK_FIRST_TRACK = 0x80;
+    private static final int HIVELY_TRACK_COUNT = 1;
+    private static final int HIVELY_INSTRUMENTS = 1;
+    private static final int HIVELY_SUBSONGS = 0;
+    private static final int HVL_EMPTY_STEP = 0x3f;
 
     private TestModules() {
     }
@@ -171,6 +188,81 @@ public final class TestModules {
     private static byte[] echo() {
         return ByteBuffer.allocate(2 + DBM_TRACKS + 8).putShort((short) DBM_TRACKS).put((byte) 0).put((byte) 1)
                 .putShort((short) ECHO_DELAY).putShort((short) ECHO_FEEDBACK).putShort((short) ECHO_MIX).putShort((short) ECHO_CROSS).array();
+    }
+
+    public static Path writeHively(Path directory) throws IOException {
+        return Files.write(directory.resolve("paula.ahx"), hively());
+    }
+
+    /**
+     * Builds a minimal AHX module: four channels, one position playing a single track whose first row
+     * sounds a C-1 on the one instrument, a square swept from a performance list, and no subsongs. Its
+     * first track is the blank one AHX leaves out of the file entirely.
+     */
+    public static byte[] hively() {
+        final byte[] positions = bytes(1, 0, 0, 0, 0, 0, 0, 0);
+        final byte[] track = bytes(0x04, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final byte[] instrument = concat(hivelyInstrument(), bytes(0x01, 0x80, 0, 0));
+        final byte[] body = concat(positions, track, instrument);
+        final int nameOffset = AHX_HEADER_LENGTH + body.length;
+
+        return concat(bytes('T', 'H', 'X', 1, nameOffset >> 8, nameOffset,
+                BLANK_FIRST_TRACK, HIVELY_POSITIONS, 0, 0, HIVELY_TRACK_LENGTH, HIVELY_TRACK_COUNT,
+                HIVELY_INSTRUMENTS, HIVELY_SUBSONGS), body, names(HIVELY_TITLE, HIVELY_INSTRUMENT));
+    }
+
+    public static Path writeHivelyTracker(Path directory) throws IOException {
+        return Files.write(directory.resolve("paula.hvl"), hivelyTracker());
+    }
+
+    /**
+     * The same song as {@link #hively()} in HivelyTracker's own format: eight channels, the mix gain and
+     * stereo separation the file carries itself, and the empty rows of a track stored as one byte each.
+     */
+    public static byte[] hivelyTracker() {
+        final byte[] positions = bytes(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final byte[] track = bytes(1, 1, 0, 0, 0, HVL_EMPTY_STEP, HVL_EMPTY_STEP, HVL_EMPTY_STEP);
+        final byte[] instrument = concat(hivelyInstrument(), bytes(0, 3, 0, 0, 0));
+        final byte[] body = concat(positions, track, instrument);
+        final int nameOffset = HVL_HEADER_LENGTH + body.length;
+
+        return concat(bytes('H', 'V', 'L', 1, nameOffset >> 8, nameOffset,
+                BLANK_FIRST_TRACK, HIVELY_POSITIONS, (HIVELY_CHANNELS - 4) << 2, 0, HIVELY_TRACK_LENGTH,
+                HIVELY_TRACK_COUNT, HIVELY_INSTRUMENTS, HIVELY_SUBSONGS, HIVELY_MIX_GAIN, HIVELY_STEREO),
+                body, names(HIVELY_TITLE, HIVELY_INSTRUMENT));
+    }
+
+    /**
+     * The twenty-two instrument bytes both formats share: full volume, the shortest square, an envelope
+     * that attacks and decays in a frame each, and a performance list of one entry stepped every frame.
+     */
+    private static byte[] hivelyInstrument() {
+        return bytes(64, 3, 1, 64, 1, 64, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x3f, 1, 0, 1, 1);
+    }
+
+    private static byte[] names(String... names) {
+        final ByteArrayOutputStream text = new ByteArrayOutputStream();
+        for (final String name : names) {
+            text.writeBytes(name.getBytes(StandardCharsets.ISO_8859_1));
+            text.write(0);
+        }
+        return text.toByteArray();
+    }
+
+    private static byte[] bytes(int... values) {
+        final byte[] bytes = new byte[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bytes[i] = (byte) values[i];
+        }
+        return bytes;
+    }
+
+    private static byte[] concat(byte[]... parts) {
+        final ByteArrayOutputStream joined = new ByteArrayOutputStream();
+        for (final byte[] part : parts) {
+            joined.writeBytes(part);
+        }
+        return joined.toByteArray();
     }
 
     private static byte[] words(int... values) {
