@@ -66,6 +66,10 @@ final class HvlEngine {
     private static final int NOISE_ADD = 782323;
     private static final int NOISE_XOR = 75;
     private static final int NOISE_SUBTRACT = 6735;
+    private static final int WAVE_SPAN = WAVE_LENGTH << 16;
+    private static final int RING_SHIFT = 7;
+    private static final int PAN_SHIFT = 7;
+    private static final int GAIN_SHIFT = 8;
     private static final int WORD = 0xffff;
     private static final int BYTE = 0xff;
     private static final int NIBBLE = 0x0f;
@@ -85,6 +89,7 @@ final class HvlEngine {
     private int posJumpNote;
     private int tempo;
     private int stepWaitFrames;
+    private int framesUntilTick;
     private int playingTime;
     private boolean patternBreak;
     private boolean getNewPosition;
@@ -142,6 +147,80 @@ final class HvlEngine {
             }
         }
         return OptionalLong.empty();
+    }
+
+    /**
+     * Fills the buffer with up to {@code frames} interleaved stereo frames, running the sequencer whenever the
+     * frames of the last tick have been played, and answers how many frames were written. A song that has
+     * reached its end stops on the tick that follows, so a caller mixing until nothing comes back is left with
+     * whole ticks.
+     */
+    int mix(final short[] interleavedStereo, final int frames) {
+        final int tickFrames = sampleRate / FRAMES_PER_SECOND / tune.speedMultiplier();
+        int written = 0;
+
+        while (written < frames) {
+            if (framesUntilTick == 0) {
+                if (songEndReached) {
+                    break;
+                }
+                tick();
+                framesUntilTick = tickFrames;
+            }
+
+            final int chunk = Math.min(frames - written, framesUntilTick);
+            mixChunk(interleavedStereo, written * 2, chunk);
+            written += chunk;
+            framesUntilTick -= chunk;
+        }
+        return written;
+    }
+
+    /**
+     * Plays every channel's waveform at its own step through it, ring modulating, scaling by volume and panning
+     * each into the two sums the frame is made of. A muted channel keeps stepping through its waveform so that
+     * it comes back where it would have been, but adds nothing.
+     */
+    private void mixChunk(final short[] interleavedStereo, final int offset, final int frames) {
+        final int channels = tune.channels();
+        int index = offset;
+
+        for (int frame = 0; frame < frames; frame++) {
+            int left = 0;
+            int right = 0;
+
+            for (int i = 0; i < channels; i++) {
+                final HvlVoice voice = voices[i];
+
+                if (voice.samplePos >= WAVE_SPAN) {
+                    voice.samplePos -= WAVE_SPAN;
+                }
+                int sample = voice.mixSource[voice.mixOffset + (voice.samplePos >> 16)];
+                voice.samplePos += voice.delta;
+
+                if (voice.ringMixSource != null) {
+                    if (voice.ringSamplePos >= WAVE_SPAN) {
+                        voice.ringSamplePos -= WAVE_SPAN;
+                    }
+                    sample = sample * voice.ringMixSource[voice.ringMixOffset + (voice.ringSamplePos >> 16)]
+                            >> RING_SHIFT;
+                    voice.ringSamplePos += voice.ringDelta;
+                }
+
+                if (voice.trackOn && !voice.muted) {
+                    sample *= voice.voiceVolume;
+                    left += sample * voice.panMultLeft >> PAN_SHIFT;
+                    right += sample * voice.panMultRight >> PAN_SHIFT;
+                }
+            }
+
+            interleavedStereo[index++] = clip(left * tune.mixGain() >> GAIN_SHIFT);
+            interleavedStereo[index++] = clip(right * tune.mixGain() >> GAIN_SHIFT);
+        }
+    }
+
+    private static short clip(final int sample) {
+        return (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, sample));
     }
 
     /**

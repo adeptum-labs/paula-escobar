@@ -39,6 +39,8 @@ class HvlEngineTest {
     private static final int FRAMES_PER_TICK = SAMPLE_RATE / 50;
     private static final int SONG_TICKS = TestModules.HIVELY_TRACK_LENGTH * DEFAULT_TEMPO;
     private static final long AN_HOUR = 3600L * SAMPLE_RATE;
+    /** A buffer that divides neither a tick nor the song, so mixing has to carry state across calls. */
+    private static final int ODD_BUFFER = 97;
 
     private static HvlEngine engine() throws IOException {
         return new HvlEngine(HvlReader.read(TestModules.hively()), SAMPLE_RATE, SUBSONG);
@@ -46,6 +48,15 @@ class HvlEngineTest {
 
     private static boolean sounding(final HvlVoice voice) {
         for (final byte sample : voice.mixSource) {
+            if (sample != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean heard(final short[] pcm) {
+        for (final short sample : pcm) {
             if (sample != 0) {
                 return true;
             }
@@ -101,6 +112,72 @@ class HvlEngineTest {
         final HvlTune tune = HvlReader.read(TestModules.hively());
 
         assertEquals(OptionalLong.empty(), HvlEngine.songFrames(tune, SAMPLE_RATE, FRAMES_PER_TICK - 1));
+    }
+
+    @Test
+    void mixesTheSoundingVoicesIntoStereo() throws IOException {
+        final HvlEngine engine = engine();
+        final short[] pcm = new short[FRAMES_PER_TICK * 2];
+
+        assertEquals(FRAMES_PER_TICK, engine.mix(pcm, FRAMES_PER_TICK));
+        assertTrue(heard(pcm), "the note of the first step is audible");
+    }
+
+    @Test
+    void mixesNothingOfAMutedVoice() throws IOException {
+        final HvlEngine engine = engine();
+        final short[] pcm = new short[FRAMES_PER_TICK * 2];
+
+        engine.voice(0).muted = true;
+        engine.mix(pcm, FRAMES_PER_TICK);
+
+        assertFalse(heard(pcm), "the only channel with a note is the muted one");
+    }
+
+    @Test
+    void holdsAStepForTheWholeTempoBeforeTakingTheNext() throws IOException {
+        final HvlEngine engine = engine();
+        final short[] pcm = new short[FRAMES_PER_TICK * 2];
+
+        for (int tick = 0; tick < DEFAULT_TEMPO - 1; tick++) {
+            engine.mix(pcm, FRAMES_PER_TICK);
+        }
+        assertEquals(0, engine.row());
+
+        engine.mix(pcm, 1);
+
+        assertEquals(1, engine.row(), "the frame after the step's last one takes the next step");
+    }
+
+    @Test
+    void mixesTheSameStreamWhateverTheBufferHolds() throws IOException {
+        final int frames = 3 * FRAMES_PER_TICK;
+        final short[] wholly = new short[frames * 2];
+        final short[] piecemeal = new short[frames * 2];
+        final short[] piece = new short[ODD_BUFFER * 2];
+
+        engine().mix(wholly, frames);
+        final HvlEngine engine = engine();
+        for (int written = 0; written < frames; written += ODD_BUFFER) {
+            final int mixed = engine.mix(piece, Math.min(ODD_BUFFER, frames - written));
+            System.arraycopy(piece, 0, piecemeal, written * 2, mixed * 2);
+        }
+
+        assertArrayEquals(wholly, piecemeal);
+    }
+
+    @Test
+    void mixesWholeTicksUntilTheSongEnds() throws IOException {
+        final HvlEngine engine = engine();
+        final short[] pcm = new short[FRAMES_PER_TICK * 2];
+        long frames = 0;
+
+        for (int call = 0; call <= SONG_TICKS; call++) {
+            frames += engine.mix(pcm, FRAMES_PER_TICK);
+        }
+
+        assertEquals((long) SONG_TICKS * FRAMES_PER_TICK, frames);
+        assertEquals(0, engine.mix(pcm, FRAMES_PER_TICK), "nothing is mixed past the end");
     }
 
     @Test
