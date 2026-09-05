@@ -66,6 +66,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
@@ -80,7 +81,7 @@ import org.jline.utils.AttributedStyle;
 public final class Browser {
 
     private sealed interface Item
-            permits SeriesItem, PartyItem, CompoItem, EntryItem, SectionItem, ChartItem, FormatItem, TuneItem {
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, ChartsItem, ChartItem, FormatItem, TuneItem {
 
         String label();
 
@@ -214,29 +215,16 @@ public final class Browser {
         }
     }
 
-    private enum Section {
-        PARTIES("Parties", "demoparty competitions from Demozoo"),
-        CHARTS("ModArchive charts", "the charts of modarchive.org");
-
-        private final String label;
-        private final String detail;
-
-        Section(String label, String detail) {
-            this.label = label;
-            this.detail = detail;
-        }
-    }
-
-    private record SectionItem(Section section) implements Item {
+    private record ChartsItem() implements Item {
 
         @Override
         public String label() {
-            return section.label;
+            return CHARTS;
         }
 
         @Override
-        public String detail() {
-            return section.detail;
+        public boolean flows() {
+            return true;
         }
     }
 
@@ -361,6 +349,7 @@ public final class Browser {
     }
 
     private static final String ROOT_TITLE = "Browse";
+    private static final String CHARTS = "Charts";
     private static final String NOTHING_HERE = "Nothing here";
     private static final String NO_MUSIC = "No music competitions";
     private static final String LOADING = "Loading ";
@@ -462,8 +451,15 @@ public final class Browser {
         this.partyArt = partyArt;
         this.dwell = dwell;
         this.clock = clock;
-        levels.push(new Level(ROOT_TITLE, NOTHING_HERE,
-                List.of(new SectionItem(Section.PARTIES), new SectionItem(Section.CHARTS))));
+        levels.push(new Level(ROOT_TITLE, NOTHING_HERE, rootItems()));
+    }
+
+    /**
+     * The charts sit above the series, so both are on the first page.
+     */
+    private static List<Item> rootItems() {
+        return Stream.concat(Stream.<Item>of(new ChartsItem()),
+                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(SeriesItem::new)).toList();
     }
 
     public boolean atRoot() {
@@ -699,8 +695,7 @@ public final class Browser {
         error = null;
         level.selected().ifPresent(item -> {
             switch (item) {
-                case SectionItem section when section.section() == Section.PARTIES -> levels.push(seriesLevel());
-                case SectionItem section -> levels.push(new Level(section.label(), NOTHING_HERE,
+                case ChartsItem charts -> levels.push(new Level(charts.label(), NOTHING_HERE,
                         Arrays.stream(Chart.values()).<Item>map(ChartItem::new).toList()));
                 case ChartItem chart -> levels.push(new Level(chart.label(), NOTHING_HERE,
                         Arrays.stream(Slice.values()).<Item>map(slice -> new FormatItem(chart.chart(), slice)).toList()));
@@ -712,11 +707,6 @@ public final class Browser {
                 case TuneItem tune -> selection = playlistFrom(level, tune);
             }
         });
-    }
-
-    private Level seriesLevel() {
-        return new Level(Section.PARTIES.label, NOTHING_HERE,
-                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList());
     }
 
     private void openChart(FormatItem format) {
@@ -954,8 +944,7 @@ public final class Browser {
             case CompoItem compo -> nowPlaying instanceof DemozooTrack track && compo.compo().id() == track.compo().id();
             case PartyItem party -> nowPlaying instanceof DemozooTrack track && party.party().id() == track.party().id();
             case SeriesItem series -> false;
-            case SectionItem section -> section.section() == Section.PARTIES
-                    ? nowPlaying instanceof DemozooTrack : nowPlaying instanceof ModArchiveTrack;
+            case ChartsItem charts -> nowPlaying instanceof ModArchiveTrack;
             case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.chart() == chart.chart();
             case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.chart() == format.chart()
                     && format.slice().holds(track.entry());

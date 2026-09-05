@@ -149,10 +149,9 @@ wrote into the sample names beside them.
 `?` lays the keys of the screen you are on over it, the ones the bar at the
 bottom has no room for among them, and any key puts them away again.
 
-The browser starts on two sections, Parties and ModArchive charts. The Parties
-section walks the party archives as before, one level down from where it
-began. The charts section opens into Top Favourites, Most Downloads and the
-weekly Featured picks, and each of those opens in turn into All, MOD, XM, IT,
+The browser starts on the party series listed by name, with a Charts row
+above them. Charts opens into Top Favourites, Most Downloads and the weekly
+Featured picks, and each of those opens in turn into All, MOD, XM, IT,
 S3M and Other by file extension. A chart list shows forty rows and fetches the
 next forty as the cursor reaches its end, a narrow format reading a few
 pages on to stay ahead of it. A format the chart holds little of may show
@@ -164,9 +163,8 @@ one queues the rest of the list after it, so `n` walks on through the
 chart. Chart pages are kept in the cache for a day and served stale when
 the network is down; `r` reads the chart in view afresh.
 
-Opening Parties lists the series by name, opens into the parties by year,
-then into every music competition of that party and finally into the
-ranked entries. The series and the parties are laid out
+A series opens into the parties by year, then into every music
+competition of that party and finally into the ranked entries. The series and the parties are laid out
 in columns across the width, so sixty-eight series sit on one screen rather
 than three; walking down runs to the foot of a column and on to the head
 of the next. A competition says what it was run in and how many entries it
