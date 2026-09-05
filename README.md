@@ -110,7 +110,7 @@ Keys while browsing:
 | Key                 | Action                                   |
 |---------------------|------------------------------------------|
 | `↑` `↓`             | move the cursor                          |
-| `PgUp` `PgDn`       | move a page                              |
+| `PgUp` `PgDn`       | move ten lines                           |
 | `Home` `End`        | jump to the first or last line           |
 | `tab`               | switch between the parties and the charts |
 | `enter` `→`         | open the line, or play an entry          |

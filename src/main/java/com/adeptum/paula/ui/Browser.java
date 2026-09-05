@@ -348,6 +348,7 @@ public final class Browser {
     private static final String UNSUPPORTED_FORMAT = "(unsupported music format)";
     private static final int COLUMN_GAP = 2;
     private static final int BOX_EDGES = 2;
+    private static final int PAGE_STEP = 10;
     private static final int MOST_COLUMNS = 4;
     private static final int LEAST_DETAIL = 10;
     private static final String ELLIPSIS = "…";
@@ -378,7 +379,7 @@ public final class Browser {
             new Frame.Key("b", "player"), new Frame.Key("?", "keys"), new Frame.Key("q", "quit"));
     private static final List<Frame.Key> ALL_KEYS = List.of(
             new Frame.Key("↑ ↓", "move the cursor"),
-            new Frame.Key("PgUp PgDn", "move a page"),
+            new Frame.Key("PgUp PgDn", "move ten lines"),
             new Frame.Key("Home End", "jump to the first or last line"),
             new Frame.Key("tab", "switch between the parties and the charts"),
             new Frame.Key("enter →", "open, or play an entry"),
@@ -406,7 +407,6 @@ public final class Browser {
     private Instant lastGrown;
     private String error;
     private Playlist selection;
-    private int pageSize = 1;
     private int restingOn;
     private int reopening;
     private Instant restingSince;
@@ -485,8 +485,8 @@ public final class Browser {
         switch (key.special()) {
             case UP -> level.move(-1);
             case DOWN -> level.move(1);
-            case PAGE_UP -> level.move(-pageSize);
-            case PAGE_DOWN -> level.move(pageSize);
+            case PAGE_UP -> level.move(-PAGE_STEP);
+            case PAGE_DOWN -> level.move(PAGE_STEP);
             case HOME -> level.move(-level.items.size());
             case END -> level.move(level.items.size());
             case ENTER, RIGHT -> open(level);
@@ -672,7 +672,6 @@ public final class Browser {
         if (moreBelow(level) && level.cursor == level.items.size() - 1) {
             level.offset = Math.max(level.offset, Math.max(0, level.items.size() + 1 - layout.page()));
         }
-        pageSize = layout.page();
         final List<AttributedString> rows = new ArrayList<>();
         if (level.items.isEmpty()) {
             rows.add(Screen.line(b -> b.style(Palette.LABEL).append(filling == level ? FETCHING_MORE : level.emptyText)));
@@ -712,9 +711,6 @@ public final class Browser {
     private List<AttributedString> pane(Level level, int width, int listRows, boolean active) {
         final Layout layout = layoutOf(level, width - BOX_EDGES, listRows);
         level.scrollTo(layout);
-        if (active) {
-            pageSize = layout.page();
-        }
         final List<AttributedString> rows = new ArrayList<>();
         for (int row = 0; row < layout.rows(); row++) {
             rows.add(rowOf(level, layout, row, active));

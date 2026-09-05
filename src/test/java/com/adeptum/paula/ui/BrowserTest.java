@@ -804,9 +804,20 @@ class BrowserTest {
         assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")));
         press(Key.Special.HOME);
         press(Key.Special.PAGE_DOWN);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")), "a page is the visible rows");
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")), "ten lines down stops at the last of four");
         press(Key.Special.PAGE_UP);
         assertTrue(render().get(2).startsWith("│>   1"));
+    }
+
+    @Test
+    void pageKeysMoveTenLinesAtATime() {
+        final List<String> sorted = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(CuratedSeries::name).toList();
+        press(Key.Special.PAGE_DOWN);
+        assertTrue(render().stream().anyMatch(line -> line.contains("> " + sorted.get(10))), "the eleventh series after one page down");
+        press(Key.Special.PAGE_DOWN);
+        assertTrue(render().stream().anyMatch(line -> line.contains("> " + sorted.get(20))));
+        press(Key.Special.PAGE_UP);
+        assertTrue(render().stream().anyMatch(line -> line.contains("> " + sorted.get(10))));
     }
 
     @Test
