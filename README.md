@@ -20,8 +20,9 @@ reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
 `lib/` with the fixes in `tools/javamod-*.patch` compiled in by
 `tools/patch-javamod`. Atari 8-bit tunes play through
 [ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
-whose Java `tools/generate-asap` generates into the tree. DigiBooster modules
-have a replayer of their own inside Paula Escobar. MPEG audio, FLAC, Ogg
+whose Java `tools/generate-asap` generates into the tree. DigiBooster, AHX
+and HivelyTracker modules have replayers of their own inside Paula Escobar.
+MPEG audio, FLAC, Ogg
 Vorbis, wave, AIFF and AU files, the formats a streaming competition is
 handed in as, are decoded by JLayer, jFLAC and jOrbis and resampled to the
 rate the engine mixes at; `--rate 44100` hands a CD-rate file through
@@ -189,6 +190,18 @@ player reads, are played by a replayer written for Paula that follows
 the reference replayer released by APC&TCP under the two-clause BSD licence,
 and renders the modules on Modland sample for sample as that library does.
 
+### AHX and HivelyTracker modules
+
+AHX, the four-voice Amiga synthesizer tracker of Dexter and Pink whose files
+carry the chip music competitions of the late nineties, and HivelyTracker,
+its successor with up to sixteen voices, ring modulation and a stereo
+position per voice, are played by a replayer written for Paula. It follows
+`hvl_replay.c` of [HivelyTracker](https://github.com/pete-gordon/hivelytracker),
+Pete Gordon's reference replayer released under the three-clause BSD
+licence, and renders a tune sample for sample as that replayer does at its
+stereo separation of two. Every voice has a scope of its own and can be
+silenced; the first subsong is played.
+
 ### Audio output
 
 The native executable plays sound itself through
@@ -243,6 +256,7 @@ git push && git push origin v0.1.0
 | `com.adeptum.paula.module.javamod` | loads tracker modules through JavaMod                     |
 | `com.adeptum.paula.module.sid`   | SID loader and renderer, HVSC song lengths                  |
 | `com.adeptum.paula.module.digibooster` | reads and plays DigiBooster modules                   |
+| `com.adeptum.paula.module.hively` | reads and plays AHX and HivelyTracker modules              |
 | `com.adeptum.paula.module.sap`   | Atari 8-bit loader and renderer over ASAP                   |
 | `com.adeptum.paula.module.mp3`   | MPEG audio loader, renderer and ID3 tags                    |
 | `com.adeptum.paula.module.flac`  | FLAC loader, renderer and Vorbis comments                   |
@@ -287,7 +301,9 @@ implementation in [XADMaster](https://github.com/MacPaw/XADMaster), copyright
 MacPaw Inc., licensed under the GNU Lesser General Public License version 2.1
 or later and used under the GPL as that licence permits. The XPK unpacker
 follows Teemu Suutari's [ancient](https://github.com/temisu/ancient),
-distributed under the BSD 2-Clause License. 7z archives are read with
+distributed under the BSD 2-Clause License. The AHX and HivelyTracker
+replayer follows HivelyTracker's, copyright Pete Gordon, distributed under
+the BSD 3-Clause License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives are read with
 Apache Commons Compress over the XZ for Java library, both under the
 Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
