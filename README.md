@@ -162,100 +162,55 @@ Delete the directory to start over.
 
 ### SID tunes
 
-A SID tune never ends on its own, so Paula plays it for the length listed
-in the High Voltage SID Collection's song length database. That database
-(`Songlengths.md5`, about five megabytes) is downloaded into the cache the
-first time a SID is played, refreshed monthly and kept when offline; tunes
-it does not know play for three minutes. The start subtune is played and the
-player shows the author and release credits from the file.
+A SID tune never ends on its own, so Paula plays it for the length listed in
+the High Voltage SID Collection's song length database, downloaded into the
+cache the first time a SID is played and refreshed monthly; tunes it does not
+know play for three minutes. The start subtune is played and the player shows
+the author and release credits. A C64 party file is often a 1541 disk image
+holding every entry as a program; the images are unpacked like any other
+archive and the programs run by the same emulation when no link offers the
+tune itself.
 
 ### Atari 8-bit tunes
 
 SAP files and the native modules of Chaos Music Composer, Delta Music
 Composer, Music ProTracker, Raster Music Tracker, Theta Music Composer and
-Future Composer play through ASAP's emulation of the POKEY chip and the
-6502. A tune plays for the length its TIME tag gives, or three minutes
-without one, starting at its default subtune, and the player shows the
-author and date from the file. Every POKEY channel has a scope of its own,
-four to a chip and eight for a stereo tune, and can be silenced like a
-tracker channel. The engine's Java is generated from ASAP's sources by
-`tools/generate-asap`, which pins what it takes; nothing under
-`net.sf.asap` is edited by hand.
+Future Composer play through ASAP's emulation of the POKEY and the 6502, for
+the length the TIME tag gives or three minutes without one, starting at the
+default subtune. Every POKEY channel has a scope of its own and can be
+silenced like a tracker channel. Nothing under `net.sf.asap` is edited by
+hand; `tools/generate-asap` regenerates it and pins what it takes.
 
 ### DigiBooster modules
 
-The modules of DigiBooster Pro 2 and DigiBooster 3, the Amiga trackers no
-other Java player reads, are played by a replayer written for Paula: the
-sequencer and effects of the tracker, envelopes per instrument, and a chain
-of wavetable, resampler, stereo panoramizer and cross feeding echo for every
-one of the up to 254 tracks. It follows
+The modules of DigiBooster Pro 2 and DigiBooster 3, which no other Java
+player reads, are played by a replayer written for Paula that follows
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3),
 the reference replayer released by APC&TCP under the two-clause BSD licence,
 and renders the modules on Modland sample for sample as that library does.
 
-### Commodore 64 disk images
-
-A party file for a C64 competition is often a 1541 disk image holding every
-entry as a program rather than a tune. Those images are unpacked like any
-other archive — they carry no header, so they are known by their size — and
-the programs inside are run by the same emulation that plays SID files. A
-program plays the whole release, so it is only reached for when no link
-offers the tune itself.
-
 ### Audio output
 
 The native executable plays sound itself through
-[miniaudio](https://miniaud.io), which is compiled into it. It picks the
-first backend that answers: WASAPI on Windows, CoreAudio on macOS,
-PulseAudio (also PipeWire), ALSA and JACK on Linux. Pick one explicitly
-with `--output pulse`, `--output alsa`, `--output jack`,
-`--output coreaudio` or `--output wasapi`; `--output null` plays into
-nothing at the right speed. The build proves the sound on every platform:
-it plays the test module through Core Audio on macOS and WASAPI on
-Windows, where the runner is given a virtual sound card to play into, and
-through the null backend on Linux, and checks the recording `--record`
-kept for sound of the length played.
-When Paula runs on a JVM, from the runnable jar or from the tests, Java
-Sound is used instead (`--output javasound`).
+[miniaudio](https://miniaud.io), compiled into it, because a native image
+finds no Java Sound mixers, which [GraalVM does not intend to
+fix](https://github.com/oracle/graal/issues/9620). It picks the first backend
+that answers, WASAPI on Windows, CoreAudio on macOS, PulseAudio (also
+PipeWire), ALSA and JACK on Linux, or the one named with `--output`;
+`--output null` plays into nothing at the right speed, and the runnable jar
+uses Java Sound. The build plays the test module through Core Audio on macOS,
+WASAPI on Windows and the null backend on Linux and checks the recording
+`--record FILE` kept, a wave file of everything played. `--quit-after SECONDS`
+stops Paula by itself and lets it run without a terminal. Log output goes to
+`paula.log` in the working directory.
 
-Java Sound is not open to the native executable: a native image finds no
-mixer providers, which [GraalVM does not intend to
-fix](https://github.com/oracle/graal/issues/9620). That is why the
-executable carries a sound library of its own.
-
-`--quit-after SECONDS` stops Paula by itself after that long and lets it
-run without a terminal, for scripts and for the build. `--record FILE`
-keeps a copy of everything played in that wave file, at the output rate,
-whichever backend the sound went to.
-
-Log output goes to `paula.log` in the working directory so it never
-disturbs the player screen.
-
-### Sound on the machine you are sitting at
-
-`tools/paula-sound` starts the player where it lives and plays it out of the
-machine you have ssh'd in from. That machine opens the way itself: it serves
-its sound on its own loopback,
-
-```
-pactl load-module module-native-protocol-tcp listen=127.0.0.1
-```
-
-and carries a reverse tunnel to it with the ssh connection, once and for all
-in its `~/.ssh/config`:
-
-```
-Host <the machine running paula>
-    RemoteForward 4713 127.0.0.1:4713
-```
-
-Nothing listens on the network at either end. The script points
-`PULSE_SERVER` at the near end of the tunnel, which the PulseAudio backend
-— the first one tried on Linux — picks up. Were nothing answering there,
-the sound would fall through to ALSA on the machine running Paula, so the
-script makes sure a sound server replies before it starts anything. When a
-piece is missing it tells the two apart — no tunnel, or a tunnel with no
-sound server behind it — and prints what to run where.
+Over ssh, `tools/paula-sound` starts the player where it lives and plays it
+out of the machine you sit at: that machine serves PulseAudio on its loopback
+(`pactl load-module module-native-protocol-tcp listen=127.0.0.1`) and carries
+a reverse tunnel to it with `RemoteForward 4713 127.0.0.1:4713` in its
+`~/.ssh/config`; the script points `PULSE_SERVER` at the tunnel and makes sure
+a sound server answers before starting anything, saying what to run where
+when one does not.
 
 ## Releases
 
