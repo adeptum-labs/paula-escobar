@@ -53,6 +53,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -313,6 +314,7 @@ public final class Browser {
         private Slice slice;
         private int nextPage = 1;
         private int lastPage = Integer.MAX_VALUE;
+        private boolean restingAtTheEnd;
         private final Set<Integer> seen = new HashSet<>();
 
         private Level(String title, String emptyText, List<Item> items) {
@@ -386,6 +388,8 @@ public final class Browser {
     private static final int FEWEST_ART_LINES = 3;
     private static final int FEWEST_ROWS = 6;
     private static final int MOST_PAGES_AT_ONCE = 4;
+    private static final Set<Key.Special> MOVES = EnumSet.of(Key.Special.UP, Key.Special.DOWN,
+            Key.Special.PAGE_UP, Key.Special.PAGE_DOWN, Key.Special.HOME, Key.Special.END);
     private static final Duration DWELL = Duration.ofMillis(500);
     private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final String TICKER_SPACE = "  ";
@@ -483,6 +487,9 @@ public final class Browser {
 
     public void handle(Key key) {
         final Level level = levels.peek();
+        if (MOVES.contains(key.special())) {
+            level.restingAtTheEnd = false;
+        }
         switch (key.special()) {
             case UP -> level.move(-1);
             case DOWN -> level.move(1);
@@ -518,13 +525,14 @@ public final class Browser {
 
     /**
      * A chart is read a page at a time as the cursor reaches the end of what has been read, so a list of
-     * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages
-     * before giving up for now, so that a step at the end brings a row rather than a wait.
+     * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages at
+     * once, so that a step at the end brings a row rather than a wait; a run that turned up nothing then waits
+     * for the next step of the cursor, rather than reading a format the chart never held to its last page.
      */
     private void growAtTheEndOfTheList() {
         final Level level = levels.peek();
-        if (more != null || pending != null || level.chart == null || level.nextPage > level.lastPage
-                || level.cursor < level.items.size() - 1) {
+        if (more != null || pending != null || level.chart == null || level.restingAtTheEnd
+                || level.nextPage > level.lastPage || level.cursor < level.items.size() - 1) {
             return;
         }
         filling = level;
@@ -579,6 +587,7 @@ public final class Browser {
                 grown.items().forEach(item -> level.seen.add(((TuneItem) item).entry().moduleId()));
                 level.nextPage = grown.nextPage();
                 level.lastPage = grown.lastPage();
+                level.restingAtTheEnd = grown.items().isEmpty();
             }
         } catch (CompletionException | CancellationException e) {
             final Throwable cause = e.getCause() == null ? e : e.getCause();

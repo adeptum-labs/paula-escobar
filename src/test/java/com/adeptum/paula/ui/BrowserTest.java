@@ -117,12 +117,16 @@ class BrowserTest {
     private static final String PRODUCTION_AS_DISK_IMAGE = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/tune.adf\"}],\"external_links\":[]}";
     private static final String PRODUCTION_WITHOUT_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[],\"external_links\":[{\"link_class\":\"PouetProduction\",\"url\":\"https://www.pouet.net/prod.php?which=1\"}]}";
 
-    private static final String FAVOURITES_ONE = "https://modarchive.org/index.php?request=view_top_favourites&page=1";
-    private static final String FAVOURITES_TWO = "https://modarchive.org/index.php?request=view_top_favourites&page=2";
+    private static final String FAVOURITES_ONE = favouritesPage(1);
+    private static final String FAVOURITES_TWO = favouritesPage(2);
     private static final ChartEntry UNREAL = new ChartEntry(212083, "UnreaL ][ / PM", "2nd_pm.s3m", "438 favourites");
     private static final ChartEntry DEBRIS = new ChartEntry(57925, "space_debris", "space_debris.mod", "389 favourites");
     private static final ChartEntry ODD = new ChartEntry(3, "odd one", "odd.abc", "1 favourites");
     private static final ChartEntry DEADLOCK = new ChartEntry(4, "Deadlock", "DEADLOCK.XM", "300 favourites");
+
+    private static String favouritesPage(int page) {
+        return "https://modarchive.org/index.php?request=view_top_favourites&page=" + page;
+    }
 
     private static String productionUrl(int id) {
         return "https://demozoo.org/api/v1/productions/" + id + "/?format=json";
@@ -533,6 +537,28 @@ class BrowserTest {
         openFavourites(Slice.XM);
         assertTrue(render().get(2).startsWith("│> Deadlock"), "read on to the second page for the first XM");
         assertEquals(2, http.requests());
+    }
+
+    /**
+     * A format the chart never held would otherwise be read to its last page unattended, four pages at a
+     * time, since every tick would find the cursor still sitting at the end of an empty list.
+     */
+    @Test
+    void anEmptyRunOfPagesWaitsForTheNextStep() {
+        final int lastPage = 6;
+        for (int page = 1; page <= lastPage; page++) {
+            http.put(favouritesPage(page),
+                    ModArchivePages.page(Chart.TOP_FAVOURITES, page, lastPage, DEBRIS, ODD), Optional.empty());
+        }
+        openFavourites(Slice.XM);
+        browser.tick();
+        browser.tick();
+        browser.tick();
+        assertEquals(4, http.requests(), "four pages, and nothing more while the cursor rests");
+        press(Key.Special.END);
+        browser.tick();
+        browser.tick();
+        assertEquals(lastPage, http.requests(), "a step reads on to the last page");
     }
 
     @Test
