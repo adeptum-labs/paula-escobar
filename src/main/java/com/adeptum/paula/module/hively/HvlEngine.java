@@ -47,7 +47,7 @@ final class HvlEngine {
     private static final int HIGHEST_NOTE = 5 * 12;
     private static final int LOWEST_PERIOD = 0x0071;
     private static final int HIGHEST_PERIOD = 0x0d60;
-    private static final int WAVE_LENGTH = 0x280;
+    private static final int WAVE_LENGTH = HvlVoice.WAVE_SAMPLES;
     private static final int LONGEST_WAVE = 5;
     private static final int WAVEFORMS = 4;
     private static final int TRIANGLE = 0;

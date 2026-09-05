@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
+import com.adeptum.paula.module.hively.HivelyLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.ogg.OggLoader;
@@ -45,7 +46,8 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
-                Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT), registry.formats());
+                HivelyLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT),
+                registry.formats());
     }
 
     @Test
@@ -53,6 +55,8 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.mod")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.sid")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.dbm")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.ahx")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.hvl")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.mp3")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.flac")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.wav")).isPresent());

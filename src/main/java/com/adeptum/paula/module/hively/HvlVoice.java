@@ -36,6 +36,8 @@ package com.adeptum.paula.module.hively;
  */
 final class HvlVoice {
 
+    /** How much of a voice buffer the mixer plays before it steps back to the start of it. */
+    static final int WAVE_SAMPLES = 0x280;
     static final int BUFFER_LENGTH = 0x282 * 4;
     static final int SQUARE_BUFFER_LENGTH = 0x80;
 
