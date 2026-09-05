@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# Paula Escobar is a terminal music player for demoscene and chip music.
+# Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Website: https://www.adeptum.se
+# Contact: info@adeptum.se
+#
+# Generates the ASAP engine vendored under src/main/java/net/sf/asap and
+# its 6502 player binaries under src/main/resources/net/sf/asap from the
+# pinned upstream sources. ASAP's Java comes out of the fut transpiler;
+# the players come prebuilt from the release tarball, whose 6502 sources
+# match the pinned commit. Needs git, curl, tar and dpkg-deb.
+#
+# Usage: tools/generate-asap
+
+set -eu
+fut_version=3.3.7
+asap_commit=9d01a358ad2725680fd8b8ea78f7a65870fafece
+asap_release=8.0.0
+root=$(cd "$(dirname "$0")/.." && pwd)
+sources=$root/src/main/java/net/sf/asap
+resources=$root/src/main/resources/net/sf/asap
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+curl -fsSL -o "$work/fut.deb" "https://github.com/fusionlanguage/fut/releases/download/fut-$fut_version/fut_${fut_version}-1_amd64.deb"
+dpkg-deb -x "$work/fut.deb" "$work/fut"
+git clone -q https://git.code.sf.net/p/asap/code "$work/asap"
+git -C "$work/asap" checkout -q "$asap_commit"
+curl -fsSL -o "$work/asap.tar.gz" "https://sourceforge.net/projects/asap/files/asap/$asap_release/asap-$asap_release.tar.gz/download"
+tar -xzf "$work/asap.tar.gz" -C "$work"
+
+mkdir -p "$sources" "$resources"
+find "$sources" -name '*.java' ! -name package-info.java -delete
+cd "$work/asap"
+"$work/fut/usr/bin/fut" -o "$sources/ASAP.java" -n net.sf.asap -I "$work/asap-$asap_release/6502" \
+    asap.fu asap6502.fu asapinfo.fu asapwriter.fu cpu6502.fu flashpack.fu pokey.fu
+cp "$work/asap-$asap_release"/6502/*.obx "$resources/"
+echo "Generated ASAP $asap_release at $asap_commit with fut $fut_version"
