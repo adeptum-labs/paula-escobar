@@ -26,6 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.Party;
+import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.ChartEntry;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -44,5 +46,12 @@ class TrackTest {
         assertEquals("Assembly 1995 · 4 Channel Music  #1 Funkyeeh by Theseus",
                 new DemozooTrack(entry, new Party(3, "Assembly 1995", "1995-08-11"),
                         new Competition(2, "4 Channel Music", 29, "Tracked Music", List.of())).label());
+    }
+
+    @Test
+    void modArchiveTracksAreLabelledByChartTitleEntryTitleAndFileName() {
+        assertEquals("Top Favourites · UnreaL ][ / PM · 2nd_pm.s3m",
+                new ModArchiveTrack(Chart.TOP_FAVOURITES,
+                        new ChartEntry(212083, "UnreaL ][ / PM", "2nd_pm.s3m", "438 favourites")).label());
     }
 }

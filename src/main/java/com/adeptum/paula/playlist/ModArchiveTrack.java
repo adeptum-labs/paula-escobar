@@ -21,10 +21,19 @@
 
 package com.adeptum.paula.playlist;
 
-/**
- * Something the player can be asked to play; where the bytes come from is decided when the track is loaded.
- */
-public sealed interface Track permits LocalTrack, DemozooTrack, ModArchiveTrack {
+import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.ChartEntry;
 
-    String label();
+/**
+ * A module from one of ModArchive's charts, carrying the chart so the browser can point back at the row it
+ * came from.
+ */
+public record ModArchiveTrack(Chart chart, ChartEntry entry) implements Track {
+
+    private static final String SEPARATOR = " · ";
+
+    @Override
+    public String label() {
+        return chart.title() + SEPARATOR + entry.title() + SEPARATOR + entry.fileName();
+    }
 }
