@@ -32,15 +32,19 @@ import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.ChartEntry;
+import com.adeptum.paula.modarchive.ChartPage;
 import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.modarchive.Slice;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.DemozooTrack;
+import com.adeptum.paula.playlist.ModArchiveTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.visual.Bars;
 import com.adeptum.paula.ui.visual.Palette;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,9 +53,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -65,13 +71,15 @@ import org.jline.utils.AttributedStringBuilder;
 import org.jline.utils.AttributedStyle;
 
 /**
- * Walks party series, parties, music competitions and ranked entries as a stack of lists. Demozoo is read on the
- * executor and the answer is applied on the next tick, so key handling never waits for the network.
+ * Walks party series, parties, music competitions and ranked entries, and the ModArchive charts down to the
+ * tunes they rank, as a stack of lists. Demozoo and modarchive.org are read on the executor and the answer is
+ * applied on the next tick, so key handling never waits for the network.
  */
 @Slf4j
 public final class Browser {
 
-    private sealed interface Item permits SeriesItem, PartyItem, CompoItem, EntryItem, SectionItem, ChartItem, FormatItem {
+    private sealed interface Item
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, SectionItem, ChartItem, FormatItem, TuneItem {
 
         String label();
 
@@ -247,6 +255,35 @@ public final class Browser {
         }
     }
 
+    private record TuneItem(Chart chart, ChartEntry entry, boolean readable) implements Item {
+
+        @Override
+        public String label() {
+            return entry.title();
+        }
+
+        @Override
+        public String detail() {
+            return entry.fileName();
+        }
+
+        @Override
+        public String trailing() {
+            return readable ? entry.measure() : NO_READER;
+        }
+
+        @Override
+        public boolean dimmed() {
+            return !readable;
+        }
+    }
+
+    /**
+     * A run of pages read off a chart in one go, and where the reading got to.
+     */
+    private record Grown(List<Item> items, int nextPage, int lastPage) {
+    }
+
     /**
      * How a level is laid out: the columns it flows into, and how a cell divides its width between the name,
      * the second field and whatever is set against the right edge.
@@ -274,11 +311,14 @@ public final class Browser {
         private int compoId;
         private Chart chart;
         private Slice slice;
+        private int nextPage = 1;
+        private int lastPage = Integer.MAX_VALUE;
+        private final Set<Integer> seen = new HashSet<>();
 
         private Level(String title, String emptyText, List<Item> items) {
             this.title = title;
             this.emptyText = emptyText;
-            this.items = items;
+            this.items = new ArrayList<>(items);
         }
 
         private Optional<Item> selected() {
@@ -345,6 +385,7 @@ public final class Browser {
     private static final int ART_LINES = 12;
     private static final int FEWEST_ART_LINES = 3;
     private static final int FEWEST_ROWS = 6;
+    private static final int MOST_PAGES_AT_ONCE = 4;
     private static final Duration DWELL = Duration.ofMillis(500);
     private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final String TICKER_SPACE = "  ";
@@ -376,6 +417,8 @@ public final class Browser {
     private final Deque<Level> levels = new ArrayDeque<>();
     private final Map<Integer, String> downloads = new ConcurrentHashMap<>();
     private CompletableFuture<Level> pending;
+    private CompletableFuture<Grown> more;
+    private Level filling;
     private String error;
     private Playlist selection;
     private int pageSize = 1;
@@ -457,6 +500,8 @@ public final class Browser {
 
     public void tick() {
         fetchArtOfTheEntryRestedOn();
+        takeTheNextPage();
+        growAtTheEndOfTheList();
         if (pending == null || !pending.isDone()) {
             return;
         }
@@ -469,6 +514,80 @@ public final class Browser {
         }
         pending = null;
         stepBackIntoTheCompetitionReloaded();
+    }
+
+    /**
+     * A chart is read a page at a time as the cursor reaches the end of what has been read, so a list of
+     * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages
+     * before giving up for now, so that a step at the end brings a row rather than a wait.
+     */
+    private void growAtTheEndOfTheList() {
+        final Level level = levels.peek();
+        if (more != null || pending != null || level.chart == null || level.nextPage > level.lastPage
+                || level.cursor < level.items.size() - 1) {
+            return;
+        }
+        filling = level;
+        final Chart chart = level.chart;
+        final Slice slice = level.slice;
+        final int from = level.nextPage;
+        final Set<Integer> seen = Set.copyOf(level.seen);
+        more = CompletableFuture.supplyAsync(() -> {
+            try {
+                return grow(chart, slice, from, seen);
+            } catch (IOException e) {
+                throw new CompletionException(e);
+            }
+        }, executor);
+    }
+
+    private Grown grow(Chart chart, Slice slice, int from, Set<Integer> seen) throws IOException {
+        final List<Item> items = new ArrayList<>();
+        int page = from;
+        int lastPage = from;
+        int read = 0;
+        do {
+            final ChartPage chartPage = modarchive.chart(chart, page);
+            lastPage = chartPage.lastPage();
+            chartPage.entries().stream()
+                    .filter(slice::holds)
+                    .filter(entry -> !seen.contains(entry.moduleId()))
+                    .forEach(entry -> items.add(new TuneItem(chart, entry, canBeRead(entry))));
+            page++;
+            read++;
+        } while (items.isEmpty() && read < MOST_PAGES_AT_ONCE && page <= lastPage);
+        return new Grown(items, page, lastPage);
+    }
+
+    private boolean canBeRead(ChartEntry entry) {
+        return loaders.loaderFor(Path.of(entry.fileName())).isPresent();
+    }
+
+    /**
+     * A chart that could not be read is left where it stands until it is reloaded, rather than asked for
+     * again on every tick.
+     */
+    private void takeTheNextPage() {
+        if (more == null || !more.isDone()) {
+            return;
+        }
+        final Level level = filling;
+        try {
+            final Grown grown = more.join();
+            if (level == levels.peek()) {
+                level.items.addAll(grown.items());
+                grown.items().forEach(item -> level.seen.add(((TuneItem) item).entry().moduleId()));
+                level.nextPage = grown.nextPage();
+                level.lastPage = grown.lastPage();
+            }
+        } catch (CompletionException | CancellationException e) {
+            final Throwable cause = e.getCause() == null ? e : e.getCause();
+            error = cause.getMessage() == null ? cause.toString() : cause.getMessage();
+            level.lastPage = 0;
+            level.nextPage = 1;
+        }
+        more = null;
+        filling = null;
     }
 
     /**
@@ -577,6 +696,7 @@ public final class Browser {
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
                 case CompoItem compo -> openCompo(compo);
                 case EntryItem entry -> selection = playlistFrom(level, entry);
+                case TuneItem tune -> selection = playlistFrom(level);
             }
         });
     }
@@ -597,13 +717,22 @@ public final class Browser {
      * Throws away what was kept for the level in view and opens it again, so a list that has moved on since,
      * or a logo that never arrived, can be had afresh without leaving the browser. The entries of a
      * competition come with the party's answer, so reloading one goes back through the competition list and
-     * steps into it again once it has been fetched.
+     * steps into it again once it has been fetched. A chart drops every page it has read and begins again at
+     * its first.
      */
     private void reload() {
         if (atRoot() || pending != null) {
             return;
         }
         final Level level = levels.peek();
+        if (level.chart != null) {
+            modarchive.forget(level.chart);
+            more = null;
+            filling = null;
+            levels.pop();
+            open(levels.peek());
+            return;
+        }
         reopening = level.compoId;
         if (level.compoId != 0) {
             partyArt.forget(level.partyId);
@@ -632,6 +761,8 @@ public final class Browser {
             levels.pop();
         }
         pending = null;
+        more = null;
+        filling = null;
         error = null;
     }
 
@@ -694,6 +825,20 @@ public final class Browser {
                 .map(EntryItem.class::cast)
                 .filter(item -> item == chosen || item.playable())
                 .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().party(), item.compo().compo()))
+                .toList();
+        return new Playlist(tracks);
+    }
+
+    /**
+     * The chosen tune plays even when nothing here reads its format, since the chart names a file Paula may yet
+     * know what to do with; the rest of the chart as it has been read so far follows in ranked order.
+     */
+    private static Playlist playlistFrom(Level level) {
+        final Item chosen = level.items.get(level.cursor);
+        final List<Track> tracks = level.items.subList(level.cursor, level.items.size()).stream()
+                .map(TuneItem.class::cast)
+                .filter(tune -> tune == chosen || tune.readable())
+                .<Track>map(tune -> new ModArchiveTrack(tune.chart(), tune.entry()))
                 .toList();
         return new Playlist(tracks);
     }
@@ -785,35 +930,37 @@ public final class Browser {
     }
 
     /**
-     * A turning ticker beside whatever is being brought down, so a wait for a logo on its way is visible rather
-     * than looking like nothing happening.
-     */
-    /**
      * The song being played marks its own row and every row on the way down to it, so it can be found again
      * from anywhere in the browser. Local files were never browsed to and mark nothing.
      */
     private boolean playing(Item item) {
-        if (!(nowPlaying instanceof DemozooTrack track)) {
-            return false;
-        }
         return switch (item) {
-            case EntryItem entry -> entry.compo().compo().id() == track.compo().id()
+            case EntryItem entry -> nowPlaying instanceof DemozooTrack track
+                    && entry.compo().compo().id() == track.compo().id()
                     && entry.entry().productionId() == track.entry().productionId();
-            case CompoItem compo -> compo.compo().id() == track.compo().id();
-            case PartyItem party -> party.party().id() == track.party().id();
+            case CompoItem compo -> nowPlaying instanceof DemozooTrack track && compo.compo().id() == track.compo().id();
+            case PartyItem party -> nowPlaying instanceof DemozooTrack track && party.party().id() == track.party().id();
             case SeriesItem series -> false;
-            case SectionItem section -> section.section() == Section.PARTIES && nowPlaying instanceof DemozooTrack;
-            case ChartItem chart -> false;
-            case FormatItem format -> false;
+            case SectionItem section -> section.section() == Section.PARTIES
+                    ? nowPlaying instanceof DemozooTrack : nowPlaying instanceof ModArchiveTrack;
+            case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.chart() == chart.chart();
+            case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.chart() == format.chart()
+                    && format.slice().holds(track.entry());
+            case TuneItem tune -> nowPlaying instanceof ModArchiveTrack track && track.chart() == tune.chart()
+                    && track.entry().moduleId() == tune.entry().moduleId();
         };
     }
 
+    /**
+     * A turning ticker beside whatever is being brought down, so a wait for a logo or for the next page of a
+     * chart is visible rather than looking like nothing happening.
+     */
     private String ticker(Item item) {
         return item instanceof EntryItem entry && art.fetching(entry.entry().productionId()) ? ticker() : "";
     }
 
     private String ticker(Level level) {
-        return level.partyId != 0 && partyArt.fetching(level.partyId) ? ticker() : "";
+        return level == filling || (level.partyId != 0 && partyArt.fetching(level.partyId)) ? ticker() : "";
     }
 
     private String ticker() {
@@ -866,6 +1013,9 @@ public final class Browser {
     }
 
     private AttributedString statusLine() {
+        if (more != null) {
+            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(filling.title).append('…'));
+        }
         if (pending != null) {
             return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(loadingTitle()).append('…'));
         }

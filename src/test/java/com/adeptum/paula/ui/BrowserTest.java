@@ -34,12 +34,17 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
+import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.ChartEntry;
 import com.adeptum.paula.modarchive.ModArchiveClient;
+import com.adeptum.paula.modarchive.Slice;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
+import com.adeptum.paula.playlist.ModArchiveTrack;
 import com.adeptum.paula.playlist.Playlist;
+import com.adeptum.paula.testing.ModArchivePages;
 import com.adeptum.paula.ui.visual.Palette;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -111,6 +116,13 @@ class BrowserTest {
     private static final String PRODUCTION_WITH_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/x.zip\"}],\"external_links\":[]}";
     private static final String PRODUCTION_AS_DISK_IMAGE = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/tune.adf\"}],\"external_links\":[]}";
     private static final String PRODUCTION_WITHOUT_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[],\"external_links\":[{\"link_class\":\"PouetProduction\",\"url\":\"https://www.pouet.net/prod.php?which=1\"}]}";
+
+    private static final String FAVOURITES_ONE = "https://modarchive.org/index.php?request=view_top_favourites&page=1";
+    private static final String FAVOURITES_TWO = "https://modarchive.org/index.php?request=view_top_favourites&page=2";
+    private static final ChartEntry UNREAL = new ChartEntry(212083, "UnreaL ][ / PM", "2nd_pm.s3m", "438 favourites");
+    private static final ChartEntry DEBRIS = new ChartEntry(57925, "space_debris", "space_debris.mod", "389 favourites");
+    private static final ChartEntry ODD = new ChartEntry(3, "odd one", "odd.abc", "1 favourites");
+    private static final ChartEntry DEADLOCK = new ChartEntry(4, "Deadlock", "DEADLOCK.XM", "300 favourites");
 
     private static String productionUrl(int id) {
         return "https://demozoo.org/api/v1/productions/" + id + "/?format=json";
@@ -472,6 +484,99 @@ class BrowserTest {
         press(Key.Special.ENTER);
         assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
         assertTrue(render().get(1).contains("Browse › ModArchive charts › Most Downloads"));
+    }
+
+    private void openFavourites(Slice slice) {
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        press(Key.Special.ENTER);
+        for (int i = 0; i < slice.ordinal(); i++) {
+            press(Key.Special.DOWN);
+        }
+        press(Key.Special.ENTER);
+        browser.tick();
+        browser.tick();
+    }
+
+    @Test
+    void fillsAChartFromItsFirstPage() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS, ODD), Optional.empty());
+        openFavourites(Slice.ALL);
+        final List<String> lines = render();
+        assertTrue(lines.get(1).contains("Top Favourites › All"));
+        assertTrue(lines.get(2).startsWith("│> UnreaL ][ / PM") && lines.get(2).contains("2nd_pm.s3m") && lines.get(2).contains("438 favourites"));
+        assertTrue(lines.get(4).contains("odd one") && lines.get(4).contains("(no reader)"), "nothing reads .abc");
+        assertEquals(1, http.requests());
+    }
+
+    @Test
+    void fetchesTheNextPageWhenTheCursorReachesTheEnd() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
+        http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());
+        openFavourites(Slice.ALL);
+        assertEquals(1, http.requests(), "the first page only");
+        press(Key.Special.END);
+        browser.tick();
+        browser.tick();
+        assertEquals(2, http.requests());
+        assertTrue(render().get(4).contains("Deadlock"));
+        press(Key.Special.END);
+        browser.tick();
+        browser.tick();
+        assertEquals(2, http.requests(), "the chart ends at page two");
+    }
+
+    @Test
+    void showsOnlyTheFormatChosen() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
+        http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());
+        openFavourites(Slice.XM);
+        assertTrue(render().get(2).startsWith("│> Deadlock"), "read on to the second page for the first XM");
+        assertEquals(2, http.requests());
+    }
+
+    @Test
+    void enterOnATuneQueuesItAndTheRestOfTheList() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, ODD, DEBRIS), Optional.empty());
+        openFavourites(Slice.ALL);
+        press(Key.Special.ENTER);
+        final Playlist playlist = browser.takeSelection().orElseThrow();
+        assertEquals(2, playlist.size(), "the unreadable one is left out");
+        assertEquals("Top Favourites · UnreaL ][ / PM · 2nd_pm.s3m", playlist.current().label());
+    }
+
+    @Test
+    void marksTheRowsOnTheWayToWhatIsPlaying() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        openFavourites(Slice.ALL);
+        browser.nowPlaying(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS), new double[0]);
+        assertTrue(render().get(3).startsWith("│♪ space_debris"));
+        press(Key.Special.BACKSPACE);
+        assertTrue(render().get(2).startsWith("│♪ All"));
+        press(Key.Special.BACKSPACE);
+        assertTrue(render().get(2).startsWith("│♪ Top Favourites"));
+        press(Key.Special.BACKSPACE);
+        press(Key.Special.BACKSPACE);
+        assertTrue(render().get(3).startsWith("│♪ ModArchive charts"));
+    }
+
+    @Test
+    void reloadingAChartListReadsItsPagesAgain() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL), Optional.empty());
+        openFavourites(Slice.ALL);
+        press('r');
+        browser.tick();
+        browser.tick();
+        assertEquals(2, http.requests());
+        assertTrue(render().get(2).startsWith("│> UnreaL"));
+    }
+
+    @Test
+    void saysSoWhenAChartCannotBeRead() {
+        openFavourites(Slice.ALL);
+        assertTrue(render().stream().anyMatch(line -> line.contains("HTTP 404")), "the fake answers 404 for a page it has not got");
+        browser.tick();
+        assertEquals(1, http.requests(), "a chart that failed is not asked for again until reloaded");
     }
 
     /**
