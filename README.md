@@ -23,8 +23,8 @@ under `lib/` as a small Maven repository because no current release is
 published to Maven Central; `tools/patch-javamod` rebuilds it from the
 release with the mixer fix in `tools/javamod-sample-swap.patch` compiled
 in, which stops a ProTracker sample swap at a loop end from reading past
-the end of the shorter sample. Atari 8-bit tunes, SAP files and the native
-modules of the Atari trackers, play through
+the end of the shorter sample. Atari 8-bit tunes, whether SAP files or the
+native modules of the Atari trackers, play through
 [ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502
 emulation, whose Java is generated into the tree from its sources by
 `tools/generate-asap`. DigiBooster modules, which JavaMod does not

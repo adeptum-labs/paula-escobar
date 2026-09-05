@@ -49,5 +49,6 @@ find "$sources" -name '*.java' ! -name package-info.java -delete
 cd "$work/asap"
 "$work/fut/usr/bin/fut" -o "$sources/ASAP.java" -n net.sf.asap -I "$work/asap-$asap_release/6502" \
     asap.fu asap6502.fu asapinfo.fu asapwriter.fu cpu6502.fu flashpack.fu pokey.fu
+find "$resources" -name '*.obx' -delete
 cp "$work/asap-$asap_release"/6502/*.obx "$resources/"
 echo "Generated ASAP $asap_release at $asap_commit with fut $fut_version"
