@@ -63,6 +63,7 @@ import com.adeptum.paula.playback.TrackLoader;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.ModArchiveTrack;
+import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.Browser;
@@ -181,6 +182,7 @@ public final class Paula implements Runnable {
             case DemozooTrack remote -> resolver.resolve(remote.entry());
             case ModArchiveTrack module -> resolver.resolve(module.entry().moduleId(), module.entry().title(),
                     module.entry().fileName());
+            case MusicianTrack work -> resolver.resolve(work.work().entry());
         };
         loaders.loaderFor(path).filter(SidLoader.class::isInstance).ifPresent(sid -> sidLengths.prime());
         return path;

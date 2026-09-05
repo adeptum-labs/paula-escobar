@@ -21,10 +21,19 @@
 
 package com.adeptum.paula.playlist;
 
-/**
- * Something the player can be asked to play; where the bytes come from is decided when the track is loaded.
- */
-public sealed interface Track permits LocalTrack, DemozooTrack, ModArchiveTrack, MusicianTrack {
+import com.adeptum.paula.demozoo.Nick;
+import com.adeptum.paula.demozoo.Work;
 
-    String label();
+/**
+ * A production a musician has released, found outside the context of the competition entry it was played from.
+ */
+public record MusicianTrack(Nick musician, Work work) implements Track {
+
+    private static final String NAME_TITLE_SEPARATOR = "  ";
+
+    @Override
+    public String label() {
+        final String label = musician.name() + NAME_TITLE_SEPARATOR + work.entry().title();
+        return work.year().isEmpty() ? label : label + " (" + work.year() + ")";
+    }
 }

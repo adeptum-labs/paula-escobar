@@ -27,6 +27,7 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.Nick;
 import com.adeptum.paula.demozoo.Party;
+import com.adeptum.paula.demozoo.Work;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import java.nio.file.Path;
@@ -54,5 +55,19 @@ class TrackTest {
         assertEquals("Top Favourites · UnreaL ][ / PM · 2nd_pm.s3m",
                 new ModArchiveTrack(Chart.TOP_FAVOURITES,
                         new ChartEntry(212083, "UnreaL ][ / PM", "2nd_pm.s3m", "438 favourites")).label());
+    }
+
+    @Test
+    void musicianTracksAreLabelledByNameTitleAndYear() {
+        final CompoEntry entry = new CompoEntry(1, "1", 7, "Habits", List.of(new Nick("NightBeat", 0, false)), Set.of(29));
+        final Nick musician = new Nick("NightBeat", 41, false);
+        assertEquals("NightBeat  Habits (2026)", new MusicianTrack(musician, new Work(entry, "2026", "Commodore 64")).label());
+    }
+
+    @Test
+    void musicianTracksOmitTheYearWhenItIsEmpty() {
+        final CompoEntry entry = new CompoEntry(1, "1", 7, "Habits", List.of(new Nick("NightBeat", 0, false)), Set.of(29));
+        final Nick musician = new Nick("NightBeat", 41, false);
+        assertEquals("NightBeat  Habits", new MusicianTrack(musician, new Work(entry, "", "Commodore 64")).label());
     }
 }
