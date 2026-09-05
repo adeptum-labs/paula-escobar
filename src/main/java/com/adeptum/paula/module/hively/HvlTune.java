@@ -25,7 +25,9 @@ import java.util.List;
 
 /**
  * A parsed AHX or HivelyTracker tune: its arrangement, tracks and instruments, plus the stereo
- * mix derived from the module's separation. Playback state is kept by the engine, not here.
+ * mix derived from the module's separation. The version is HivelyTracker's format version and
+ * 0 for an AHX file, whatever that file's own version byte says. Playback state is kept by the
+ * engine, not here.
  */
 record HvlTune(String name, int version, int channels, int positionCount, int restart,
                int speedMultiplier, int trackLength, int trackCount, int[] subsongs,
