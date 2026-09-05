@@ -7,7 +7,7 @@ native executable with GraalVM, so there is no JVM to start and no jar to
 carry around.
 
 Paula Escobar plays local files, but it also opens the party archives: the music
-competitions of over fifty party series — from The Party, Assembly and The
+competitions of over sixty party series — from The Party, Assembly and The
 Gathering through Breakpoint and Revision to Swedish Icing, the Polish
 classics Intel Outside, Gravity and Xenium, and X, the largest party the
 Commodore 64 has to itself — can be browsed year by year straight from the
@@ -146,7 +146,7 @@ bottom has no room for among them, and any key puts them away again.
 The browser starts with the party series listed by name, opens into the
 parties by year, then into every music competition of that party and
 finally into the ranked entries. The series and the parties are laid out
-in columns across the width, so fifty-two series sit on one screen rather
+in columns across the width, so sixty-six series sit on one screen rather
 than three; walking down runs to the foot of a column and on to the head
 of the next. A competition says what it was run in and how many entries it
 drew, a party the date it opened, and an entry keeps its title, its author

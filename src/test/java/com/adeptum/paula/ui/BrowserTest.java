@@ -435,7 +435,7 @@ class BrowserTest {
         assertTrue(lines.get(1).contains("Parties"), "the box is titled with the breadcrumb");
         assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
         assertTrue(lines.get(3).startsWith("│  Alternative Party"));
-        assertTrue(lines.get(4).contains("Árok"), "an accent sorts among the A's, not after the Z's");
+        assertTrue(lines.get(6).contains("Árok"), "an accent sorts among the A's, not after the Z's");
         assertTrue(lines.get(2).trim().split(" {2,}").length > 1, "and the list flows into columns");
         assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
         assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
@@ -443,7 +443,7 @@ class BrowserTest {
     }
 
     /**
-     * Fifty-two series down one column is three screens of scrolling for a list that fits on one.
+     * Sixty-six series down one column is three screens of scrolling for a list that fits on one.
      */
     @Test
     void flowsTheLongListsIntoColumns() {

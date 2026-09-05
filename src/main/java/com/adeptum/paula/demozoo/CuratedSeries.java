@@ -97,5 +97,19 @@ public record CuratedSeries(int id, String name) {
             new CuratedSeries(165, "Somewhere In Holland"),
             new CuratedSeries(38, "South Sealand"),
             new CuratedSeries(379, "Takeover"),
-            new CuratedSeries(249, "Juhla"));
+            new CuratedSeries(249, "Juhla"),
+            new CuratedSeries(9, "The Ultimate Meeting"),
+            new CuratedSeries(74, "Edison"),
+            new CuratedSeries(226, "Antiq"),
+            new CuratedSeries(224, "Ambience"),
+            new CuratedSeries(134, "Syntax"),
+            new CuratedSeries(88, "CAFe"),
+            new CuratedSeries(80, "Enlight"),
+            new CuratedSeries(857, "Multimatograf"),
+            new CuratedSeries(244, "Inércia"),
+            new CuratedSeries(1252, "Nova"),
+            new CuratedSeries(7, "Stream"),
+            new CuratedSeries(1638, "Black Valley"),
+            new CuratedSeries(79, "Demobit"),
+            new CuratedSeries(296, "Blacktron Music Compo"));
 }
