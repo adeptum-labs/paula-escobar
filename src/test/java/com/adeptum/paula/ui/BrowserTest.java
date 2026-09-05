@@ -34,6 +34,9 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
+import com.adeptum.paula.modarchive.ModArchiveClient;
+import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Playlist;
@@ -82,6 +85,7 @@ class BrowserTest {
     }
 
 
+    private static final ModuleLoaderRegistry LOADERS = ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none());
     private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final int WIDTH = 80;
     private static final int HEIGHT = 12;
@@ -119,14 +123,18 @@ class BrowserTest {
     @BeforeEach
     void createBrowser(@TempDir Path dir) {
         cache = new CacheDirectory(dir);
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run);
+        browser = browser(ReleaseArt.NONE, PartyArt.NONE);
+    }
+
+    private Browser browser(ReleaseArt art, PartyArt partyArt) {
+        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, art, partyArt);
     }
 
     @Test
     void fetchesTheArtOfAnEntryTheCursorComesToRestOn() {
         final List<CompoEntry> fetched = new ArrayList<>();
         final MutableClock clock = new MutableClock();
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -164,7 +172,7 @@ class BrowserTest {
     void leavesABareRecordingAloneRatherThanFetchItForArtItCannotHold() {
         final List<CompoEntry> fetched = new ArrayList<>();
         final MutableClock clock = new MutableClock();
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -197,7 +205,7 @@ class BrowserTest {
         final MutableClock clock = new MutableClock();
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -226,7 +234,7 @@ class BrowserTest {
     void fetchesTheArtOfACompetitionAsItOpensAndShowsItForEveryEntry() {
         final List<CompoEntry> fetched = new ArrayList<>();
         final List<String> banner = List.of("== ICING ==", "== 1997  ==");
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -253,7 +261,7 @@ class BrowserTest {
     @Test
     void showsTheArtTheEntryWasPackedWith() {
         final List<String> banner = List.of(".------------------.", "|  I.C.I.N.G 9.7   |", "`------------------'");
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, production -> Optional.of(banner));
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -263,7 +271,7 @@ class BrowserTest {
         assertTrue(lines.get(1).strip().equals(banner.getFirst()), "the art sits under the title bar");
         assertTrue(lines.get(2).contains("I.C.I.N.G"));
         assertTrue(lines.get(1).startsWith("   "), "and is centred as a block");
-        assertTrue(lines.get(4).contains("Multichannel Music"), "the list follows it");
+        assertTrue(lines.get(5).contains("First"), "the list follows it");
         assertEquals(TALL, lines.size());
     }
 
@@ -282,7 +290,7 @@ class BrowserTest {
     @Test
     void reloadingACompetitionStepsBackIntoItAndForgetsItsLogo() {
         final List<Integer> forgotten = new ArrayList<>();
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, new PartyArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, new PartyArt() {
 
             @Override
             public Optional<List<String>> of(int partyId) {
@@ -304,11 +312,13 @@ class BrowserTest {
         assertEquals(List.of(5), forgotten, "the logo of the party is thrown away");
         final List<String> lines = render();
         assertTrue(lines.stream().anyMatch(line -> line.contains("First")), "and the competition is open again");
-        assertTrue(lines.stream().anyMatch(line -> line.contains("Multichannel Music")));
+        assertTrue(browser.render(WIDTH * 2, HEIGHT).stream().map(AttributedString::toString)
+                .anyMatch(line -> line.contains("Multichannel Music")), "in the competition it belongs to");
     }
 
     @Test
     void theRootIsLeftAloneByReload() {
+        press(Key.Special.ENTER);
         final int requests = http.requests();
 
         press('r');
@@ -321,7 +331,7 @@ class BrowserTest {
     @Test
     void showsThePartyLogoWhereTheReleasesCarryNoneOfTheirOwn() {
         final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -335,7 +345,7 @@ class BrowserTest {
     void theArtOfAnEntryComesBeforeTheLogoOfTheParty() {
         final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
         final List<String> banner = List.of(".------------------.", "|  R E L E A S E   |", "`------------------'");
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, production -> Optional.of(banner), partyArt(logo, false));
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner), partyArt(logo, false));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -348,7 +358,7 @@ class BrowserTest {
 
     @Test
     void tickerRunsBesideTheEntryWhoseFilesAreOnTheirWayDown() {
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -376,7 +386,7 @@ class BrowserTest {
      */
     @Test
     void theTickerKeepsTheHighlightOnTheLineItRestsOn() {
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -400,12 +410,13 @@ class BrowserTest {
 
     @Test
     void tickerRunsOnTheCompetitionWhileItsLogoIsFetched() {
-        browser = new Browser(new DemozooClient(http, cache), Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
+        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
 
-        assertTrue(render().stream().anyMatch(line -> line.contains("Multichannel Music") && ticks(line)),
+        assertTrue(browser.render(WIDTH * 2, HEIGHT).stream().map(AttributedString::toString)
+                        .anyMatch(line -> line.contains("Multichannel Music") && ticks(line)),
                 "the competition ticks while its logo is on its way");
     }
 
@@ -429,17 +440,39 @@ class BrowserTest {
     }
 
     @Test
-    void startsWithTheCuratedSeries() {
+    void opensOnTheTwoSections() {
         final List<String> lines = render();
         assertTrue(lines.get(0).contains("Paula Escobar") && lines.get(0).contains("browse"), "title bar");
-        assertTrue(lines.get(1).contains("Parties"), "the box is titled with the breadcrumb");
+        assertTrue(lines.get(1).contains("Browse"), "the box is titled with the breadcrumb");
+        assertTrue(lines.get(2).startsWith("│> Parties"));
+        assertTrue(lines.get(2).contains("demoparty competitions from Demozoo"));
+        assertTrue(lines.get(3).startsWith("│  ModArchive charts"));
+        assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
+        assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
+        assertTrue(browser.atRoot());
+    }
+
+    @Test
+    void partiesOpensTheCuratedSeries() {
+        press(Key.Special.ENTER);
+        final List<String> lines = render();
+        assertTrue(lines.get(1).contains("Browse › Parties"));
         assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
         assertTrue(lines.get(3).startsWith("│  Alternative Party"));
         assertTrue(lines.get(6).contains("Árok"), "an accent sorts among the A's, not after the Z's");
         assertTrue(lines.get(2).trim().split(" {2,}").length > 1, "and the list flows into columns");
-        assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
-        assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
-        assertTrue(browser.atRoot());
+        assertFalse(browser.atRoot());
+    }
+
+    @Test
+    void theChartsOpenIntoTheirFormats() {
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        assertEquals(List.of("Top Favourites", "Most Downloads", "Featured"), labels());
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
+        assertTrue(render().get(1).contains("Browse › ModArchive charts › Most Downloads"));
     }
 
     /**
@@ -447,6 +480,7 @@ class BrowserTest {
      */
     @Test
     void flowsTheLongListsIntoColumns() {
+        press(Key.Special.ENTER);
         final List<String> lines = render();
 
         final int perRow = lines.get(2).replaceAll("[│>]", "").strip().split(" {2,}").length;
@@ -461,6 +495,7 @@ class BrowserTest {
      */
     @Test
     void theCursorWalksDownAColumnAndOnToTheNext() {
+        press(Key.Special.ENTER);
         final int rows = (int) render().stream().filter(l -> l.startsWith("│") && !l.contains("─")).count();
         for (int i = 0; i < rows; i++) {
             press(Key.Special.DOWN);
@@ -473,11 +508,25 @@ class BrowserTest {
 
     @Test
     void listsThePartySeriesByName() {
+        press(Key.Special.ENTER);
         final List<String> names = render().stream().filter(l -> l.startsWith("│") && !l.contains("─"))
                 .map(l -> l.replaceAll("[│>]", "").strip().split(" {2,}")[0]).toList();
 
         assertEquals(CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(CuratedSeries::name)
                 .limit(names.size()).toList(), names, "the first column reads by name: " + names);
+    }
+
+    /**
+     * Reads the box rows of a rendered screen: everything between its top and bottom border, the cursor mark
+     * and any second or trailing column stripped away, leaving just what each row is labelled.
+     */
+    private List<String> labels() {
+        return render().stream()
+                .filter(line -> line.startsWith("│") && !line.contains("─"))
+                .map(line -> line.substring(1).replaceFirst("^(> |  |♪ )", ""))
+                .map(line -> line.split(" {2,}")[0])
+                .filter(label -> !label.isEmpty())
+                .toList();
     }
 
     @Test
@@ -550,6 +599,7 @@ class BrowserTest {
         press(Key.Special.BACKSPACE);
         assertTrue(render().stream().anyMatch(line -> line.startsWith("│> The Party 1995")));
         press(Key.Special.LEFT);
+        press(Key.Special.BACKSPACE);
         assertTrue(browser.atRoot());
         assertFalse(browser.consumes(Key.of(Key.Special.ESCAPE)), "escape at the root is left to the player");
     }
@@ -583,14 +633,15 @@ class BrowserTest {
     void showsAnErrorAndStaysWhenTheFetchFails() {
         http.goOffline();
         press(Key.Special.ENTER);
+        press(Key.Special.ENTER);
         browser.tick();
 
         assertTrue(render().stream().anyMatch(line -> line.contains("offline")));
-        assertTrue(browser.atRoot());
+        assertTrue(render().get(1).contains("Browse › Parties"), "still on the list of series");
 
         http.goOnline();
         http.put(SERIES_URL, SERIES);
-        cursorToTheParty();
+        moveCursorToTheParty();
         press(Key.Special.ENTER);
         browser.tick();
         assertFalse(browser.atRoot());
@@ -616,9 +667,12 @@ class BrowserTest {
     @Test
     void dropsAFetchThatLandsAfterBackingOut(@TempDir Path dir) {
         final Deque<Runnable> queued = new ArrayDeque<>();
-        final Browser deferred = new Browser(new DemozooClient(http, new CacheDirectory(dir)), queued::add);
+        final CacheDirectory deferredCache = new CacheDirectory(dir);
+        final Browser deferred = new Browser(new DemozooClient(http, deferredCache),
+                new ModArchiveClient(http, deferredCache), LOADERS, queued::add);
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, PARTY);
+        deferred.handle(Key.of(Key.Special.ENTER));
         deferred.handle(Key.of(Key.Special.ENTER));
         queued.pop().run();
         deferred.tick();
@@ -830,9 +884,12 @@ class BrowserTest {
 
     @Test
     void ignoresEnterWhileLoading(@TempDir Path dir) {
-        final Browser stalled = new Browser(new DemozooClient(http, new CacheDirectory(dir)), runnable -> { });
+        final CacheDirectory stalledCache = new CacheDirectory(dir);
+        final Browser stalled = new Browser(new DemozooClient(http, stalledCache),
+                new ModArchiveClient(http, stalledCache), LOADERS, runnable -> { });
         http.put(SERIES_URL, SERIES);
         final String first = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).findFirst().orElseThrow().name();
+        stalled.handle(Key.of(Key.Special.ENTER));
         stalled.handle(Key.of(Key.Special.ENTER));
         stalled.handle(Key.of(Key.Special.ENTER));
         assertTrue(stalled.render(WIDTH, HEIGHT).stream().map(AttributedString::toString)
@@ -856,6 +913,11 @@ class BrowserTest {
      * assuming it sits at the top.
      */
     private void cursorToTheParty() {
+        press(Key.Special.ENTER);
+        moveCursorToTheParty();
+    }
+
+    private void moveCursorToTheParty() {
         final List<CuratedSeries> sorted = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).toList();
         for (int i = 0; i < sorted.size() && sorted.get(i).id() != THE_PARTY_SERIES; i++) {
             press(Key.Special.DOWN);

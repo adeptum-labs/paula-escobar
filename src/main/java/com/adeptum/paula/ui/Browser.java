@@ -31,6 +31,10 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.ModArchiveClient;
+import com.adeptum.paula.modarchive.Slice;
+import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
@@ -39,6 +43,7 @@ import com.adeptum.paula.ui.visual.Palette;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.time.Clock;
 import java.time.Duration;
@@ -66,7 +71,7 @@ import org.jline.utils.AttributedStyle;
 @Slf4j
 public final class Browser {
 
-    private sealed interface Item permits SeriesItem, PartyItem, CompoItem, EntryItem {
+    private sealed interface Item permits SeriesItem, PartyItem, CompoItem, EntryItem, SectionItem, ChartItem, FormatItem {
 
         String label();
 
@@ -200,6 +205,48 @@ public final class Browser {
         }
     }
 
+    private enum Section {
+        PARTIES("Parties", "demoparty competitions from Demozoo"),
+        CHARTS("ModArchive charts", "the charts of modarchive.org");
+
+        private final String label;
+        private final String detail;
+
+        Section(String label, String detail) {
+            this.label = label;
+            this.detail = detail;
+        }
+    }
+
+    private record SectionItem(Section section) implements Item {
+
+        @Override
+        public String label() {
+            return section.label;
+        }
+
+        @Override
+        public String detail() {
+            return section.detail;
+        }
+    }
+
+    private record ChartItem(Chart chart) implements Item {
+
+        @Override
+        public String label() {
+            return chart.title();
+        }
+    }
+
+    private record FormatItem(Chart chart, Slice slice) implements Item {
+
+        @Override
+        public String label() {
+            return slice.label();
+        }
+    }
+
     /**
      * How a level is laid out: the columns it flows into, and how a cell divides its width between the name,
      * the second field and whatever is set against the right edge.
@@ -225,6 +272,8 @@ public final class Browser {
         private int artProduction;
         private int partyId;
         private int compoId;
+        private Chart chart;
+        private Slice slice;
 
         private Level(String title, String emptyText, List<Item> items) {
             this.title = title;
@@ -269,7 +318,7 @@ public final class Browser {
         }
     }
 
-    private static final String ROOT_TITLE = "Parties";
+    private static final String ROOT_TITLE = "Browse";
     private static final String NOTHING_HERE = "Nothing here";
     private static final String NO_MUSIC = "No music competitions";
     private static final String LOADING = "Loading ";
@@ -317,6 +366,8 @@ public final class Browser {
             new Frame.Key("q", "quit"));
 
     private final DemozooClient demozoo;
+    private final ModArchiveClient modarchive;
+    private final ModuleLoaderRegistry loaders;
     private final Executor executor;
     private final ReleaseArt art;
     private final PartyArt partyArt;
@@ -334,31 +385,37 @@ public final class Browser {
     private Track nowPlaying;
     private double[] nowPlayingSpectrum = new double[0];
 
-    public Browser(DemozooClient demozoo, Executor executor) {
-        this(demozoo, executor, ReleaseArt.NONE);
+    public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor) {
+        this(demozoo, modarchive, loaders, executor, ReleaseArt.NONE);
     }
 
-    public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art) {
-        this(demozoo, executor, art, PartyArt.NONE);
+    public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art) {
+        this(demozoo, modarchive, loaders, executor, art, PartyArt.NONE);
     }
 
-    public Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, PartyArt partyArt) {
-        this(demozoo, executor, art, partyArt, DWELL, Clock.systemUTC());
+    public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt) {
+        this(demozoo, modarchive, loaders, executor, art, partyArt, DWELL, Clock.systemUTC());
     }
 
-    Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, Duration dwell, Clock clock) {
-        this(demozoo, executor, art, PartyArt.NONE, dwell, clock);
+    Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, Duration dwell, Clock clock) {
+        this(demozoo, modarchive, loaders, executor, art, PartyArt.NONE, dwell, clock);
     }
 
-    Browser(DemozooClient demozoo, Executor executor, ReleaseArt art, PartyArt partyArt, Duration dwell, Clock clock) {
+    Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt, Duration dwell, Clock clock) {
         this.demozoo = demozoo;
+        this.modarchive = modarchive;
+        this.loaders = loaders;
         this.executor = executor;
         this.art = art;
         this.partyArt = partyArt;
         this.dwell = dwell;
         this.clock = clock;
         levels.push(new Level(ROOT_TITLE, NOTHING_HERE,
-                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList()));
+                List.of(new SectionItem(Section.PARTIES), new SectionItem(Section.CHARTS))));
     }
 
     public boolean atRoot() {
@@ -510,12 +567,30 @@ public final class Browser {
         error = null;
         level.selected().ifPresent(item -> {
             switch (item) {
+                case SectionItem section when section.section() == Section.PARTIES -> levels.push(seriesLevel());
+                case SectionItem section -> levels.push(new Level(section.label(), NOTHING_HERE,
+                        Arrays.stream(Chart.values()).<Item>map(ChartItem::new).toList()));
+                case ChartItem chart -> levels.push(new Level(chart.label(), NOTHING_HERE,
+                        Arrays.stream(Slice.values()).<Item>map(slice -> new FormatItem(chart.chart(), slice)).toList()));
+                case FormatItem format -> openChart(format);
                 case SeriesItem series -> load(series.label(), NOTHING_HERE, () -> partyItems(series.series().id()));
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
                 case CompoItem compo -> openCompo(compo);
                 case EntryItem entry -> selection = playlistFrom(level, entry);
             }
         });
+    }
+
+    private Level seriesLevel() {
+        return new Level(Section.PARTIES.label, NOTHING_HERE,
+                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList());
+    }
+
+    private void openChart(FormatItem format) {
+        final Level level = new Level(format.label(), NOTHING_HERE, List.of());
+        level.chart = format.chart();
+        level.slice = format.slice();
+        levels.push(level);
     }
 
     /**
@@ -636,8 +711,10 @@ public final class Browser {
     private Layout layoutOf(Level level, int width, int rows) {
         final int trailing = level.widest(Item::trailing);
         if (level.items.stream().noneMatch(Item::flows)) {
-            final int detail = Math.min(level.widest(Item::detail), Math.max(LEAST_DETAIL, width / 4));
-            return new Layout(1, rows, width, level.widest(Item::label), detail, trailing);
+            final int label = level.widest(Item::label);
+            final int room = Math.max(LEAST_DETAIL, width - label - NO_CURSOR.length() - COLUMN_GAP);
+            final int detail = Math.min(level.widest(Item::detail), room);
+            return new Layout(1, rows, width, label, detail, trailing);
         }
         final int cell = level.widest(Item::label) + trailing + NO_CURSOR.length() + COLUMN_GAP * 2;
         final int columns = Math.clamp(width / Math.max(1, cell), 1, MOST_COLUMNS);
@@ -724,6 +801,9 @@ public final class Browser {
             case CompoItem compo -> compo.compo().id() == track.compo().id();
             case PartyItem party -> party.party().id() == track.party().id();
             case SeriesItem series -> false;
+            case SectionItem section -> section.section() == Section.PARTIES && nowPlaying instanceof DemozooTrack;
+            case ChartItem chart -> false;
+            case FormatItem format -> false;
         };
     }
 

@@ -51,6 +51,7 @@ import com.adeptum.paula.demozoo.CachedReleaseArt;
 import com.adeptum.paula.demozoo.FetchingReleaseArt;
 import com.adeptum.paula.demozoo.SceneOrgPartyArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
@@ -146,7 +147,7 @@ public final class Paula implements Runnable {
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress());
             // Art is fetched behind the browser's back and must not write over what the player is waiting for.
             final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders);
-            final Browser browser = new Browser(demozoo, browsing,
+            final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
                     new FetchingReleaseArt(new CachedReleaseArt(cache), artResolver, fetchingArt),
                     new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
             new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, deadline()).run();
