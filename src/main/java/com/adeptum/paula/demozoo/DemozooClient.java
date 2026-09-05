@@ -22,10 +22,10 @@
 package com.adeptum.paula.demozoo;
 
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.cache.CachedResource;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -50,8 +50,7 @@ public final class DemozooClient {
 
     private final HttpFetcher http;
     private final CacheDirectory cache;
-    private final Duration ttl;
-    private final Clock clock;
+    private final CachedResource resource;
 
     public DemozooClient(HttpFetcher http, CacheDirectory cache) {
         this(http, cache, DEFAULT_TTL, Clock.systemUTC());
@@ -60,12 +59,7 @@ public final class DemozooClient {
     DemozooClient(HttpFetcher http, CacheDirectory cache, Duration ttl, Clock clock) {
         this.http = http;
         this.cache = cache;
-        this.ttl = ttl;
-        this.clock = clock;
-    }
-
-    private interface Parser<T> {
-        T parse(byte[] body) throws IOException;
+        this.resource = new CachedResource(cache, ttl, clock);
     }
 
     public PartySeries series(int id) throws IOException {
@@ -103,35 +97,8 @@ public final class DemozooClient {
         }
     }
 
-    /**
-     * A response is only cached once it has parsed, and a cached file that no longer parses is thrown away so a
-     * corrupt file cannot block a resource until it expires.
-     */
-    private <T> T fetch(String resource, int id, Parser<T> parser) throws IOException {
-        final Path cached = cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX);
-        if (isFresh(cached)) {
-            try {
-                return parser.parse(Files.readAllBytes(cached));
-            } catch (IOException e) {
-                log.warn("Discarding unreadable cache file {}: {}", cached, e.getMessage());
-                Files.deleteIfExists(cached);
-            }
-        }
-        try {
-            final byte[] body = http.get(API.resolve(resource + "/" + id + JSON_FORMAT)).body();
-            final T parsed = parser.parse(body);
-            cache.writeAtomically(cached, body);
-            return parsed;
-        } catch (IOException e) {
-            if (!Files.exists(cached)) {
-                throw e;
-            }
-            log.warn("Using cached {} {} after a failed fetch: {}", resource, id, e.getMessage());
-            return parser.parse(Files.readAllBytes(cached));
-        }
-    }
-
-    private boolean isFresh(Path file) throws IOException {
-        return Files.exists(file) && Files.getLastModifiedTime(file).toInstant().plus(ttl).isAfter(clock.instant());
+    private <T> T fetch(String resource, int id, CachedResource.Parser<T> parser) throws IOException {
+        return this.resource.read(cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX),
+                () -> http.get(API.resolve(resource + "/" + id + JSON_FORMAT)).body(), parser);
     }
 }
