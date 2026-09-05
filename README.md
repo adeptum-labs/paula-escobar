@@ -213,7 +213,8 @@ expensive part.
 Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
 when that variable holds an absolute path): Demozoo answers are refreshed after a week but
 still used when the network is down, and downloaded modules and party logos
-are kept for good.
+are kept for good. A competition handed in as one archive is downloaded once,
+however many of its entries are played.
 Delete the directory to start over.
 
 ### SID tunes

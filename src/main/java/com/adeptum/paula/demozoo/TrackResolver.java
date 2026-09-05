@@ -51,7 +51,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Turns a competition entry into a playable file on disk: the production's best download is fetched into the
- * cache, unpacked when it is an archive, and the first module the loaders accept is returned.
+ * cache unless it already lies there, unpacked when it is an archive, and the first module the loaders accept
+ * is returned.
  */
 @Slf4j
 public final class TrackResolver {
@@ -66,7 +67,6 @@ public final class TrackResolver {
     private static final Pattern ESCAPE = Pattern.compile("%[0-9A-Fa-f]{2}");
     private static final String LEGAL_IN_URI =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
-    private static final String FILES = "files";
     private static final String EXTRACTED = "extracted";
     private static final String UNPACKING = "Unpacking ";
     private static final String DOWNLOADING = "Downloading ";
@@ -86,7 +86,7 @@ public final class TrackResolver {
 
     private final DemozooClient demozoo;
     private final HttpFetcher http;
-    private final CacheDirectory cache;
+    private final DownloadCache downloads;
     private final ModuleLoaderRegistry loaders;
     private final Progress progress;
 
@@ -99,7 +99,7 @@ public final class TrackResolver {
         this.progress = progress;
         this.demozoo = demozoo;
         this.http = http;
-        this.cache = cache;
+        this.downloads = new DownloadCache(cache);
         this.loaders = loaders;
     }
 
@@ -110,8 +110,7 @@ public final class TrackResolver {
      * whatever the other links offer.
      */
     public Path resolve(CompoEntry entry) throws IOException {
-        final Path directory = cache.directory(FILES, String.valueOf(entry.productionId()));
-        final Optional<Path> cached = firstPlayable(directory, entry);
+        final Optional<Path> cached = remembered(entry);
         if (cached.isPresent()) {
             return cached.get();
         }
@@ -123,7 +122,7 @@ public final class TrackResolver {
         Path program = null;
         for (final Link link : links) {
             try {
-                final Path playable = download(link, directory, entry);
+                final Path playable = download(link, entry);
                 if (!isProgram(playable)) {
                     return playable;
                 }
@@ -139,14 +138,48 @@ public final class TrackResolver {
         throw failure;
     }
 
-    private Path download(Link link, Path directory, CompoEntry entry) throws IOException {
+    private Optional<Path> remembered(CompoEntry entry) throws IOException {
+        final Optional<Path> directory = downloads.of(entry.productionId());
+        return directory.isPresent() ? playableFile(directory.get(), entry) : Optional.empty();
+    }
+
+    private Path download(Link link, CompoEntry entry) throws IOException {
         final URI uri = downloadUri(link);
-        final String name = lastSegment(uri);
-        final HttpFetcher.Response response = http.get(uri, downloadWatcher(name));
-        final Path download = directory.resolve(fileName(response, uri));
-        cache.writeAtomically(download, response.body());
-        return playableFile(download, entry)
-                .orElseThrow(() -> new IOException("No playable file in " + download.getFileName() + " for " + entry.title()));
+        final Path directory = downloads.directory(uri);
+        if (!Files.isDirectory(directory)) {
+            fetch(uri, directory);
+        }
+        final Path playable = playableFile(directory, entry)
+                .orElseThrow(() -> new IOException("No playable file in " + lastSegment(uri) + " for " + entry.title()));
+        downloads.remember(entry.productionId(), directory);
+        return playable;
+    }
+
+    /**
+     * A download that holds nothing playable is kept all the same, so that the other entries pointing at it
+     * find that out without bringing it down again.
+     */
+    private void fetch(URI uri, Path directory) throws IOException {
+        final HttpFetcher.Response response = http.get(uri, downloadWatcher(lastSegment(uri)));
+        final Path staging = downloads.staging();
+        try {
+            final Path download = staging.resolve(fileName(response, uri));
+            Files.write(download, response.body());
+            unpack(download);
+            downloads.commit(staging, directory);
+        } catch (IOException | RuntimeException e) {
+            downloads.discard(staging);
+            throw e;
+        }
+    }
+
+    private void unpack(Path download) throws IOException {
+        final Optional<ArchiveExtractor> archive = Archives.detect(download);
+        if (archive.isPresent()) {
+            final Path extracted = download.resolveSibling(EXTRACTED);
+            archive.get().extract(download, extracted, wantedEntry(download.getFileName().toString()));
+            unpackNested(extracted);
+        }
     }
 
     /**
@@ -245,22 +278,28 @@ public final class TrackResolver {
         return path.substring(path.lastIndexOf('/') + 1);
     }
 
-    private Optional<Path> playableFile(Path download, CompoEntry entry) throws IOException {
-        final Optional<ArchiveExtractor> archive = Archives.detect(download);
-        if (archive.isEmpty()) {
-            if (loaders.loaderFor(download).isPresent()) {
-                return Optional.of(download);
-            }
-            throw new IOException(download.getFileName() + " for " + entry.title() + " is not a module or archive");
+    /**
+     * The download is the one file lying at the top of its directory, with whatever it unpacked to beside it. A
+     * disk image is an archive to unpack and a program to play at once, so where it held no tune of its own the
+     * image itself is offered.
+     */
+    private Optional<Path> playableFile(Path directory, CompoEntry entry) throws IOException {
+        final Optional<Path> download = downloadIn(directory);
+        if (download.isEmpty()) {
+            return Optional.empty();
         }
-        final Path extracted = download.resolveSibling(EXTRACTED);
-        archive.get().extract(download, extracted, wantedEntry(download.getFileName().toString()));
-        unpackNested(extracted);
-        final Optional<Path> playable = firstPlayable(extracted, entry);
-        if (playable.isEmpty() && loaders.loaderFor(download).isPresent()) {
-            return Optional.of(download);
+        final boolean loadable = loaders.loaderFor(download.get()).isPresent();
+        if (!loadable && Archives.detect(download.get()).isEmpty()) {
+            throw new IOException(download.get().getFileName() + " for " + entry.title() + " is not a module or archive");
         }
-        return playable;
+        final Optional<Path> playable = firstPlayable(directory, entry);
+        return playable.isEmpty() && loadable ? download : playable;
+    }
+
+    private static Optional<Path> downloadIn(Path directory) throws IOException {
+        try (Stream<Path> files = Files.list(directory)) {
+            return files.filter(Files::isRegularFile).findFirst();
+        }
     }
 
     /**

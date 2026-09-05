@@ -126,7 +126,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/music/tune.mod"), resolved);
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/music/tune.mod"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
@@ -216,6 +216,41 @@ class TrackResolverTest {
         assertEquals(requests, http.requests());
     }
 
+    /**
+     * A party hands in a whole competition as one archive, and every entry in it points at that same file.
+     */
+    @Test
+    void fetchesACompetitionBundleOnceForAllItsEntries(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(PRODUCTION_URL.replace("/7/", "/8/"), productionJson(8, "SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("theseus.mod", TestModules.proTracker());
+        bundle.put("rival.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", "Rival", Set.of(29));
+
+        final Path first = resolver(dir).resolve(ENTRY);
+        final Path second = resolver(dir).resolve(rival);
+
+        assertEquals("theseus.mod", first.getFileName().toString());
+        assertEquals("rival.mod", second.getFileName().toString());
+        assertEquals(3, http.requests(), "two productions looked up, one archive fetched");
+    }
+
+    @Test
+    void doesNotFetchAgainABundleThatHeldNothingPlayable(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(PRODUCTION_URL.replace("/7/", "/8/"), productionJson(8, "SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("readme.txt", README)), Optional.empty());
+        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", "Rival", Set.of(29));
+
+        assertThrows(IOException.class, () -> resolver(dir).resolve(ENTRY));
+        final IOException error = assertThrows(IOException.class, () -> resolver(dir).resolve(rival));
+
+        assertTrue(error.getMessage().startsWith("No playable file in funkyeeh.zip"), error.getMessage());
+        assertEquals(3, http.requests(), "the archive was brought down once");
+    }
+
     @Test
     void acceptsPlainModuleDownloads(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
@@ -223,7 +258,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/funkyeeh.mod"), resolved);
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("funkyeeh.mod"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
@@ -233,7 +268,7 @@ class TrackResolverTest {
                 + "{\"link_class\":\"ModarchiveModule\",\"url\":\"" + MODARCHIVE_PAGE + "\"}]}");
         http.put(MODARCHIVE_FILE, TestModules.proTracker(), Optional.of("gauged.mod"));
 
-        assertEquals(dir.resolve("files/7/gauged.mod"), resolver(dir).resolve(ENTRY));
+        assertEquals(downloaded(dir, MODARCHIVE_FILE).resolve("gauged.mod"), resolver(dir).resolve(ENTRY));
     }
 
     @Test
@@ -241,7 +276,7 @@ class TrackResolverTest {
         http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
         http.put(MODLAND_FILE, TestModules.proTracker(), Optional.of("../../escaped.mod"));
 
-        assertEquals(dir.resolve("files/7/escaped.mod"), resolver(dir).resolve(ENTRY));
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("escaped.mod"), resolver(dir).resolve(ENTRY));
     }
 
     @Test
@@ -249,7 +284,7 @@ class TrackResolverTest {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", "https://files.scene.org/view/parties/x/"));
         http.put("https://archive.scene.org/pub/parties/x/", TestArchives.zip(Map.of("tune.mod", TestModules.proTracker())), Optional.empty());
 
-        assertEquals(dir.resolve("files/7/extracted/tune.mod"), resolver(dir).resolve(ENTRY));
+        assertEquals(downloaded(dir, "https://archive.scene.org/pub/parties/x/").resolve("extracted/tune.mod"), resolver(dir).resolve(ENTRY));
     }
 
     @Test
@@ -258,7 +293,7 @@ class TrackResolverTest {
         http.put(MODLAND_FILE, TestArchives.zip(Map.of("tune.mod", TestModules.proTracker())), Optional.of("archive.mod"));
         final Path first = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/tune.mod"), first);
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("extracted/tune.mod"), first);
         assertEquals(first, resolver(dir).resolve(ENTRY));
     }
 
@@ -269,7 +304,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/mod.tune"), resolved);
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/mod.tune"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
         assertEquals(resolved, resolver(dir).resolve(ENTRY));
     }
@@ -282,7 +317,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/MOD.tune"), resolved);
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/MOD.tune"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
@@ -293,7 +328,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/XM.survival"), resolved);
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("extracted/XM.survival"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
@@ -304,7 +339,7 @@ class TrackResolverTest {
 
         final Path resolved = resolver(dir).resolve(ENTRY);
 
-        assertEquals(dir.resolve("files/7/extracted/funkyeeh.mod"), resolved);
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("extracted/funkyeeh.mod"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
@@ -378,17 +413,25 @@ class TrackResolverTest {
         assertEquals("page.html for Funkyeeh is not a module or archive", error.getMessage());
     }
 
+    private static Path downloaded(Path dir, String url) {
+        return new DownloadCache(new CacheDirectory(dir)).directory(URI.create(url));
+    }
+
     private static Production production(List<Link> downloads, List<Link> externals) {
         return new Production(7, "Funkyeeh", downloads, externals);
     }
 
     private static String productionJson(String... classesAndUrls) {
+        return productionJson(7, classesAndUrls);
+    }
+
+    private static String productionJson(int id, String... classesAndUrls) {
         final StringBuilder links = new StringBuilder();
         for (int at = 0; at < classesAndUrls.length; at += 2) {
             links.append(links.isEmpty() ? "" : ",")
                     .append("{\"link_class\":\"").append(classesAndUrls[at]).append("\",\"url\":\"").append(classesAndUrls[at + 1]).append("\"}");
         }
-        return "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[" + links + "],\"external_links\":[]}";
+        return "{\"id\":" + id + ",\"title\":\"Funkyeeh\",\"download_links\":[" + links + "],\"external_links\":[]}";
     }
 
 }

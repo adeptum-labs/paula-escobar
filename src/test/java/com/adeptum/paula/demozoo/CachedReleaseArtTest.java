@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
 class CachedReleaseArtTest {
 
     private static final int PRODUCTION = 7;
+    private static final String RELEASE_URL = "https://archive.scene.org/pub/parties/1995/assembly95/m4ch/funkyeeh.zip";
     private static final Charset CODE_PAGE = StandardCharsets.ISO_8859_1;
     private static final String BANNER = "\n.------------------.\n|  I.C.I.N.G 9.7   |\n`------------------'\n\n\n";
 
@@ -48,7 +50,10 @@ class CachedReleaseArtTest {
     }
 
     private static Path release(Path dir) throws IOException {
-        return Files.createDirectories(dir.resolve("files").resolve(String.valueOf(PRODUCTION)).resolve("extracted"));
+        final DownloadCache downloads = new DownloadCache(new CacheDirectory(dir));
+        final Path directory = downloads.directory(URI.create(RELEASE_URL));
+        downloads.remember(PRODUCTION, directory);
+        return Files.createDirectories(directory.resolve("extracted"));
     }
 
     @Test

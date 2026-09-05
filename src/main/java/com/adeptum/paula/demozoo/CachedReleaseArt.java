@@ -44,13 +44,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class CachedReleaseArt implements ReleaseArt {
 
-    private static final String FILES = "files";
     private static final String FILE_ID = "file_id.diz";
     private static final long LONGEST = 8192;
     private static final Duration RECHECK = Duration.ofSeconds(2);
     private static final char ESCAPE = 0x1B;
 
-    private final CacheDirectory cache;
+    private final DownloadCache downloads;
     private final Duration recheck;
     private final Clock clock;
     private final Map<Integer, List<String>> found = new ConcurrentHashMap<>();
@@ -61,7 +60,7 @@ public final class CachedReleaseArt implements ReleaseArt {
     }
 
     CachedReleaseArt(CacheDirectory cache, Duration recheck, Clock clock) {
-        this.cache = cache;
+        this.downloads = new DownloadCache(cache);
         this.recheck = recheck;
         this.clock = clock;
     }
@@ -86,11 +85,7 @@ public final class CachedReleaseArt implements ReleaseArt {
     }
 
     private Optional<List<String>> read(int productionId) {
-        final Path directory = cache.root().resolve(FILES).resolve(String.valueOf(productionId));
-        if (!Files.isDirectory(directory)) {
-            return Optional.empty();
-        }
-        try (Stream<Path> files = Files.walk(directory)) {
+        try (Stream<Path> files = walkDownloadOf(productionId)) {
             return files.filter(Files::isRegularFile)
                     .filter(CachedReleaseArt::isArtFile)
                     .sorted(Comparator.comparing((Path file) -> isFileId(file) ? 0 : 1).thenComparing(Path::toString))
@@ -101,6 +96,11 @@ public final class CachedReleaseArt implements ReleaseArt {
             log.debug("No art for production {}: {}", productionId, e.toString());
             return Optional.empty();
         }
+    }
+
+    private Stream<Path> walkDownloadOf(int productionId) throws IOException {
+        final Optional<Path> directory = downloads.of(productionId);
+        return directory.isPresent() ? Files.walk(directory.get()) : Stream.empty();
     }
 
     private static boolean isArtFile(Path file) {
