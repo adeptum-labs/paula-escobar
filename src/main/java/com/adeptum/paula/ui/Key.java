@@ -29,11 +29,12 @@ import java.util.regex.Pattern;
  */
 public record Key(Special special, char character, Mouse mouse) {
 
-    public enum Special { NONE, UP, DOWN, LEFT, RIGHT, ENTER, BACKSPACE, ESCAPE, PAGE_UP, PAGE_DOWN, HOME, END, EOF, TIMEOUT }
+    public enum Special { NONE, UP, DOWN, LEFT, RIGHT, ENTER, TAB, BACKSPACE, ESCAPE, PAGE_UP, PAGE_DOWN, HOME, END, EOF, TIMEOUT }
 
     public static final Key NONE = new Key(Special.NONE, '\0', null);
 
     private static final int END_OF_STREAM = -1;
+    private static final int TAB_CODE = 9;
     private static final int LINE_FEED = 10;
     private static final int CARRIAGE_RETURN = 13;
     private static final int BACKSPACE_CODE = 8;
@@ -62,6 +63,7 @@ public record Key(Special special, char character, Mouse mouse) {
     public static Key forByte(int value) {
         return switch (value) {
             case END_OF_STREAM -> of(Special.EOF);
+            case TAB_CODE -> of(Special.TAB);
             case LINE_FEED, CARRIAGE_RETURN -> of(Special.ENTER);
             case BACKSPACE_CODE, DELETE_CODE -> of(Special.BACKSPACE);
             case ESCAPE_CODE -> of(Special.ESCAPE);

@@ -470,6 +470,21 @@ class BrowserTest {
     }
 
     @Test
+    void tabHopsBetweenTheChartsAndTheSeries() {
+        cursorToTheParty();
+        press(Key.Special.TAB);
+        assertTrue(render().get(2).startsWith("│> Charts"));
+        press(Key.Special.TAB);
+        assertTrue(render().stream().anyMatch(line -> line.contains("> The Party ")), "back to the series it left");
+        press(Key.Special.TAB);
+        press(Key.Special.ENTER);
+        assertFalse(browser.consumes(Key.of(Key.Special.TAB)), "tab means nothing below the first page");
+        press(Key.Special.BACKSPACE);
+        press(Key.Special.TAB);
+        assertTrue(render().stream().anyMatch(line -> line.contains("> The Party ")), "the series left is still remembered");
+    }
+
+    @Test
     void theChartsOpenIntoTheirFormats() {
         press(Key.Special.ENTER);
         assertEquals(List.of("Top Favourites", "Most Downloads", "Featured"), labels());

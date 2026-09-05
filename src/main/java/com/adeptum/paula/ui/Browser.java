@@ -390,6 +390,7 @@ public final class Browser {
             new Frame.Key("↑ ↓", "move the cursor"),
             new Frame.Key("PgUp PgDn", "move a page"),
             new Frame.Key("Home End", "jump to the first or last line"),
+            new Frame.Key("tab", "hop between the charts and the series"),
             new Frame.Key("enter →", "open, or play an entry"),
             new Frame.Key("backspace", "go back one level"),
             new Frame.Key("← esc", "go back, or quit at the top"),
@@ -419,6 +420,7 @@ public final class Browser {
     private int restingOn;
     private int reopening;
     private Instant restingSince;
+    private int seriesLeft = 1;
     private Track nowPlaying;
     private double[] nowPlayingSpectrum = new double[0];
 
@@ -455,6 +457,19 @@ public final class Browser {
     }
 
     /**
+     * Tab hops from wherever the cursor is among the series to the charts above them, and back to the series it
+     * left.
+     */
+    private void hopBetweenTheChartsAndTheSeries(Level level) {
+        if (level.cursor == 0) {
+            level.cursor = Math.clamp(seriesLeft, 1, level.items.size() - 1);
+        } else {
+            seriesLeft = level.cursor;
+            level.cursor = 0;
+        }
+    }
+
+    /**
      * The charts sit above the series, so both are on the first page.
      */
     private static List<Item> rootItems() {
@@ -477,6 +492,7 @@ public final class Browser {
         return switch (key.special()) {
             case UP, DOWN, PAGE_UP, PAGE_DOWN, HOME, END, ENTER, BACKSPACE, LEFT, RIGHT -> true;
             case ESCAPE -> !atRoot();
+            case TAB -> atRoot();
             case NONE -> Character.toLowerCase(key.character()) == RELOAD;
             default -> false;
         };
@@ -495,6 +511,7 @@ public final class Browser {
             case HOME -> level.move(-level.items.size());
             case END -> level.move(level.items.size());
             case ENTER, RIGHT -> open(level);
+            case TAB -> hopBetweenTheChartsAndTheSeries(level);
             case BACKSPACE, LEFT, ESCAPE -> back();
             case NONE -> reload();
             default -> {

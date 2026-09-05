@@ -112,6 +112,7 @@ Keys while browsing:
 | `↑` `↓`             | move the cursor                          |
 | `PgUp` `PgDn`       | move a page                              |
 | `Home` `End`        | jump to the first or last line           |
+| `tab`               | hop between the charts and the series    |
 | `enter` `→`         | open the line, or play an entry          |
 | `backspace` `←` `esc` | go back one level (`esc` at the top quits) |
 | `b`                 | switch to the player                     |
@@ -150,7 +151,7 @@ wrote into the sample names beside them.
 bottom has no room for among them, and any key puts them away again.
 
 The browser starts on the party series listed by name, with a Charts row
-above them. Charts opens into Top Favourites, Most Downloads and the weekly
+above them; `tab` hops between the two. Charts opens into Top Favourites, Most Downloads and the weekly
 Featured picks, and each of those opens in turn into All, MOD, XM, IT,
 S3M and Other by file extension. A chart list shows forty rows and fetches the
 next forty as the cursor reaches its end, a narrow format reading a few

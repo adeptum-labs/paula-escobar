@@ -36,6 +36,7 @@ class KeyTest {
     void mapsControlBytesToSpecials() {
         assertEquals(Key.of(Key.Special.ENTER), Key.forByte(13));
         assertEquals(Key.of(Key.Special.ENTER), Key.forByte(10));
+        assertEquals(Key.of(Key.Special.TAB), Key.forByte(9));
         assertEquals(Key.of(Key.Special.BACKSPACE), Key.forByte(127));
         assertEquals(Key.of(Key.Special.BACKSPACE), Key.forByte(8));
         assertEquals(Key.of(Key.Special.ESCAPE), Key.forByte(27));
