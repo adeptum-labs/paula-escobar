@@ -1,5 +1,5 @@
---- a/BasicModMixer.java
-+++ b/BasicModMixer.java
+--- a/source/de/quippy/javamod/multimedia/mod/mixer/BasicModMixer.java
++++ b/source/de/quippy/javamod/multimedia/mod/mixer/BasicModMixer.java
 @@ -2559,6 +2559,7 @@
  						{
  							aktMemo.currentSamplePos = loopStart = sample.loopStart;
