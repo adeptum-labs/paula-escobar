@@ -6,40 +6,26 @@ line and JLine draws a full-screen, colour player view. The build produces a
 native executable with GraalVM, so there is no JVM to start and no jar to
 carry around.
 
-Paula Escobar plays local files, but it also opens the party archives: the music
-competitions of over sixty party series — from The Party, Assembly and The
-Gathering through Breakpoint and Revision to Swedish Icing, the Polish
-classics Intel Outside, Gravity and Xenium, and X, the largest party the
-Commodore 64 has to itself — can be browsed year by year straight from the
-player, and any placed entry is downloaded from scene.org, ModArchive or
-Modland and played on the spot. The charts of [ModArchive](https://modarchive.org)
-can be browsed too: its most favoured, most downloaded and featured modules,
-by format.
+Besides local files it opens the party archives: the music competitions of
+over sixty party series, from The Party, Assembly and The Gathering through
+Breakpoint and Revision to Swedish Icing, the Polish classics and X, the
+Commodore 64's own party, can be browsed year by year, and any placed entry
+is downloaded from scene.org, ModArchive or Modland and played on the spot.
+The charts of [ModArchive](https://modarchive.org), its most favoured, most
+downloaded and featured modules, can be browsed by format the same way.
 
-Tracker modules are decoded and mixed by [JavaMod](https://github.com/quippy-git/javamod),
-Daniel Becker's pure-Java player, which covers ProTracker, NoiseTracker,
-FastTracker II, Scream Tracker, Impulse Tracker, Farandole and MultiTracker
-files among others. Commodore 64 SID tunes play through the libsidplay2
-port with reSID chip emulation that JavaMod bundles. Its jar is vendored
-under `lib/` as a small Maven repository because no current release is
-published to Maven Central; `tools/patch-javamod` rebuilds it from the
-release with the fixes in `tools/javamod-*.patch` compiled in: one stops a
-ProTracker sample swap at a loop end from reading past the end of the
-shorter sample, the other hangs the sample cues of an OpenMPT module on the
-right samples instead of failing on the last one. Atari 8-bit tunes, whether SAP files or the
-native modules of the Atari trackers, play through
-[ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502
-emulation, whose Java is generated into the tree from its sources by
-`tools/generate-asap`. DigiBooster modules, which JavaMod does not
-read, have a replayer of their own inside Paula Escobar. The recorded
-formats a streaming music competition is handed in as play too: MPEG audio
-frame by frame through the JLayer decoder in that same jar, FLAC through
-jFLAC and Ogg Vorbis through jOrbis beside it, the Vorbis stream driven
-straight off its pages rather than through JavaMod's own container, which
-reaches for a window toolkit the native image has not got, and wave, AIFF
-and AU files straight from the samples they carry. All of them are
-resampled to the rate the engine mixes at, and `--rate 44100` hands a
-CD-rate file through untouched.
+Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
+Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
+reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
+`lib/` with the fixes in `tools/javamod-*.patch` compiled in by
+`tools/patch-javamod`. Atari 8-bit tunes play through
+[ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
+whose Java `tools/generate-asap` generates into the tree. DigiBooster modules
+have a replayer of their own inside Paula Escobar. MPEG audio, FLAC, Ogg
+Vorbis, wave, AIFF and AU files, the formats a streaming competition is
+handed in as, are decoded by JLayer, jFLAC and jOrbis and resampled to the
+rate the engine mixes at; `--rate 44100` hands a CD-rate file through
+untouched.
 
 ## Building
 
