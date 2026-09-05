@@ -751,7 +751,8 @@ public final class Browser {
             line.style(text).append(GAP);
         }
         final int room = layout.cellWidth() - written - ticker.length();
-        final int detail = item.detail().isEmpty() ? 0 : Math.min(layout.detail(), room / 2);
+        final int spare = Math.max(room / 4, room - layout.label() - layout.trailing() - COLUMN_GAP * 2);
+        final int detail = item.detail().isEmpty() ? 0 : Math.min(layout.detail(), spare);
         final int trailing = Math.min(layout.trailing(), Math.max(0, room - detail - COLUMN_GAP));
         final int gaps = (detail > 0 ? COLUMN_GAP : 0) + (trailing > 0 ? COLUMN_GAP : 0);
         final int label = Math.max(1, Math.min(layout.label(), room - gaps - detail - trailing));

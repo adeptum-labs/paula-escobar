@@ -318,7 +318,6 @@ class BrowserTest {
 
     @Test
     void theRootIsLeftAloneByReload() {
-        press(Key.Special.ENTER);
         final int requests = http.requests();
 
         press('r');
@@ -796,6 +795,30 @@ class BrowserTest {
         press(Key.Special.ENTER);
         assertEquals(1, browser.takeSelection().orElseThrow().size(),
                 "and choosing one queues only that one, the rest of the competition being no more playable");
+    }
+
+    /**
+     * A long byline and the unsupported-format marker both compete with the title for the same row; the
+     * title is the one thing a browsing player cannot do without, so it keeps its room ahead of either.
+     */
+    @Test
+    void givesTheTitleItsRoomBesideALongAuthorAndATrailingMarker() {
+        final String title = "A Rather Long Title";
+        final String author = "A".repeat(40);
+        http.put(SERIES_URL, SERIES);
+        http.put(PARTY_URL, PARTY.replace("Multichannel Music", "ReBirth Music")
+                .replace("\"title\":\"First\",\"author_nicks\":[{\"name\":\"A\"}]",
+                        "\"title\":\"" + title + "\",\"author_nicks\":[{\"name\":\"" + author + "\"}]"));
+        cursorToTheParty();
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.ENTER);
+
+        assertTrue(browser.render(WIDTH, HEIGHT).get(2).toString().contains(title),
+                "the title stays whole even beside a long author and a long trailing marker");
     }
 
     @Test
