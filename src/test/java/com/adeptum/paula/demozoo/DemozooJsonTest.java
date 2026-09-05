@@ -106,6 +106,7 @@ class DemozooJsonTest {
         final CompoEntry entry = DemozooJson.competitions(bytes(party)).get(0).entries().get(0);
 
         assertEquals(List.of(new Nick("Solo", 0, false)), entry.authors());
+        assertEquals(List.of(), entry.musicians());
     }
 
     /**
