@@ -298,18 +298,18 @@ Piotr Fusik and licensed under the GNU General Public License, version 2
 or later, used here under version 3.
 
 LHA archives are read with the LHA Library for Java, copyright Michel
-Ishizuka, distributed under the BSD 2-Clause License reproduced in
-[lib/JLHA-LICENSE.txt](lib/JLHA-LICENSE.txt). The LZX decoder follows the
-implementation in [XADMaster](https://github.com/MacPaw/XADMaster), copyright
-MacPaw Inc., licensed under the GNU Lesser General Public License version 2.1
-or later and used under the GPL as that licence permits. The XPK unpacker
-follows Teemu Suutari's [ancient](https://github.com/temisu/ancient),
-distributed under the BSD 2-Clause License. The AHX and HivelyTracker
-replayer follows HivelyTracker's, copyright Pete Gordon, distributed under
-the BSD 3-Clause License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives are read with
-Apache Commons Compress over the XZ for Java library, both under the
-Apache License 2.0. RAR archives are read with
+Ishizuka, distributed under the BSD 2-Clause License reproduced in [lib/JLHA-
+LICENSE.txt](lib/JLHA-LICENSE.txt). The LZX decoder follows the implementation
+in [XADMaster](https://github.com/MacPaw/XADMaster), copyright MacPaw Inc.,
+licensed under the GNU Lesser General Public License version 2.1 or later and
+used under the GPL as that licence permits. The XPK unpacker follows Teemu
+Suutari's [ancient](https://github.com/temisu/ancient), distributed under the
+BSD 2-Clause License. The AHX and HivelyTracker replayer follows
+HivelyTracker's, copyright Pete Gordon, distributed under the BSD 3-Clause
+License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
+are read with Apache Commons Compress over the XZ for Java library, both under
+the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
-license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which
-allows unpacking RAR archives and forbids re-creating the RAR
-compression algorithm; Paula Escobar only unpacks.
+license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which allows
+unpacking RAR archives and forbids re-creating the RAR compression algorithm;
+Paula Escobar only unpacks.
