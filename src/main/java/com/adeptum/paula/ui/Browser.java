@@ -423,6 +423,7 @@ public final class Browser {
     private CompletableFuture<Level> pending;
     private CompletableFuture<Grown> more;
     private Level filling;
+    private Instant lastGrown;
     private String error;
     private Playlist selection;
     private int pageSize = 1;
@@ -527,12 +528,14 @@ public final class Browser {
      * A chart is read a page at a time as the cursor reaches the end of what has been read, so a list of
      * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages at
      * once, so that a step at the end brings a row rather than a wait; a run that turned up nothing then waits
-     * for the next step of the cursor, rather than reading a format the chart never held to its last page.
+     * for the next step of the cursor, rather than reading a format the chart never held to its last page, and
+     * runs are held a dwell apart so that a key left on the mat does not empty the site.
      */
     private void growAtTheEndOfTheList() {
         final Level level = levels.peek();
         if (more != null || pending != null || level.chart == null || level.restingAtTheEnd
-                || level.nextPage > level.lastPage || level.cursor < level.items.size() - 1) {
+                || level.nextPage > level.lastPage || level.cursor < level.items.size() - 1
+                || (lastGrown != null && lastGrown.plus(dwell).isAfter(clock.instant()))) {
             return;
         }
         filling = level;
@@ -595,6 +598,7 @@ public final class Browser {
             level.lastPage = 0;
             level.nextPage = 1;
         }
+        lastGrown = clock.instant();
         more = null;
         filling = null;
     }
@@ -705,7 +709,7 @@ public final class Browser {
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
                 case CompoItem compo -> openCompo(compo);
                 case EntryItem entry -> selection = playlistFrom(level, entry);
-                case TuneItem tune -> selection = playlistFrom(level);
+                case TuneItem tune -> selection = playlistFrom(level, tune);
             }
         });
     }
@@ -738,6 +742,7 @@ public final class Browser {
             modarchive.forget(level.chart);
             more = null;
             filling = null;
+            lastGrown = null;
             levels.pop();
             open(levels.peek());
             return;
@@ -842,8 +847,7 @@ public final class Browser {
      * The chosen tune plays even when nothing here reads its format, since the chart names a file Paula may yet
      * know what to do with; the rest of the chart as it has been read so far follows in ranked order.
      */
-    private static Playlist playlistFrom(Level level) {
-        final Item chosen = level.items.get(level.cursor);
+    private static Playlist playlistFrom(Level level, TuneItem chosen) {
         final List<Track> tracks = level.items.subList(level.cursor, level.items.size()).stream()
                 .map(TuneItem.class::cast)
                 .filter(tune -> tune == chosen || tune.readable())
@@ -1023,7 +1027,8 @@ public final class Browser {
 
     private AttributedString statusLine() {
         if (more != null) {
-            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(filling.title).append('…'));
+            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(filling.chart.title())
+                    .append(COMPO_SEPARATOR).append(filling.title).append('…'));
         }
         if (pending != null) {
             return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(loadingTitle()).append('…'));

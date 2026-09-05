@@ -96,6 +96,7 @@ class BrowserTest {
     private static final int HEIGHT = 12;
     private static final int TALL = 24;
     private static final int THE_PARTY_SERIES = 19;
+    private static final Duration DWELL = Duration.ofMillis(500);
     private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/19/?format=json";
     private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/5/?format=json";
     private static final String SERIES = """
@@ -133,6 +134,7 @@ class BrowserTest {
     }
 
     private final FakeHttp http = new FakeHttp();
+    private final MutableClock clock = new MutableClock();
     private Browser browser;
     private CacheDirectory cache;
 
@@ -143,13 +145,13 @@ class BrowserTest {
     }
 
     private Browser browser(ReleaseArt art, PartyArt partyArt) {
-        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, art, partyArt);
+        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+                art, partyArt, DWELL, clock);
     }
 
     @Test
     void fetchesTheArtOfAnEntryTheCursorComesToRestOn() {
         final List<CompoEntry> fetched = new ArrayList<>();
-        final MutableClock clock = new MutableClock();
         browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
@@ -161,7 +163,7 @@ class BrowserTest {
             public void fetch(CompoEntry entry) {
                 fetched.add(entry);
             }
-        }, Duration.ofMillis(500), clock);
+        }, DWELL, clock);
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD.replace("x.zip", "another.zip"));
         openParty();
@@ -187,7 +189,6 @@ class BrowserTest {
     @Test
     void leavesABareRecordingAloneRatherThanFetchItForArtItCannotHold() {
         final List<CompoEntry> fetched = new ArrayList<>();
-        final MutableClock clock = new MutableClock();
         browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
@@ -199,7 +200,7 @@ class BrowserTest {
             public void fetch(CompoEntry entry) {
                 fetched.add(entry);
             }
-        }, Duration.ofMillis(500), clock);
+        }, DWELL, clock);
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD.replace("x.zip", "tune.mp3"));
         openParty();
@@ -218,7 +219,6 @@ class BrowserTest {
     @Test
     void leavesAloneAnEntryDownloadedFromTheSamePlaceAsTheCompetition() {
         final List<CompoEntry> fetched = new ArrayList<>();
-        final MutableClock clock = new MutableClock();
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
         browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
@@ -232,7 +232,7 @@ class BrowserTest {
             public void fetch(CompoEntry entry) {
                 fetched.add(entry);
             }
-        }, Duration.ofMillis(500), clock);
+        }, DWELL, clock);
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -520,11 +520,13 @@ class BrowserTest {
         openFavourites(Slice.ALL);
         assertEquals(1, http.requests(), "the first page only");
         press(Key.Special.END);
+        clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         browser.tick();
         assertEquals(2, http.requests());
         assertTrue(render().get(4).contains("Deadlock"));
         press(Key.Special.END);
+        clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         browser.tick();
         assertEquals(2, http.requests(), "the chart ends at page two");
@@ -556,9 +558,31 @@ class BrowserTest {
         browser.tick();
         assertEquals(4, http.requests(), "four pages, and nothing more while the cursor rests");
         press(Key.Special.END);
+        clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         browser.tick();
         assertEquals(lastPage, http.requests(), "a step reads on to the last page");
+    }
+
+    /**
+     * A key left on the mat at the end of a list would otherwise ask the site for four pages a round trip.
+     */
+    @Test
+    void leavesADwellBetweenTheRunsOfPages() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
+        http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());
+        openFavourites(Slice.ALL);
+        assertEquals(1, http.requests(), "the first page only");
+
+        press(Key.Special.END);
+        browser.tick();
+        browser.tick();
+        assertEquals(1, http.requests(), "the next run waits out the dwell");
+
+        clock.advance(DWELL.multipliedBy(2));
+        browser.tick();
+        browser.tick();
+        assertEquals(2, http.requests());
     }
 
     @Test
