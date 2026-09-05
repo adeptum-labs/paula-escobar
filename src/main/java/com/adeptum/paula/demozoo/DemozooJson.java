@@ -47,8 +47,6 @@ public final class DemozooJson {
     private static final JsonProvider JSON = new JsonProviderImpl();
     private static final String MUSIC = "music";
     private static final String SCENE_ORG_FOLDER = "SceneOrgFolder";
-    private static final String UNKNOWN_AUTHOR = "unknown";
-    private static final String AUTHOR_SEPARATOR = " & ";
 
     private DemozooJson() {
     }
@@ -151,15 +149,17 @@ public final class DemozooJson {
         final JsonObject production = result.getJsonObject("production");
         final Set<Integer> types = objects(production, "types").map(type -> type.getInt("id")).collect(Collectors.toUnmodifiableSet());
         return new CompoEntry(result.getInt("position", 0), result.getString("ranking", ""), production.getInt("id"),
-                production.getString("title", ""), author(production), types.isEmpty() ? Set.of(competitionTypeId) : types);
+                production.getString("title", ""), nicks(production), types.isEmpty() ? Set.of(competitionTypeId) : types);
     }
 
-    private static String author(JsonObject production) {
-        final String names = objects(production, "author_nicks")
-                .map(nick -> nick.getString("name", ""))
-                .filter(name -> !name.isBlank())
-                .collect(Collectors.joining(AUTHOR_SEPARATOR));
-        return names.isEmpty() ? UNKNOWN_AUTHOR : names;
+    private static List<Nick> nicks(JsonObject production) {
+        return objects(production, "author_nicks")
+                .filter(nick -> !nick.getString("name", "").isBlank())
+                .map(nick -> {
+                    final JsonObject releaser = object(nick, "releaser");
+                    return new Nick(nick.getString("name", ""), releaser.getInt("id", 0), releaser.getBoolean("is_group", false));
+                })
+                .toList();
     }
 
     private static List<Link> links(JsonObject production, String name) {

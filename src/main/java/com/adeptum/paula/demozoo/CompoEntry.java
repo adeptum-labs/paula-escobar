@@ -21,18 +21,22 @@
 
 package com.adeptum.paula.demozoo;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * One ranked result of a competition. The ranking is Demozoo's display string and is empty for unranked entries.
  */
-public record CompoEntry(int position, String ranking, int productionId, String title, String author, Set<Integer> typeIds) {
+public record CompoEntry(int position, String ranking, int productionId, String title, List<Nick> authors, Set<Integer> typeIds) {
 
     private static final int EXECUTABLE_MUSIC = 31;
     private static final int EXECUTABLE_MUSIC_32K = 32;
     private static final int EXECUTABLE_MUSIC_64K = 38;
     private static final Set<Integer> UNPLAYABLE_TYPES = Set.of(EXECUTABLE_MUSIC, EXECUTABLE_MUSIC_32K, EXECUTABLE_MUSIC_64K);
     private static final String UNRANKED = "-";
+    private static final String UNKNOWN_AUTHOR = "unknown";
+    private static final String AUTHOR_SEPARATOR = " & ";
 
     /**
      * A streaming competition counts as playable now that MPEG audio does, though it is the one competition
@@ -44,5 +48,14 @@ public record CompoEntry(int position, String ranking, int productionId, String 
 
     public String placing() {
         return ranking.isEmpty() ? UNRANKED : ranking;
+    }
+
+    public String author() {
+        final String names = authors.stream().map(Nick::name).collect(Collectors.joining(AUTHOR_SEPARATOR));
+        return names.isEmpty() ? UNKNOWN_AUTHOR : names;
+    }
+
+    public List<Nick> musicians() {
+        return authors.stream().filter(nick -> !nick.group()).toList();
     }
 }

@@ -58,7 +58,7 @@ class TrackResolverTest {
     private static final String MODARCHIVE_MODULE_PAGE = "https://modarchive.org/module.php?123";
     private static final String MODARCHIVE_FILE = "https://api.modarchive.org/downloads.php?moduleid=123";
     private static final byte[] README = "hello".getBytes(StandardCharsets.US_ASCII);
-    private static final CompoEntry ENTRY = new CompoEntry(1, "1", 7, "Funkyeeh", "Theseus", Set.of(29));
+    private static final CompoEntry ENTRY = new CompoEntry(1, "1", 7, "Funkyeeh", List.of(new Nick("Theseus", 0, false)), Set.of(29));
 
     private final FakeHttp http = new FakeHttp();
 
@@ -246,7 +246,7 @@ class TrackResolverTest {
         bundle.put("theseus.mod", TestModules.proTracker());
         bundle.put("rival.mod", TestModules.proTracker());
         http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
-        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", "Rival", Set.of(29));
+        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", List.of(new Nick("Rival", 0, false)), Set.of(29));
 
         final Path first = resolver(dir).resolve(ENTRY);
         final Path second = resolver(dir).resolve(rival);
@@ -261,7 +261,7 @@ class TrackResolverTest {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
         http.put(PRODUCTION_URL.replace("/7/", "/8/"), productionJson(8, "SceneOrgFile", SCENE_ORG_VIEW));
         http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("readme.txt", README)), Optional.empty());
-        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", "Rival", Set.of(29));
+        final CompoEntry rival = new CompoEntry(2, "2", 8, "Rasp", List.of(new Nick("Rival", 0, false)), Set.of(29));
 
         assertThrows(IOException.class, () -> resolver(dir).resolve(ENTRY));
         final IOException error = assertThrows(IOException.class, () -> resolver(dir).resolve(rival));

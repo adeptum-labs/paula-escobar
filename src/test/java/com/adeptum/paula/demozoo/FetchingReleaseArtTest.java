@@ -46,7 +46,7 @@ class FetchingReleaseArtTest {
 
     private static final String PRODUCTION_URL = "https://demozoo.org/api/v1/productions/7/?format=json";
     private static final String MODLAND_FILE = "https://ftp.modland.com/pub/modules/Protracker/Theseus/funkyeeh.lha";
-    private static final CompoEntry ENTRY = new CompoEntry(1, "1", 7, "Funkyeeh", "Theseus", Set.of(29));
+    private static final CompoEntry ENTRY = new CompoEntry(1, "1", 7, "Funkyeeh", List.of(new Nick("Theseus", 0, false)), Set.of(29));
     private static final String BANNER = ".-------------.\n| THE PARTY   |\n`-------------'\n";
 
     private final FakeHttp http = new FakeHttp();

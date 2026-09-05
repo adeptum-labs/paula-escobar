@@ -30,6 +30,7 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
+import com.adeptum.paula.demozoo.Nick;
 import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
@@ -109,8 +110,8 @@ class BrowserTest {
               {"id":1,"name":"Demo","production_type":{"id":1,"name":"Demo","supertype":"production"},"results":[]},
               {"id":2,"name":"Multichannel Music","production_type":{"id":29,"name":"Tracked Music","supertype":"music"},"results":[
                 {"position":1,"ranking":"1","production":{"id":11,"title":"First","author_nicks":[{"name":"A"}],"types":[{"id":29}]}},
-                {"position":2,"ranking":"2","production":{"id":12,"title":"Second","author_nicks":[{"name":"B"}],"types":[{"id":29}]}},
-                {"position":3,"ranking":"3","production":{"id":13,"title":"Exe","author_nicks":[{"name":"C"}],"types":[{"id":31}]}},
+                {"position":2,"ranking":"2","production":{"id":12,"title":"Second","author_nicks":[{"name":"B","releaser":{"url":"https://demozoo.org/sceners/5887/","id":5887,"name":"NightBeat","is_group":false}}],"types":[{"id":29}]}},
+                {"position":3,"ranking":"3","production":{"id":13,"title":"Exe","author_nicks":[{"name":"C","releaser":{"url":"https://demozoo.org/groups/999/","id":999,"name":"SomeGroup","is_group":true}}],"types":[{"id":31}]}},
                 {"position":4,"ranking":"4","production":{"id":14,"title":"Fourth","author_nicks":[{"name":"D"}],"types":[{"id":29}]}}]}]}
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
@@ -1055,7 +1056,7 @@ class BrowserTest {
     @Test
     void leavesTheSameProductionInAnotherCompetitionUnmarked() {
         openCompo();
-        browser.nowPlaying(new DemozooTrack(new CompoEntry(2, "2", 12, "Second", "B", Set.of(29)),
+        browser.nowPlaying(new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("B", 5887, false)), Set.of(29)),
                 new Party(5, "The Party 1995", "1995-12-27"),
                 new Competition(9, "Amiga Music", 29, "Tracked Music", List.of())), new double[0]);
 
@@ -1099,7 +1100,7 @@ class BrowserTest {
     }
 
     private static DemozooTrack secondPlace() {
-        return new DemozooTrack(new CompoEntry(2, "2", 12, "Second", "B", Set.of(29)),
+        return new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("B", 5887, false)), Set.of(29)),
                 new Party(5, "The Party 1995", "1995-12-27"),
                 new Competition(2, "Multichannel Music", 29, "Tracked Music", List.of()));
     }

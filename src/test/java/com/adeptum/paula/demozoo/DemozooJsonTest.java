@@ -47,7 +47,9 @@ class DemozooJsonTest {
               {"id":2,"name":"4 Channel Music","production_type":{"id":29,"name":"Tracked Music","supertype":"music"},"results":[
                 {"position":2,"ranking":"","score":"","production":{"id":8,"title":"Second","author_nicks":[],"types":[]}},
                 {"position":1,"ranking":"1","score":"1420","production":{"id":7,"title":"Funkyeeh",
-                  "author_nicks":[{"name":"Theseus"},{"name":"Wild Mc"}],"types":[{"id":29,"name":"Tracked Music"}]}},
+                  "author_nicks":[{"name":"Theseus","abbreviation":"","releaser":{"url":"https://demozoo.org/sceners/5887/","id":5887,"name":"NightBeat","is_group":false}},
+                    {"name":"Wild Mc","abbreviation":"","releaser":{"url":"https://demozoo.org/groups/999/","id":999,"name":"Wild Mc Crew","is_group":true}}],
+                  "types":[{"id":29,"name":"Tracked Music"}]}},
                 {"position":3,"ranking":null,"production":null}]},
               {"id":3,"name":"MP3","production_type":{"id":30,"name":"Streaming Music","supertype":"music"},"results":[]}]}
             """;
@@ -73,10 +75,25 @@ class DemozooJsonTest {
         assertEquals(29, compos.get(0).typeId());
         final List<CompoEntry> entries = compos.get(0).entries();
         assertEquals(2, entries.size(), "results without a production are dropped");
-        assertEquals(new CompoEntry(1, "1", 7, "Funkyeeh", "Theseus & Wild Mc", Set.of(29)), entries.get(0));
+        assertEquals(List.of(new Nick("Theseus", 5887, false), new Nick("Wild Mc", 999, true)), entries.get(0).authors());
+        assertEquals("Theseus & Wild Mc", entries.get(0).author());
+        assertEquals(List.of(new Nick("Theseus", 5887, false)), entries.get(0).musicians(), "the group is not a musician of its own");
         assertEquals("-", entries.get(1).placing());
         assertEquals("unknown", entries.get(1).author());
         assertEquals(Set.of(29), entries.get(1).typeIds(), "falls back to the competition type");
+    }
+
+    @Test
+    void aNickWithoutAReleaserGetsIdZero() throws IOException {
+        final String party = """
+                {"id":1,"name":"P","competitions":[
+                  {"id":1,"name":"Music","production_type":{"id":29,"name":"Tracked Music","supertype":"music"},"results":[
+                    {"position":1,"ranking":"1","production":{"id":1,"title":"T","author_nicks":[{"name":"Solo"}],"types":[{"id":29}]}}]}]}
+                """;
+
+        final CompoEntry entry = DemozooJson.competitions(bytes(party)).get(0).entries().get(0);
+
+        assertEquals(List.of(new Nick("Solo", 0, false)), entry.authors());
     }
 
     /**
@@ -111,10 +128,11 @@ class DemozooJsonTest {
 
     @Test
     void flagsExecutableMusicAsUnplayableAndStreamingAsPlayable() {
-        assertTrue(new CompoEntry(1, "1", 1, "t", "a", Set.of(29)).likelyPlayable());
-        assertTrue(new CompoEntry(1, "1", 1, "t", "a", Set.of(30)).likelyPlayable(), "streaming music, now that MP3 plays");
-        assertFalse(new CompoEntry(1, "1", 1, "t", "a", Set.of(14, 31)).likelyPlayable());
-        assertFalse(new CompoEntry(1, "1", 1, "t", "a", Set.of(38)).likelyPlayable());
+        final List<Nick> author = List.of(new Nick("a", 0, false));
+        assertTrue(new CompoEntry(1, "1", 1, "t", author, Set.of(29)).likelyPlayable());
+        assertTrue(new CompoEntry(1, "1", 1, "t", author, Set.of(30)).likelyPlayable(), "streaming music, now that MP3 plays");
+        assertFalse(new CompoEntry(1, "1", 1, "t", author, Set.of(14, 31)).likelyPlayable());
+        assertFalse(new CompoEntry(1, "1", 1, "t", author, Set.of(38)).likelyPlayable());
     }
 
     @Test
