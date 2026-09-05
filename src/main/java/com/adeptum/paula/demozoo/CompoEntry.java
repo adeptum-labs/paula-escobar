@@ -37,6 +37,7 @@ public record CompoEntry(int position, String ranking, int productionId, String 
     private static final String UNRANKED = "-";
     private static final String UNKNOWN_AUTHOR = "unknown";
     private static final String AUTHOR_SEPARATOR = " & ";
+    private static final int NO_RELEASER = 0;
 
     /**
      * A streaming competition counts as playable now that MPEG audio does, though it is the one competition
@@ -55,7 +56,10 @@ public record CompoEntry(int position, String ranking, int productionId, String 
         return names.isEmpty() ? UNKNOWN_AUTHOR : names;
     }
 
+    /**
+     * The people, not the groups, behind the entry; a nick Demozoo names no releaser for leads nowhere.
+     */
     public List<Nick> musicians() {
-        return authors.stream().filter(nick -> !nick.group()).toList();
+        return authors.stream().filter(nick -> !nick.group() && nick.releaserId() != NO_RELEASER).toList();
     }
 }

@@ -44,6 +44,7 @@ import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.ModArchiveTrack;
+import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.testing.ModArchivePages;
 import com.adeptum.paula.ui.visual.Palette;
@@ -110,9 +111,23 @@ class BrowserTest {
               {"id":1,"name":"Demo","production_type":{"id":1,"name":"Demo","supertype":"production"},"results":[]},
               {"id":2,"name":"Multichannel Music","production_type":{"id":29,"name":"Tracked Music","supertype":"music"},"results":[
                 {"position":1,"ranking":"1","production":{"id":11,"title":"First","author_nicks":[{"name":"A"}],"types":[{"id":29}]}},
-                {"position":2,"ranking":"2","production":{"id":12,"title":"Second","author_nicks":[{"name":"B","releaser":{"url":"https://demozoo.org/sceners/5887/","id":5887,"name":"NightBeat","is_group":false}}],"types":[{"id":29}]}},
+                {"position":2,"ranking":"2","production":{"id":12,"title":"Second","author_nicks":[{"name":"NightBeat","releaser":{"url":"https://demozoo.org/sceners/5887/","id":5887,"name":"NightBeat","is_group":false}}],"types":[{"id":29}]}},
                 {"position":3,"ranking":"3","production":{"id":13,"title":"Exe","author_nicks":[{"name":"C","releaser":{"url":"https://demozoo.org/groups/999/","id":999,"name":"SomeGroup","is_group":true}}],"types":[{"id":31}]}},
-                {"position":4,"ranking":"4","production":{"id":14,"title":"Fourth","author_nicks":[{"name":"D"}],"types":[{"id":29}]}}]}]}
+                {"position":4,"ranking":"4","production":{"id":14,"title":"Fourth","author_nicks":[
+                  {"name":"Dizzy","releaser":{"url":"https://demozoo.org/sceners/7000/","id":7000,"name":"Dizzy","is_group":false}},
+                  {"name":"NightBeat","releaser":{"url":"https://demozoo.org/sceners/5887/","id":5887,"name":"NightBeat","is_group":false}}],"types":[{"id":29}]}}]}]}
+            """;
+    private static final String WORKS_URL = "https://demozoo.org/api/v1/releasers/5887/productions/?format=json";
+    private static final String WORKS = """
+            [
+              {"id":21,"title":"Cyberpunk","supertype":"music","release_date":"2026-01-24",
+               "platforms":[{"id":1,"name":"Commodore 64"}],"types":[{"id":1,"name":"Music"}],
+               "author_nicks":[{"name":"NightBeat","releaser":{"id":5887,"name":"NightBeat","is_group":false}}]},
+              {"id":22,"title":"A Picture","supertype":"graphics","platforms":[],"types":[],"author_nicks":[]},
+              {"id":23,"title":"Oldskool","supertype":"music","release_date":"1999-05-01",
+               "platforms":[{"id":2,"name":"Amiga"}],"types":[{"id":2,"name":"Music"}],
+               "author_nicks":[{"name":"NightBeat","releaser":{"id":5887,"name":"NightBeat","is_group":false}}]}
+            ]
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
     private static final String PRODUCTION_WITH_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/x.zip\"}],\"external_links\":[]}";
@@ -765,7 +780,7 @@ class BrowserTest {
 
         final Playlist playlist = browser.takeSelection().orElseThrow();
         assertEquals(2, playlist.size());
-        assertEquals("The Party 1995 · Multichannel Music  #2 Second by B", playlist.current().label());
+        assertEquals("The Party 1995 · Multichannel Music  #2 Second by NightBeat", playlist.current().label());
         playlist.next();
         assertEquals("Fourth", ((DemozooTrack) playlist.current()).entry().title());
         assertEquals(Optional.empty(), browser.takeSelection(), "a selection is handed over once");
@@ -781,6 +796,141 @@ class BrowserTest {
         final Playlist playlist = browser.takeSelection().orElseThrow();
         assertEquals("Exe", ((DemozooTrack) playlist.current()).entry().title());
         assertEquals(2, playlist.size());
+    }
+
+    @Test
+    void theMusicianKeyListsTheRestOfWhatTheMusicianReleased() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.DOWN);
+        press('m');
+        browser.tick();
+
+        final List<String> lines = render();
+        assertTrue(breadcrumb().contains("Multichannel Music › NightBeat"), "the level is the musician's: " + breadcrumb());
+        assertEquals(List.of("Cyberpunk", "Oldskool"), labels(), "the graphics production is not music");
+        assertTrue(lines.get(2).contains("2026 · Commodore 64"), "each work says when and for what: " + lines.get(2));
+        assertTrue(lines.get(3).contains("1999 · Amiga"), lines.get(3));
+    }
+
+    @Test
+    void theMusicianKeyOffersTheMusiciansOfAnEntryToChooseFrom() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.END);
+        press('m');
+
+        assertTrue(breadcrumb().endsWith("› Musicians"), breadcrumb());
+        assertEquals(List.of("Dizzy", "NightBeat"), labels());
+
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+
+        assertEquals(List.of("Cyberpunk", "Oldskool"), labels(), "the one chosen opens");
+    }
+
+    @Test
+    void theMusicianKeySaysWhenNoMusicianIsNamed() {
+        openCompo();
+        press(Key.Special.DOWN);
+        press(Key.Special.DOWN);
+        press('m');
+        browser.tick();
+
+        assertTrue(render().stream().anyMatch(line -> line.contains("No musician is named for this entry")));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   3  Exe")), "the competition stays in view");
+    }
+
+    @Test
+    void enterOnAWorkQueuesItAndTheRest() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.DOWN);
+        press('m');
+        browser.tick();
+        press(Key.Special.ENTER);
+
+        final Playlist playlist = browser.takeSelection().orElseThrow();
+        assertEquals(2, playlist.size());
+        assertEquals("NightBeat  Cyberpunk (2026)", playlist.current().label());
+        playlist.next();
+        assertEquals("Oldskool", ((MusicianTrack) playlist.current()).work().entry().title());
+
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        assertEquals(1, browser.takeSelection().orElseThrow().size(), "the last work is queued on its own");
+    }
+
+    @Test
+    void backspaceFromTheWorksReturnsToTheCompetition() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.DOWN);
+        press('m');
+        browser.tick();
+
+        press(Key.Special.BACKSPACE);
+
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│    1  First")), "back among the entries");
+        assertTrue(breadcrumb().endsWith("› The Party 1995 · Multichannel Music"), breadcrumb());
+    }
+
+    @Test
+    void reloadingTheWorksFetchesThemAgain() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.DOWN);
+        press('m');
+        browser.tick();
+        http.put(WORKS_URL, WORKS.replace("Oldskool", "Newskool"));
+        final int requests = http.requests();
+
+        press('r');
+        browser.tick();
+
+        assertTrue(http.requests() > requests, "the works are asked for again");
+        assertEquals(List.of("Cyberpunk", "Newskool"), labels(), "and the list comes back afresh");
+    }
+
+    @Test
+    void marksTheWorkBeingPlayedAndTheMusicianItIsBy() {
+        http.put(WORKS_URL, WORKS);
+        openCompo();
+        press(Key.Special.END);
+        press('m');
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+        press(Key.Special.ENTER);
+        browser.nowPlaying(browser.takeSelection().orElseThrow().current(), new double[0]);
+
+        assertTrue(render().get(2).startsWith("│♪ Cyberpunk"), render().get(2));
+
+        press(Key.Special.BACKSPACE);
+        final List<String> musicians = render();
+        assertTrue(musicians.stream().anyMatch(line -> line.startsWith("│♪ NightBeat")), "the musician it is by: " + musicians);
+        assertFalse(musicians.stream().anyMatch(line -> line.contains("♪ Dizzy")), "but no one else");
+    }
+
+    @Test
+    void theMusicianKeyMeansNothingOnAChartTune() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        openFavourites(Slice.ALL);
+        final int requests = http.requests();
+        final List<String> before = render();
+
+        press('m');
+        browser.tick();
+
+        assertEquals(requests, http.requests(), "a chart tune names no musician to ask about");
+        assertEquals(before, render(), "and the chart is left as it was");
+    }
+
+    @Test
+    void theFooterNamesTheMusicianKey() {
+        assertTrue(render().getLast().contains("m musician"), render().getLast());
+        assertTrue(Browser.keys().stream().anyMatch(key -> key.key().equals("m") && key.action().equals("more by the musician")));
     }
 
     @Test
@@ -1056,7 +1206,7 @@ class BrowserTest {
     @Test
     void leavesTheSameProductionInAnotherCompetitionUnmarked() {
         openCompo();
-        browser.nowPlaying(new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("B", 5887, false)), Set.of(29)),
+        browser.nowPlaying(new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("NightBeat", 5887, false)), Set.of(29)),
                 new Party(5, "The Party 1995", "1995-12-27"),
                 new Competition(9, "Amiga Music", 29, "Tracked Music", List.of())), new double[0]);
 
@@ -1100,7 +1250,7 @@ class BrowserTest {
     }
 
     private static DemozooTrack secondPlace() {
-        return new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("B", 5887, false)), Set.of(29)),
+        return new DemozooTrack(new CompoEntry(2, "2", 12, "Second", List.of(new Nick("NightBeat", 5887, false)), Set.of(29)),
                 new Party(5, "The Party 1995", "1995-12-27"),
                 new Competition(2, "Multichannel Music", 29, "Tracked Music", List.of()));
     }
@@ -1164,5 +1314,12 @@ class BrowserTest {
 
     private List<String> render() {
         return browser.render(WIDTH, HEIGHT).stream().map(AttributedString::toString).map(String::stripTrailing).toList();
+    }
+
+    /**
+     * The trail of level names in the box title, read off a screen wide enough to hold the whole of it.
+     */
+    private String breadcrumb() {
+        return browser.render(WIDTH * 3, HEIGHT).get(1).toString().replaceAll("[┌┐─]", "").strip();
     }
 }

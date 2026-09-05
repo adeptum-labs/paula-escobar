@@ -98,6 +98,7 @@ Keys while browsing:
 | `Home` `End`        | jump to the first or last line           |
 | `tab`               | switch between the parties and the charts |
 | `enter` `→`         | open the line, or play an entry          |
+| `m`                 | more by the musician                     |
 | `backspace` `←` `esc` | go back one level (`esc` at the top quits) |
 | `b`                 | switch to the player                     |
 | `r`                 | fetch this list and its logo afresh      |
@@ -134,7 +135,9 @@ executable music competitions are dimmed, since Paula cannot run them, and
 stay in the list so the results are complete; those Demozoo has no download
 for are marked `(no download)`, those whose only download is a container
 nothing here reads `(no reader)`. Playing an entry queues the rest of the
-competition after it in ranked order, so `n` walks through the results.
+competition after it in ranked order, so `n` walks through the results. `m`
+on an entry opens everything else its musician has on Demozoo, newest first,
+to play the same way.
 
 A chart, Top Favourites, Most Downloads or the weekly Featured picks, opens
 into All, MOD, XM, IT, S3M and Other by file extension. Forty rows are

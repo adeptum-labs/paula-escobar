@@ -27,10 +27,12 @@ import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.demozoo.CuratedSeries;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Link;
+import com.adeptum.paula.demozoo.Nick;
 import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.demozoo.Work;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import com.adeptum.paula.modarchive.ChartPage;
@@ -39,6 +41,7 @@ import com.adeptum.paula.modarchive.Slice;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.ModArchiveTrack;
+import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.visual.Bars;
@@ -66,6 +69,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
@@ -80,7 +84,7 @@ import org.jline.utils.AttributedStyle;
 public final class Browser {
 
     private sealed interface Item
-            permits SeriesItem, PartyItem, CompoItem, EntryItem, ChartItem, FormatItem, TuneItem {
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, MusicianItem, WorkItem, ChartItem, FormatItem, TuneItem {
 
         String label();
 
@@ -177,13 +181,7 @@ public final class Browser {
 
         @Override
         public String trailing() {
-            if (compo.compo().unsupportedFormat()) {
-                return UNSUPPORTED_FORMAT;
-            }
-            if (hasNoDownload()) {
-                return NO_DOWNLOAD;
-            }
-            return hasNoReader() ? NO_READER : "";
+            return compo.compo().unsupportedFormat() ? UNSUPPORTED_FORMAT : downloadMark(entry, downloads);
         }
 
         String placingText() {
@@ -196,22 +194,57 @@ public final class Browser {
         }
 
         boolean playable() {
-            return entry.likelyPlayable() && !compo.compo().unsupportedFormat()
-                    && !hasNoDownload() && !hasNoReader();
+            return entry.likelyPlayable() && !compo.compo().unsupportedFormat() && trailing().isEmpty();
+        }
+    }
+
+    private record MusicianItem(Nick nick) implements Item {
+
+        @Override
+        public String label() {
+            return nick.name();
+        }
+    }
+
+    private record WorkItem(Nick musician, Work work, int index, Map<Integer, String> downloads) implements Item {
+
+        @Override
+        public String label() {
+            return work.entry().title();
         }
 
-        private boolean hasNoDownload() {
-            return NO_FILE.equals(downloads.get(entry.productionId()));
+        @Override
+        public String detail() {
+            return String.join(COMPO_SEPARATOR,
+                    Stream.of(work.year(), work.platform()).filter(field -> !field.isEmpty()).toList());
         }
 
-        /**
-         * The download is a container Paula cannot open, an Amiga disk image most often, so there is nothing
-         * to be had from asking for it.
-         */
-        private boolean hasNoReader() {
-            final String download = downloads.get(entry.productionId());
-            return download != null && Archives.hasNoReader(download);
+        @Override
+        public String trailing() {
+            return downloadMark(work.entry(), downloads);
         }
+
+        @Override
+        public boolean dimmed() {
+            return !work.entry().likelyPlayable();
+        }
+
+        boolean playable() {
+            return work.entry().likelyPlayable() && trailing().isEmpty();
+        }
+    }
+
+    /**
+     * What a release says for itself once its files have been looked up: nothing where it can be played,
+     * otherwise that Demozoo knows no file for it, or that the one file it names is a container Paula cannot
+     * open, an Amiga disk image most often, so there is nothing to be had from asking for it.
+     */
+    private static String downloadMark(CompoEntry entry, Map<Integer, String> downloads) {
+        final String download = downloads.get(entry.productionId());
+        if (NO_FILE.equals(download)) {
+            return NO_DOWNLOAD;
+        }
+        return download != null && Archives.hasNoReader(download) ? NO_READER : "";
     }
 
     private record ChartItem(Chart chart) implements Item {
@@ -284,6 +317,7 @@ public final class Browser {
         private int artProduction;
         private int partyId;
         private int compoId;
+        private Nick musician;
         private Chart chart;
         private Slice slice;
         private int nextPage = 1;
@@ -336,8 +370,10 @@ public final class Browser {
 
     private static final String PARTIES_TITLE = "Parties";
     private static final String CHARTS_TITLE = "Charts";
+    private static final String MUSICIANS_TITLE = "Musicians";
     private static final String NOTHING_HERE = "Nothing here";
     private static final String NO_MUSIC = "No music competitions";
+    private static final String NO_MUSICIAN = "No musician is named for this entry";
     private static final String LOADING = "Loading ";
     private static final String COMPO_SEPARATOR = " · ";
     private static final String CRUMB_SEPARATOR = " › ";
@@ -358,6 +394,7 @@ public final class Browser {
     private static final String SECTION = "browse";
     private static final String NOW_PLAYING_MARK = "♪ ";
     private static final char RELOAD = 'r';
+    private static final char MUSICIAN = 'm';
     private static final int STRIP_BANDS = 16;
     private static final int PLACING_WIDTH = 3;
     private static final int CHROME_LINES = 6;
@@ -375,14 +412,16 @@ public final class Browser {
     private static final String TICKER_SPACE = "  ";
     private static final Duration TICKER_FRAME = Duration.ofMillis(100);
     private static final List<Frame.Key> KEYS = List.of(
-            new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("backspace", "back"),
-            new Frame.Key("b", "player"), new Frame.Key("?", "keys"), new Frame.Key("q", "quit"));
+            new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("m", "musician"),
+            new Frame.Key("backspace", "back"), new Frame.Key("b", "player"), new Frame.Key("?", "keys"),
+            new Frame.Key("q", "quit"));
     private static final List<Frame.Key> ALL_KEYS = List.of(
             new Frame.Key("↑ ↓", "move the cursor"),
             new Frame.Key("PgUp PgDn", "move ten lines"),
             new Frame.Key("Home End", "jump to the first or last line"),
             new Frame.Key("tab", "switch between the parties and the charts"),
             new Frame.Key("enter →", "open, or play an entry"),
+            new Frame.Key("m", "more by the musician"),
             new Frame.Key("backspace", "go back one level"),
             new Frame.Key("← esc", "go back, or quit at the top"),
             new Frame.Key("r", "fetch this list and its logo afresh"),
@@ -472,7 +511,10 @@ public final class Browser {
             case UP, DOWN, PAGE_UP, PAGE_DOWN, HOME, END, ENTER, BACKSPACE, LEFT, RIGHT -> true;
             case ESCAPE -> !atRoot();
             case TAB -> atRoot();
-            case NONE -> Character.toLowerCase(key.character()) == RELOAD;
+            case NONE -> {
+                final char character = Character.toLowerCase(key.character());
+                yield character == RELOAD || character == MUSICIAN;
+            }
             default -> false;
         };
     }
@@ -492,7 +534,16 @@ public final class Browser {
             case ENTER, RIGHT -> open(level);
             case TAB -> chartsSide = !chartsSide;
             case BACKSPACE, LEFT, ESCAPE -> back();
-            case NONE -> reload();
+            case NONE -> character(key);
+            default -> {
+            }
+        }
+    }
+
+    private void character(Key key) {
+        switch (Character.toLowerCase(key.character())) {
+            case RELOAD -> reload();
+            case MUSICIAN -> moreByTheMusician(current());
             default -> {
             }
         }
@@ -612,9 +663,7 @@ public final class Browser {
      * moving.
      */
     private void fetchArtOfTheEntryRestedOn() {
-        final Optional<CompoEntry> entry = levels.peek().selected()
-                .filter(EntryItem.class::isInstance)
-                .map(item -> ((EntryItem) item).entry());
+        final Optional<CompoEntry> entry = levels.peek().selected().flatMap(Browser::entryOf);
         if (entry.map(CompoEntry::productionId).orElse(0) != restingOn) {
             restingOn = entry.map(CompoEntry::productionId).orElse(0);
             restingSince = clock.instant();
@@ -742,9 +791,57 @@ public final class Browser {
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
                 case CompoItem compo -> openCompo(compo);
                 case EntryItem entry -> selection = playlistFrom(level, entry);
+                case MusicianItem musician -> openWorks(musician.nick());
+                case WorkItem work -> selection = playlistFrom(level, work);
                 case TuneItem tune -> selection = playlistFrom(level, tune);
             }
         });
+    }
+
+    /**
+     * Everything else the musician behind the chosen release has put out. An entry credited to more than one
+     * of them asks which, since only one of the names is the one worth following.
+     */
+    private void moreByTheMusician(Level level) {
+        if (pending != null) {
+            return;
+        }
+        final Optional<List<Nick>> musicians = level.selected().flatMap(Browser::entryOf).map(CompoEntry::musicians);
+        if (musicians.isEmpty()) {
+            return;
+        }
+        error = null;
+        final List<Nick> nicks = musicians.get();
+        if (nicks.isEmpty()) {
+            error = NO_MUSICIAN;
+        } else if (nicks.size() == 1) {
+            openWorks(nicks.getFirst());
+        } else {
+            levels.push(new Level(MUSICIANS_TITLE, NOTHING_HERE, nicks.stream().<Item>map(MusicianItem::new).toList()));
+        }
+    }
+
+    private void openWorks(Nick musician) {
+        load(musician.name(), NOTHING_HERE, musician, () -> workItems(musician));
+    }
+
+    /**
+     * The releases show at once and their files are looked up behind them, as a competition does.
+     */
+    private List<Item> workItems(Nick musician) throws IOException {
+        final List<Work> works = demozoo.works(musician.releaserId());
+        final List<Item> items = IntStream.range(0, works.size())
+                .<Item>mapToObj(i -> new WorkItem(musician, works.get(i), i, downloads)).toList();
+        CompletableFuture.runAsync(() -> lookUpDownloads(works.stream().map(Work::entry).toList()), executor);
+        return items;
+    }
+
+    private static Optional<CompoEntry> entryOf(Item item) {
+        return switch (item) {
+            case EntryItem entry -> Optional.of(entry.entry());
+            case WorkItem work -> Optional.of(work.work().entry());
+            default -> Optional.empty();
+        };
     }
 
     private void openChart(FormatItem format) {
@@ -758,8 +855,8 @@ public final class Browser {
      * Throws away what was kept for the level in view and opens it again, so a list that has moved on since,
      * or a logo that never arrived, can be had afresh without leaving the browser. The entries of a
      * competition come with the party's answer, so reloading one goes back through the competition list and
-     * steps into it again once it has been fetched. A chart drops every page it has read and begins again at
-     * its first.
+     * steps into it again once it has been fetched. A musician's work is asked for again where it stands, and
+     * a chart drops every page it has read and begins again at its first.
      */
     private void reload() {
         if (atRoot() || pending != null) {
@@ -773,6 +870,13 @@ public final class Browser {
             lastGrown = null;
             levels.pop();
             open(levels.peek());
+            return;
+        }
+        if (level.musician != null) {
+            final Nick musician = level.musician;
+            demozoo.forgetWorks(musician.releaserId());
+            levels.pop();
+            openWorks(musician);
             return;
         }
         reopening = level.compoId;
@@ -809,9 +913,23 @@ public final class Browser {
     }
 
     private void load(String title, String emptyText, Loader loader) {
+        load(title, emptyText, null, loader);
+    }
+
+    /**
+     * A level of one musician's work remembers whose it is, so it can be reloaded, and is shown under the art
+     * of the first release that can be played, the way a competition is.
+     */
+    private void load(String title, String emptyText, Nick musician, Loader loader) {
         pending = CompletableFuture.supplyAsync(() -> {
             try {
-                return new Level(title, emptyText, loader.load());
+                final Level level = new Level(title, emptyText, loader.load());
+                level.musician = musician;
+                if (musician != null) {
+                    fetchArtOfTheFirstPlayable(level,
+                            level.items.stream().flatMap(item -> entryOf(item).stream()).toList());
+                }
+                return level;
             } catch (IOException e) {
                 throw new CompletionException(e);
             }
@@ -837,12 +955,16 @@ public final class Browser {
         level.partyId = compo.party().id();
         level.compoId = compo.compo().id();
         partyArt.fetch(level.partyId);
+        fetchArtOfTheFirstPlayable(level, entries);
+        levels.push(level);
+        CompletableFuture.runAsync(() -> lookUpDownloads(entries), executor);
+    }
+
+    private void fetchArtOfTheFirstPlayable(Level level, List<CompoEntry> entries) {
         entries.stream().filter(CompoEntry::likelyPlayable).findFirst().ifPresent(entry -> {
             level.artProduction = entry.productionId();
             art.fetch(entry);
         });
-        levels.push(level);
-        CompletableFuture.runAsync(() -> lookUpDownloads(entries), executor);
     }
 
     private void lookUpDownloads(List<CompoEntry> entries) {
@@ -867,6 +989,19 @@ public final class Browser {
                 .map(EntryItem.class::cast)
                 .filter(item -> item == chosen || item.playable())
                 .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().party(), item.compo().compo()))
+                .toList();
+        return new Playlist(tracks);
+    }
+
+    /**
+     * The chosen release plays even when it looks unplayable, and the rest of what the musician made follows
+     * in the order Demozoo lists it.
+     */
+    private static Playlist playlistFrom(Level level, WorkItem chosen) {
+        final List<Track> tracks = level.items.subList(chosen.index(), level.items.size()).stream()
+                .map(WorkItem.class::cast)
+                .filter(item -> item == chosen || item.playable())
+                .<Track>map(item -> new MusicianTrack(item.musician(), item.work()))
                 .toList();
         return new Playlist(tracks);
     }
@@ -985,6 +1120,11 @@ public final class Browser {
             case CompoItem compo -> nowPlaying instanceof DemozooTrack track && compo.compo().id() == track.compo().id();
             case PartyItem party -> nowPlaying instanceof DemozooTrack track && party.party().id() == track.party().id();
             case SeriesItem series -> false;
+            case MusicianItem musician -> nowPlaying instanceof MusicianTrack track
+                    && track.musician().releaserId() == musician.nick().releaserId();
+            case WorkItem work -> nowPlaying instanceof MusicianTrack track
+                    && track.musician().releaserId() == work.musician().releaserId()
+                    && track.work().entry().productionId() == work.work().entry().productionId();
             case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.chart() == chart.chart();
             case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.chart() == format.chart()
                     && format.slice().holds(track.entry());
@@ -998,7 +1138,7 @@ public final class Browser {
      * chart is visible rather than looking like nothing happening.
      */
     private String ticker(Item item) {
-        return item instanceof EntryItem entry && art.fetching(entry.entry().productionId()) ? ticker() : "";
+        return entryOf(item).filter(entry -> art.fetching(entry.productionId())).isPresent() ? ticker() : "";
     }
 
     private String ticker(Level level) {
@@ -1030,8 +1170,8 @@ public final class Browser {
             return List.of();
         }
         return level.selected()
-                .filter(EntryItem.class::isInstance)
-                .map(item -> ((EntryItem) item).entry().productionId())
+                .flatMap(Browser::entryOf)
+                .map(CompoEntry::productionId)
                 .flatMap(production -> art.of(production)
                         .or(() -> art.of(level.artProduction))
                         .or(() -> partyArt.of(level.partyId)))
