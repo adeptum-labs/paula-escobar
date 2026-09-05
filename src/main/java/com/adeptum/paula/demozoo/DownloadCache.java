@@ -85,8 +85,8 @@ final class DownloadCache {
         }
     }
 
-    Optional<Path> of(int productionId) throws IOException {
-        final Path marker = cache.root().resolve(PRODUCTIONS).resolve(String.valueOf(productionId));
+    Optional<Path> of(String key) throws IOException {
+        final Path marker = cache.root().resolve(PRODUCTIONS).resolve(key);
         if (!Files.isRegularFile(marker)) {
             return Optional.empty();
         }
@@ -94,8 +94,8 @@ final class DownloadCache {
                 .filter(Files::isDirectory);
     }
 
-    void remember(int productionId, Path directory) throws IOException {
-        cache.writeAtomically(cache.file(PRODUCTIONS, String.valueOf(productionId)),
+    void remember(String key, Path directory) throws IOException {
+        cache.writeAtomically(cache.file(PRODUCTIONS, key),
                 directory.getFileName().toString().getBytes(StandardCharsets.UTF_8));
     }
 

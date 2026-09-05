@@ -139,7 +139,7 @@ public final class TrackResolver {
     }
 
     private Optional<Path> remembered(CompoEntry entry) throws IOException {
-        final Optional<Path> directory = downloads.of(entry.productionId());
+        final Optional<Path> directory = downloads.of(String.valueOf(entry.productionId()));
         return directory.isPresent() ? playableFile(directory.get(), entry) : Optional.empty();
     }
 
@@ -151,7 +151,7 @@ public final class TrackResolver {
         }
         final Path playable = playableFile(directory, entry)
                 .orElseThrow(() -> new IOException("No playable file in " + lastSegment(uri) + " for " + entry.title()));
-        downloads.remember(entry.productionId(), directory);
+        downloads.remember(String.valueOf(entry.productionId()), directory);
         return playable;
     }
 

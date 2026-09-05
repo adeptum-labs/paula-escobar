@@ -52,7 +52,7 @@ class CachedReleaseArtTest {
     private static Path release(Path dir) throws IOException {
         final DownloadCache downloads = new DownloadCache(new CacheDirectory(dir));
         final Path directory = downloads.directory(URI.create(RELEASE_URL));
-        downloads.remember(PRODUCTION, directory);
+        downloads.remember(String.valueOf(PRODUCTION), directory);
         return Files.createDirectories(directory.resolve("extracted"));
     }
 

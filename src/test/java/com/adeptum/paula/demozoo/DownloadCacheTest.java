@@ -53,12 +53,27 @@ class DownloadCacheTest {
         final DownloadCache downloads = new DownloadCache(new CacheDirectory(dir));
         final Path directory = downloads.directory(BUNDLE);
 
-        assertEquals(Optional.empty(), downloads.of(7));
-        downloads.remember(7, directory);
-        assertEquals(Optional.empty(), downloads.of(7), "remembered, but nothing has landed there");
+        assertEquals(Optional.empty(), downloads.of("7"));
+        downloads.remember("7", directory);
+        assertEquals(Optional.empty(), downloads.of("7"), "remembered, but nothing has landed there");
 
         downloads.commit(staged(downloads), directory);
-        assertEquals(Optional.of(directory), downloads.of(7));
+        assertEquals(Optional.of(directory), downloads.of("7"));
+    }
+
+    @Test
+    void keepsAModuleApartFromAProductionOfTheSameNumber(@TempDir Path dir) throws IOException {
+        final DownloadCache downloads = new DownloadCache(new CacheDirectory(dir));
+        final Path production = downloads.directory(BUNDLE);
+        final Path module = downloads.directory(OTHER);
+        downloads.commit(staged(downloads), production);
+        downloads.commit(staged(downloads), module);
+
+        downloads.remember("7", production);
+        downloads.remember("modarchive-7", module);
+
+        assertEquals(Optional.of(production), downloads.of("7"));
+        assertEquals(Optional.of(module), downloads.of("modarchive-7"));
     }
 
     @Test

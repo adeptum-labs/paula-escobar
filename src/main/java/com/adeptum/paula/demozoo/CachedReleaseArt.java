@@ -99,7 +99,7 @@ public final class CachedReleaseArt implements ReleaseArt {
     }
 
     private Stream<Path> walkDownloadOf(int productionId) throws IOException {
-        final Optional<Path> directory = downloads.of(productionId);
+        final Optional<Path> directory = downloads.of(String.valueOf(productionId));
         return directory.isPresent() ? Files.walk(directory.get()) : Stream.empty();
     }
 
