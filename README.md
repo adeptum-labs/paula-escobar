@@ -12,7 +12,9 @@ Gathering through Breakpoint and Revision to Swedish Icing, the Polish
 classics Intel Outside, Gravity and Xenium, and X, the largest party the
 Commodore 64 has to itself — can be browsed year by year straight from the
 player, and any placed entry is downloaded from scene.org, ModArchive or
-Modland and played on the spot.
+Modland and played on the spot. The charts of [ModArchive](https://modarchive.org)
+can be browsed too: its most favoured, most downloaded and featured modules,
+by format.
 
 Tracker modules are decoded and mixed by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which covers ProTracker, NoiseTracker,
@@ -142,14 +144,27 @@ Approach by Nightbeat, which won the multichannel competition at Icing
 1999, with a scope for each of its 31 channels and the message the musician
 wrote into the sample names beside them.
 
-### Browsing demo parties
+### Browsing
 
 `?` lays the keys of the screen you are on over it, the ones the bar at the
 bottom has no room for among them, and any key puts them away again.
 
-The browser starts with the party series listed by name, opens into the
-parties by year, then into every music competition of that party and
-finally into the ranked entries. The series and the parties are laid out
+The browser starts on two sections, Parties and ModArchive charts. Parties
+walks the demoscene archives as before, now one level down from the root.
+ModArchive charts opens into Top Favourites, Most Downloads and the weekly
+Featured picks, and each of those opens in turn into All, MOD, XM, IT, S3M
+and Other by file extension. A chart list shows forty rows and fetches the
+next forty as the cursor reaches its end, a narrow format reading a few
+pages on to stay ahead of it. The right-hand column says how many
+favourites or downloads a tune has, or the week it was featured. A module
+whose file nothing here reads is dimmed and marked `(no reader)`. Playing
+one queues the rest of the list after it, so `n` walks on through the
+chart. Chart pages are kept in the cache for a day and served stale when
+the network is down; `r` reads the chart in view afresh.
+
+Opening Parties lists the series by name, opens into the parties by year,
+then into every music competition of that party and finally into the
+ranked entries. The series and the parties are laid out
 in columns across the width, so sixty-eight series sit on one screen rather
 than three; walking down runs to the foot of a column and on to the head
 of the next. A competition says what it was run in and how many entries it
@@ -376,6 +391,7 @@ thrown away without a trace — before anyone sees it.
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
 | `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
 | `com.adeptum.paula.demozoo`      | Demozoo API model, cached client, track resolution and browsing art |
+| `com.adeptum.paula.modarchive`   | ModArchive charts read off the site's pages and cached      |
 | `com.adeptum.paula.archive`      | zip, 7z, RAR and LHA extraction, detection by magic bytes   |
 | `com.adeptum.paula.archive.lzx`  | Amiga LZX decoder                                           |
 | `com.adeptum.paula.archive.xpk`  | Amiga XPK unpacker (NUKE, DUKE, SQSH)                       |
