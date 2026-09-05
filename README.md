@@ -154,10 +154,10 @@ The browser starts with the party series listed by name on the left and
 the charts on the right; `tab` switches between the two. A chart, Top
 Favourites, Most Downloads or the weekly Featured picks, opens into All,
 MOD, XM, IT, S3M and Other by file extension. A chart list shows forty rows and fetches the
-next forty as the cursor reaches its end, a narrow format reading a few
-pages on to stay ahead of it. A format the chart holds little of may show
-nothing at first, and reads on a few pages more each time the cursor is
-stepped at the end of what is there. The right-hand column says how many
+next forty as the cursor reaches its end, a row below the last saying
+that more follows. A format the chart holds little of reads on for a few
+pages at a time until it has a few rows to show, and reads on again each
+time the cursor is stepped at the end of what is there. The right-hand column says how many
 favourites or downloads a tune has, or the week it was featured. A module
 whose file nothing here reads is dimmed and marked `(no reader)`. Playing
 one queues the rest of the list after it, so `n` walks on through the

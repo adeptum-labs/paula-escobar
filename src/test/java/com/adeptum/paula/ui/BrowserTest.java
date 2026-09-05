@@ -553,7 +553,7 @@ class BrowserTest {
      */
     @Test
     void anEmptyRunOfPagesWaitsForTheNextStep() {
-        final int lastPage = 6;
+        final int lastPage = 8;
         for (int page = 1; page <= lastPage; page++) {
             http.put(favouritesPage(page),
                     ModArchivePages.page(Chart.TOP_FAVOURITES, page, lastPage, DEBRIS, ODD), Optional.empty());
@@ -562,12 +562,47 @@ class BrowserTest {
         browser.tick();
         browser.tick();
         browser.tick();
-        assertEquals(4, http.requests(), "four pages, and nothing more while the cursor rests");
+        assertEquals(6, http.requests(), "six pages, and nothing more while the cursor rests");
         press(Key.Special.END);
         clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         browser.tick();
         assertEquals(lastPage, http.requests(), "a step reads on to the last page");
+    }
+
+    /**
+     * A format the chart holds little of would show a row or two a step; it reads on until it has a few.
+     */
+    @Test
+    void readsOnUntilASparseSliceHasAFewRows() {
+        final int lastPage = 3;
+        for (int page = 1; page <= lastPage; page++) {
+            http.put(favouritesPage(page), ModArchivePages.page(Chart.TOP_FAVOURITES, page, lastPage,
+                    DEBRIS, new ChartEntry(100 + page, "medley " + page, "tune" + page + ".med", "5 favourites")), Optional.empty());
+        }
+        openFavourites(Slice.OTHER);
+
+        assertEquals(lastPage, http.requests(), "every page was read for the few rows it held");
+        assertEquals(List.of("medley 1", "medley 2", "medley 3"), labels());
+    }
+
+    /**
+     * The end of what has been read is not the end of the chart, and the list says so.
+     */
+    @Test
+    void showsThatMoreFollowsBelowTheList() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
+        http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());
+        openFavourites(Slice.ALL);
+
+        assertTrue(render().get(4).contains("⋯ more below"), "below the two rows read so far: " + render().get(4));
+
+        press(Key.Special.END);
+        clock.advance(DWELL.multipliedBy(2));
+        browser.tick();
+        browser.tick();
+        assertTrue(render().get(4).contains("Deadlock"));
+        assertTrue(render().stream().noneMatch(line -> line.contains("⋯ more")), "the chart has been read to its end");
     }
 
     /**

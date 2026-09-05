@@ -363,7 +363,10 @@ public final class Browser {
     private static final int ART_LINES = 12;
     private static final int FEWEST_ART_LINES = 3;
     private static final int FEWEST_ROWS = 6;
-    private static final int MOST_PAGES_AT_ONCE = 4;
+    private static final int MOST_PAGES_AT_ONCE = 6;
+    private static final int WANTED_ROWS = 8;
+    private static final String MORE_BELOW = "⋯ more below";
+    private static final String FETCHING_MORE = "⋯ fetching more";
     private static final Set<Key.Special> MOVES = EnumSet.of(Key.Special.UP, Key.Special.DOWN,
             Key.Special.PAGE_UP, Key.Special.PAGE_DOWN, Key.Special.HOME, Key.Special.END);
     private static final Duration DWELL = Duration.ofMillis(500);
@@ -516,7 +519,7 @@ public final class Browser {
     /**
      * A chart is read a page at a time as the cursor reaches the end of what has been read, so a list of
      * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages at
-     * once, so that a step at the end brings a row rather than a wait; a run that turned up nothing then waits
+     * once, until it has a few rows to show or the whole of a page; a run that turned up nothing then waits
      * for the next step of the cursor, rather than reading a format the chart never held to its last page, and
      * runs are held a dwell apart so that a key left on the mat does not empty the site.
      */
@@ -546,17 +549,28 @@ public final class Browser {
         int page = from;
         int lastPage = from;
         int read = 0;
+        boolean enough;
         do {
             final ChartPage chartPage = modarchive.chart(chart, page);
             lastPage = chartPage.lastPage();
+            final int before = items.size();
             chartPage.entries().stream()
                     .filter(slice::holds)
                     .filter(entry -> !seen.contains(entry.moduleId()))
                     .forEach(entry -> items.add(new TuneItem(chart, entry, canBeRead(entry))));
+            enough = items.size() >= WANTED_ROWS || items.size() - before == chartPage.entries().size();
             page++;
             read++;
-        } while (items.isEmpty() && read < MOST_PAGES_AT_ONCE && page <= lastPage);
+        } while (!enough && read < MOST_PAGES_AT_ONCE && page <= lastPage);
         return new Grown(items, page, lastPage);
+    }
+
+    /**
+     * A chart list that has not been read to its last page says so below its last row, so the end of what is
+     * there does not look like the end of the chart.
+     */
+    private boolean moreBelow(Level level) {
+        return level.chart != null && level.nextPage <= level.lastPage;
     }
 
     private boolean canBeRead(ChartEntry entry) {
@@ -655,10 +669,13 @@ public final class Browser {
         final int listRows = Math.max(1, height - CHROME_LINES - art.size());
         final Layout layout = layoutOf(level, width - 2, listRows);
         level.scrollTo(layout);
+        if (moreBelow(level) && level.cursor == level.items.size() - 1) {
+            level.offset = Math.max(level.offset, Math.max(0, level.items.size() + 1 - layout.page()));
+        }
         pageSize = layout.page();
         final List<AttributedString> rows = new ArrayList<>();
         if (level.items.isEmpty()) {
-            rows.add(Screen.line(b -> b.style(Palette.LABEL).append(level.emptyText)));
+            rows.add(Screen.line(b -> b.style(Palette.LABEL).append(filling == level ? FETCHING_MORE : level.emptyText)));
         } else {
             for (int row = 0; row < layout.rows(); row++) {
                 rows.add(rowOf(level, layout, row, true));
@@ -901,6 +918,8 @@ public final class Browser {
             final int index = level.offset + column * layout.rows() + row;
             if (index < level.items.size()) {
                 line.append(cell(level.items.get(index), active && index == level.cursor, layout, ticker(level.items.get(index))));
+            } else if (index == level.items.size() && moreBelow(level)) {
+                line.style(Palette.DIMMED).append(NO_CURSOR).append(filling == level ? FETCHING_MORE : MORE_BELOW);
             }
         }
         return line.toAttributedString();
