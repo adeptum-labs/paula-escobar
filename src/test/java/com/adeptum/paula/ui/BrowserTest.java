@@ -455,47 +455,50 @@ class BrowserTest {
     }
 
     @Test
-    void opensOnTheSeriesWithTheChartsAbove() {
+    void opensOnThePartiesLeftAndTheChartsRight() {
         final List<String> lines = render();
         assertTrue(lines.get(0).contains("Paula Escobar") && lines.get(0).contains("browse"), "title bar");
-        assertTrue(lines.get(1).contains("Browse"), "the box is titled with the breadcrumb");
-        assertTrue(lines.get(2).startsWith("│> Charts"), "the charts sit above the series");
-        assertTrue(lines.get(3).startsWith("│  Abduction"), "listed by name, so Abduction leads them");
-        assertTrue(lines.get(4).startsWith("│  Alternative Party"));
-        assertTrue(lines.get(7).contains("Árok"), "an accent sorts among the A's, not after the Z's");
-        assertTrue(lines.get(2).trim().split(" {2,}").length > 1, "and the list flows into columns");
+        assertTrue(lines.get(1).indexOf("Parties") < lines.get(1).indexOf("Charts"), "two boxes, the parties left of the charts: " + lines.get(1));
+        assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
+        assertTrue(lines.get(2).contains("│  Top Favourites"), "the charts on the right, without the cursor: " + lines.get(2));
+        assertTrue(lines.get(3).startsWith("│  Alternative Party") && lines.get(3).contains("Most Downloads"));
+        assertTrue(lines.get(4).contains("Featured"));
+        assertTrue(lines.get(6).contains("Árok"), "an accent sorts among the A's, not after the Z's");
+        assertTrue(lines.get(2).trim().split(" {2,}").length > 2, "and the series flow into columns");
         assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
         assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
         assertTrue(browser.atRoot());
     }
 
     @Test
-    void tabHopsBetweenTheChartsAndTheSeries() {
+    void tabSwitchesBetweenThePartiesAndTheCharts() {
         cursorToTheParty();
         press(Key.Special.TAB);
-        assertTrue(render().get(2).startsWith("│> Charts"));
+        List<String> lines = render();
+        assertTrue(lines.get(2).contains("│> Top Favourites"), "the cursor is on the charts: " + lines.get(2));
+        assertFalse(lines.stream().anyMatch(line -> line.contains("> The Party ")), "and off the series");
+        press(Key.Special.DOWN);
         press(Key.Special.TAB);
-        assertTrue(render().stream().anyMatch(line -> line.contains("> The Party ")), "back to the series it left");
+        lines = render();
+        assertTrue(lines.stream().anyMatch(line -> line.contains("> The Party ")), "back on the series it left");
+        assertTrue(lines.get(3).contains("│  Most Downloads"), "the charts keep their place");
         press(Key.Special.TAB);
         press(Key.Special.ENTER);
+        assertTrue(render().get(1).contains("Charts › Most Downloads"));
         assertFalse(browser.consumes(Key.of(Key.Special.TAB)), "tab means nothing below the first page");
-        press(Key.Special.BACKSPACE);
-        press(Key.Special.TAB);
-        assertTrue(render().stream().anyMatch(line -> line.contains("> The Party ")), "the series left is still remembered");
     }
 
     @Test
     void theChartsOpenIntoTheirFormats() {
-        press(Key.Special.ENTER);
-        assertEquals(List.of("Top Favourites", "Most Downloads", "Featured"), labels());
+        press(Key.Special.TAB);
         press(Key.Special.DOWN);
         press(Key.Special.ENTER);
         assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
-        assertTrue(render().get(1).contains("Browse › Charts › Most Downloads"));
+        assertTrue(render().get(1).contains("Charts › Most Downloads"));
     }
 
     private void openFavourites(Slice slice) {
-        press(Key.Special.ENTER);
+        press(Key.Special.TAB);
         press(Key.Special.ENTER);
         for (int i = 0; i < slice.ordinal(); i++) {
             press(Key.Special.DOWN);
@@ -607,9 +610,7 @@ class BrowserTest {
         press(Key.Special.BACKSPACE);
         assertTrue(render().get(2).startsWith("│♪ All"));
         press(Key.Special.BACKSPACE);
-        assertTrue(render().get(2).startsWith("│♪ Top Favourites"));
-        press(Key.Special.BACKSPACE);
-        assertTrue(render().get(2).startsWith("│♪ Charts"));
+        assertTrue(render().get(2).contains("│♪ Top Favourites"), "marked on the first page too");
     }
 
     @Test
@@ -661,13 +662,12 @@ class BrowserTest {
     }
 
     @Test
-    void listsThePartySeriesByNameBelowTheCharts() {
+    void listsThePartySeriesByName() {
         final List<String> names = render().stream().filter(l -> l.startsWith("│") && !l.contains("─"))
                 .map(l -> l.replaceAll("[│>]", "").strip().split(" {2,}")[0]).toList();
 
-        assertEquals("Charts", names.get(0));
         assertEquals(CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(CuratedSeries::name)
-                .limit(names.size() - 1).toList(), names.subList(1, names.size()), "the first column reads by name: " + names);
+                .limit(names.size()).toList(), names, "the first column reads by name: " + names);
     }
 
     /**
@@ -691,7 +691,7 @@ class BrowserTest {
         browser.tick();
 
         final List<String> lines = render();
-        assertTrue(lines.get(1).contains("Browse › The Party"));
+        assertTrue(lines.get(1).contains("Parties › The Party"));
         assertTrue(lines.get(2).startsWith("│> The Party 1994"));
         assertTrue(lines.get(3).startsWith("│  The Party 1995"));
         assertFalse(browser.atRoot());
@@ -786,7 +786,6 @@ class BrowserTest {
     @Test
     void showsAnErrorAndStaysWhenTheFetchFails() {
         http.goOffline();
-        press(Key.Special.DOWN);
         press(Key.Special.ENTER);
         browser.tick();
 
@@ -826,7 +825,6 @@ class BrowserTest {
                 new ModArchiveClient(http, deferredCache), LOADERS, queued::add);
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, PARTY);
-        deferred.handle(Key.of(Key.Special.DOWN));
         deferred.handle(Key.of(Key.Special.ENTER));
         queued.pop().run();
         deferred.tick();
@@ -1067,7 +1065,6 @@ class BrowserTest {
                 new ModArchiveClient(http, stalledCache), LOADERS, runnable -> { });
         http.put(SERIES_URL, SERIES);
         final String first = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).findFirst().orElseThrow().name();
-        stalled.handle(Key.of(Key.Special.DOWN));
         stalled.handle(Key.of(Key.Special.ENTER));
         stalled.handle(Key.of(Key.Special.ENTER));
         assertTrue(stalled.render(WIDTH, HEIGHT).stream().map(AttributedString::toString)
@@ -1091,7 +1088,6 @@ class BrowserTest {
      * assuming it sits at the top.
      */
     private void cursorToTheParty() {
-        press(Key.Special.DOWN);
         moveCursorToTheParty();
     }
 

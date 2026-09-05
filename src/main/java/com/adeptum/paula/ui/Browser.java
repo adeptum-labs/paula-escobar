@@ -66,7 +66,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
@@ -81,7 +80,7 @@ import org.jline.utils.AttributedStyle;
 public final class Browser {
 
     private sealed interface Item
-            permits SeriesItem, PartyItem, CompoItem, EntryItem, ChartsItem, ChartItem, FormatItem, TuneItem {
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, ChartItem, FormatItem, TuneItem {
 
         String label();
 
@@ -215,19 +214,6 @@ public final class Browser {
         }
     }
 
-    private record ChartsItem() implements Item {
-
-        @Override
-        public String label() {
-            return CHARTS;
-        }
-
-        @Override
-        public boolean flows() {
-            return true;
-        }
-    }
-
     private record ChartItem(Chart chart) implements Item {
 
         @Override
@@ -348,8 +334,8 @@ public final class Browser {
         }
     }
 
-    private static final String ROOT_TITLE = "Browse";
-    private static final String CHARTS = "Charts";
+    private static final String PARTIES_TITLE = "Parties";
+    private static final String CHARTS_TITLE = "Charts";
     private static final String NOTHING_HERE = "Nothing here";
     private static final String NO_MUSIC = "No music competitions";
     private static final String LOADING = "Loading ";
@@ -361,6 +347,7 @@ public final class Browser {
     private static final String NO_READER = "(no reader)";
     private static final String UNSUPPORTED_FORMAT = "(unsupported music format)";
     private static final int COLUMN_GAP = 2;
+    private static final int BOX_EDGES = 2;
     private static final int MOST_COLUMNS = 4;
     private static final int LEAST_DETAIL = 10;
     private static final String ELLIPSIS = "…";
@@ -390,7 +377,7 @@ public final class Browser {
             new Frame.Key("↑ ↓", "move the cursor"),
             new Frame.Key("PgUp PgDn", "move a page"),
             new Frame.Key("Home End", "jump to the first or last line"),
-            new Frame.Key("tab", "hop between the charts and the series"),
+            new Frame.Key("tab", "switch between the parties and the charts"),
             new Frame.Key("enter →", "open, or play an entry"),
             new Frame.Key("backspace", "go back one level"),
             new Frame.Key("← esc", "go back, or quit at the top"),
@@ -420,7 +407,8 @@ public final class Browser {
     private int restingOn;
     private int reopening;
     private Instant restingSince;
-    private int seriesLeft = 1;
+    private final Level charts = new Level(CHARTS_TITLE, NOTHING_HERE, Arrays.stream(Chart.values()).<Item>map(ChartItem::new).toList());
+    private boolean chartsSide;
     private Track nowPlaying;
     private double[] nowPlayingSpectrum = new double[0];
 
@@ -453,28 +441,16 @@ public final class Browser {
         this.partyArt = partyArt;
         this.dwell = dwell;
         this.clock = clock;
-        levels.push(new Level(ROOT_TITLE, NOTHING_HERE, rootItems()));
+        levels.push(new Level(PARTIES_TITLE, NOTHING_HERE,
+                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList()));
     }
 
     /**
-     * Tab hops from wherever the cursor is among the series to the charts above them, and back to the series it
-     * left.
+     * The first page is two panes side by side, the party series and the charts, and tab says which of them
+     * the keys go to.
      */
-    private void hopBetweenTheChartsAndTheSeries(Level level) {
-        if (level.cursor == 0) {
-            level.cursor = Math.clamp(seriesLeft, 1, level.items.size() - 1);
-        } else {
-            seriesLeft = level.cursor;
-            level.cursor = 0;
-        }
-    }
-
-    /**
-     * The charts sit above the series, so both are on the first page.
-     */
-    private static List<Item> rootItems() {
-        return Stream.concat(Stream.<Item>of(new ChartsItem()),
-                CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).map(SeriesItem::new)).toList();
+    private Level current() {
+        return atRoot() && chartsSide ? charts : levels.peek();
     }
 
     public boolean atRoot() {
@@ -499,7 +475,7 @@ public final class Browser {
     }
 
     public void handle(Key key) {
-        final Level level = levels.peek();
+        final Level level = current();
         if (MOVES.contains(key.special())) {
             level.restingAtTheEnd = false;
         }
@@ -511,7 +487,7 @@ public final class Browser {
             case HOME -> level.move(-level.items.size());
             case END -> level.move(level.items.size());
             case ENTER, RIGHT -> open(level);
-            case TAB -> hopBetweenTheChartsAndTheSeries(level);
+            case TAB -> chartsSide = !chartsSide;
             case BACKSPACE, LEFT, ESCAPE -> back();
             case NONE -> reload();
             default -> {
@@ -671,6 +647,9 @@ public final class Browser {
     }
 
     public List<AttributedString> render(int width, int height) {
+        if (atRoot()) {
+            return renderFirstPage(width, height);
+        }
         final Level level = levels.peek();
         final List<AttributedString> art = artLines(level, width, height);
         final int listRows = Math.max(1, height - CHROME_LINES - art.size());
@@ -682,7 +661,7 @@ public final class Browser {
             rows.add(Screen.line(b -> b.style(Palette.LABEL).append(level.emptyText)));
         } else {
             for (int row = 0; row < layout.rows(); row++) {
-                rows.add(rowOf(level, layout, row));
+                rows.add(rowOf(level, layout, row, true));
             }
         }
         final List<AttributedString> lines = new ArrayList<>();
@@ -693,6 +672,37 @@ public final class Browser {
         lines.add(nowPlayingLine(width));
         lines.add(Frame.footer(KEYS, width));
         return Screen.fit(lines, width, height);
+    }
+
+    /**
+     * The party series on the left, laid out in columns, and the charts on the right; the cursor shows on
+     * the side the keys go to.
+     */
+    private List<AttributedString> renderFirstPage(int width, int height) {
+        final int listRows = Math.max(1, height - CHROME_LINES);
+        final int chartsWidth = charts.widest(Item::label) + NO_CURSOR.length() + COLUMN_GAP + BOX_EDGES;
+        final int partiesWidth = width - chartsWidth;
+        final List<AttributedString> lines = new ArrayList<>();
+        lines.add(Frame.titleBar(APPLICATION, SECTION, width));
+        lines.addAll(Frame.sideBySide(pane(levels.peek(), partiesWidth, listRows, !chartsSide),
+                pane(charts, chartsWidth, listRows, chartsSide), partiesWidth, width));
+        lines.add(statusLine());
+        lines.add(nowPlayingLine(width));
+        lines.add(Frame.footer(KEYS, width));
+        return Screen.fit(lines, width, height);
+    }
+
+    private List<AttributedString> pane(Level level, int width, int listRows, boolean active) {
+        final Layout layout = layoutOf(level, width - BOX_EDGES, listRows);
+        level.scrollTo(layout);
+        if (active) {
+            pageSize = layout.page();
+        }
+        final List<AttributedString> rows = new ArrayList<>();
+        for (int row = 0; row < layout.rows(); row++) {
+            rows.add(rowOf(level, layout, row, active));
+        }
+        return Frame.box(level.title, rows, width, layout.rows() + BOX_EDGES);
     }
 
     private void stepBackIntoTheCompetitionReloaded() {
@@ -712,8 +722,6 @@ public final class Browser {
         error = null;
         level.selected().ifPresent(item -> {
             switch (item) {
-                case ChartsItem charts -> levels.push(new Level(charts.label(), NOTHING_HERE,
-                        Arrays.stream(Chart.values()).<Item>map(ChartItem::new).toList()));
                 case ChartItem chart -> levels.push(new Level(chart.label(), NOTHING_HERE,
                         Arrays.stream(Slice.values()).<Item>map(slice -> new FormatItem(chart.chart(), slice)).toList()));
                 case FormatItem format -> openChart(format);
@@ -866,6 +874,7 @@ public final class Browser {
     private String breadcrumb() {
         final List<String> titles = new ArrayList<>(levels.stream().map(level -> level.title).toList());
         Collections.reverse(titles);
+        titles.set(0, chartsSide ? charts.title : titles.get(0));
         return String.join(CRUMB_SEPARATOR, titles);
     }
 
@@ -886,12 +895,12 @@ public final class Browser {
         return new Layout(columns, rows, width / columns, level.widest(Item::label), 0, trailing);
     }
 
-    private AttributedString rowOf(Level level, Layout layout, int row) {
+    private AttributedString rowOf(Level level, Layout layout, int row, boolean active) {
         final AttributedStringBuilder line = new AttributedStringBuilder();
         for (int column = 0; column < layout.columns(); column++) {
             final int index = level.offset + column * layout.rows() + row;
             if (index < level.items.size()) {
-                line.append(cell(level.items.get(index), index == level.cursor, layout, ticker(level.items.get(index))));
+                line.append(cell(level.items.get(index), active && index == level.cursor, layout, ticker(level.items.get(index))));
             }
         }
         return line.toAttributedString();
@@ -961,7 +970,6 @@ public final class Browser {
             case CompoItem compo -> nowPlaying instanceof DemozooTrack track && compo.compo().id() == track.compo().id();
             case PartyItem party -> nowPlaying instanceof DemozooTrack track && party.party().id() == track.party().id();
             case SeriesItem series -> false;
-            case ChartsItem charts -> nowPlaying instanceof ModArchiveTrack;
             case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.chart() == chart.chart();
             case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.chart() == format.chart()
                     && format.slice().holds(track.entry());
@@ -1063,7 +1071,7 @@ public final class Browser {
     }
 
     private String loadingTitle() {
-        return levels.peek().selected().map(Item::label).orElse("");
+        return current().selected().map(Item::label).orElse("");
     }
 
 }
