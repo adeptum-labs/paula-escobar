@@ -55,6 +55,9 @@ final class HvlReader {
     private static final int MAX_POSITIONS = 1000;
     private static final int MAX_TRACK_LENGTH = 64;
     private static final int MAX_INSTRUMENTS = 64;
+    private static final int HIGHEST_NOTE = 60;
+    private static final int LONGEST_WAVE = 5;
+    private static final int WAVEFORMS = 4;
     private static final int EMPTY_STEP = 0x3f;
     private static final int BLANK_FIRST_TRACK = 0x80;
     private static final int TOGGLE_FILTER = 4;
@@ -126,7 +129,7 @@ final class HvlReader {
             final int subsong = unsigned16();
             subsongs[i] = subsong >= positionCount ? 0 : subsong;
         }
-        final List<HvlPosition> positions = positions(positionCount, AHX_CHANNELS);
+        final List<HvlPosition> positions = positions(positionCount, AHX_CHANNELS, trackCount);
         final HvlStep[][] tracks = tracks(trackCount, trackLength, blankFirstTrack(flags), this::ahxStep);
         final List<HvlInstrument> instruments = instruments(instrumentCount, this::ahxPlaylistEntry);
 
@@ -166,7 +169,7 @@ final class HvlReader {
         for (int i = 0; i < subsongCount; i++) {
             subsongs[i] = unsigned16();
         }
-        final List<HvlPosition> positions = positions(positionCount, channels);
+        final List<HvlPosition> positions = positions(positionCount, channels, trackCount);
         final HvlStep[][] tracks = tracks(trackCount, trackLength, blankFirstTrack(flags), this::hivelyStep);
         final List<HvlInstrument> instruments = instruments(instrumentCount, this::hivelyPlaylistEntry);
 
@@ -176,6 +179,9 @@ final class HvlReader {
     }
 
     private static void validate(int positionCount, int trackLength, int instrumentCount) throws IOException {
+        if (positionCount == 0) {
+            throw invalid("no positions");
+        }
         if (positionCount > MAX_POSITIONS) {
             throw invalid(positionCount + " positions");
         }
@@ -196,25 +202,36 @@ final class HvlReader {
     }
 
     /**
-     * A restart past the end plays the last position instead, which wraps in the module's own unsigned word
-     * when the tune has no positions at all.
+     * A restart past the end plays the last position instead.
      */
     private static int restart(int restart, int positionCount) {
-        return (restart >= positionCount ? positionCount - 1 : restart) & 0xffff;
+        return restart >= positionCount ? positionCount - 1 : restart;
     }
 
-    private List<HvlPosition> positions(int count, int channels) throws IOException {
+    private List<HvlPosition> positions(int count, int channels, int trackCount) throws IOException {
         final List<HvlPosition> positions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             final int[] track = new int[HvlTune.MAX_CHANNELS];
             final int[] transpose = new int[HvlTune.MAX_CHANNELS];
             for (int channel = 0; channel < channels; channel++) {
-                track[channel] = unsigned8();
+                track[channel] = track(trackCount);
                 transpose[channel] = signed8();
             }
             positions.add(new HvlPosition(track, transpose));
         }
         return positions;
+    }
+
+    /**
+     * The tracks are read into an array the module's own count long, so a position naming one beyond it has
+     * nothing to play.
+     */
+    private int track(int trackCount) throws IOException {
+        final int track = unsigned8();
+        if (track > trackCount) {
+            throw invalid("a position playing track " + track + " of " + trackCount);
+        }
+        return track;
     }
 
     private HvlStep[][] tracks(int count, int length, boolean blankFirst, Part<HvlStep> step) throws IOException {
@@ -231,7 +248,8 @@ final class HvlReader {
         final int packed = unsigned8();
         final int instrument = unsigned8();
         final int param = unsigned8();
-        return new HvlStep((packed >> 2) & 0x3f, (packed & 3) << 4 | instrument >> 4, instrument & 0x0f, param, 0, 0);
+        return new HvlStep(note((packed >> 2) & 0x3f), (packed & 3) << 4 | instrument >> 4, instrument & 0x0f,
+                param, 0, 0);
     }
 
     private HvlStep hivelyStep() throws IOException {
@@ -243,7 +261,7 @@ final class HvlReader {
         final int effects = unsigned8();
         final int param = unsigned8();
         final int secondParam = unsigned8();
-        return new HvlStep(note, instrument, effects >> 4, param, effects & 0x0f, secondParam);
+        return new HvlStep(note(note), instrument, effects >> 4, param, effects & 0x0f, secondParam);
     }
 
     /**
@@ -281,7 +299,7 @@ final class HvlReader {
         for (int i = 0; i < playlistLength; i++) {
             entries.add(entry.read());
         }
-        return new HvlInstrument(name, volume, wave & 0x07, filterLower & 0x7f, filterUpper & 0x3f,
+        return new HvlInstrument(name, volume, waveLength(wave & 0x07), filterLower & 0x7f, filterUpper & 0x3f,
                 (wave >> 3) & 0x1f | (filterLower >> 2) & 0x20, squareLower, squareUpper, squareSpeed,
                 vibratoDelay, vibratoSpeed, hardCut & 0x0f, (hardCut & 0x80) != 0, (hardCut >> 4) & 0x07,
                 envelope, new HvlPlaylist(playlistSpeed, entries));
@@ -294,8 +312,8 @@ final class HvlReader {
         final int secondParam = unsigned8();
         final int fx = ahxEffect((packed >> 2) & 7);
         final int secondFx = ahxEffect((packed >> 5) & 7);
-        return new HvlPlaylistEntry(note & 0x3f, (packed << 1) & 6 | note >> 7, ((note >> 6) & 1) != 0,
-                new int[]{fx, secondFx},
+        return new HvlPlaylistEntry(note(note & 0x3f), waveform((packed << 1) & 6 | note >> 7),
+                ((note >> 6) & 1) != 0, new int[]{fx, secondFx},
                 new int[]{withoutFilter(fx, param), withoutFilter(secondFx, secondParam)});
     }
 
@@ -305,8 +323,25 @@ final class HvlReader {
         final int note = unsigned8();
         final int param = unsigned8();
         final int secondParam = unsigned8();
-        return new HvlPlaylistEntry(note & 0x3f, waveform & 7, ((note >> 6) & 1) != 0,
+        return new HvlPlaylistEntry(note(note & 0x3f), waveform(waveform & 7), ((note >> 6) & 1) != 0,
                 new int[]{fx & 0x0f, (waveform >> 3) & 0x0f}, new int[]{param, secondParam});
+    }
+
+    /**
+     * The replayer holds a period for the notes up to the highest one, six lengths of wave and four waveforms
+     * to name, so a value beyond them is played as the last one the replayer has rather than read off the end
+     * of its tables.
+     */
+    private static int note(int stored) {
+        return Math.min(stored, HIGHEST_NOTE);
+    }
+
+    private static int waveLength(int stored) {
+        return Math.min(stored, LONGEST_WAVE);
+    }
+
+    private static int waveform(int stored) {
+        return Math.min(stored, WAVEFORMS);
     }
 
     /**

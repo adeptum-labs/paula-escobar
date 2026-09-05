@@ -40,6 +40,15 @@ class HvlReaderTest {
     private static final int HVL_MIX_GAIN = 256;
     private static final int SQUARE_WAVEFORM = 3;
     private static final int C1 = 1;
+    private static final int POSITION_COUNT_OFFSET = 7;
+    private static final int POSITION_TRACK_OFFSET = 14;
+    private static final int FIRST_STEP_OFFSET = 22;
+    private static final int WAVE_OFFSET = 35;
+    private static final int PERFORMANCE_PACKED_OFFSET = 56;
+    private static final int PERFORMANCE_NOTE_OFFSET = 57;
+    private static final int HIGHEST_NOTE = 60;
+    private static final int LONGEST_WAVE = 5;
+    private static final int NOISE_WAVEFORM = 4;
     private static final int TRACK_LENGTH_OFFSET = 10;
     private static final int INSTRUMENT_COUNT_OFFSET = 12;
     private static final int CHANNEL_OFFSET = 8;
@@ -214,5 +223,47 @@ class HvlReaderTest {
         final byte[] file = withByte(TestModules.hivelyTracker(), CHANNEL_OFFSET, (20 - 4) << 2);
 
         assertTrue(assertThrows(IOException.class, () -> HvlReader.read(file)).getMessage().contains("20"));
+    }
+
+    @Test
+    void rejectsATuneWithoutASinglePosition() {
+        final byte[] file = withByte(TestModules.hively(), POSITION_COUNT_OFFSET, 0);
+
+        assertTrue(assertThrows(IOException.class, () -> HvlReader.read(file)).getMessage().contains("no positions"));
+    }
+
+    @Test
+    void rejectsAPositionPlayingATrackTheModuleHasNot() {
+        final byte[] file = withByte(TestModules.hively(), POSITION_TRACK_OFFSET, 5);
+
+        assertTrue(assertThrows(IOException.class, () -> HvlReader.read(file)).getMessage().contains("track 5 of 1"));
+    }
+
+    @Test
+    void clampsAWaveLongerThanTheReplayerSynthesises() throws IOException {
+        final HvlTune tune = HvlReader.read(withByte(TestModules.hively(), WAVE_OFFSET, 7));
+
+        assertEquals(LONGEST_WAVE, tune.instruments().get(1).waveLength());
+    }
+
+    @Test
+    void clampsANoteAboveTheHighestTheReplayerPlays() throws IOException {
+        final HvlTune tune = HvlReader.read(withByte(TestModules.hively(), FIRST_STEP_OFFSET, 0xfc));
+
+        assertEquals(HIGHEST_NOTE, tune.tracks()[1][0].note());
+    }
+
+    @Test
+    void clampsANoteThePerformanceListPlaysAboveThatSame() throws IOException {
+        final HvlTune tune = HvlReader.read(withByte(TestModules.hively(), PERFORMANCE_NOTE_OFFSET, 0xff));
+
+        assertEquals(HIGHEST_NOTE, tune.instruments().get(1).playlist().entries().getFirst().note());
+    }
+
+    @Test
+    void clampsAWaveformThePerformanceListCannotName() throws IOException {
+        final HvlTune tune = HvlReader.read(withByte(TestModules.hively(), PERFORMANCE_PACKED_OFFSET, 7));
+
+        assertEquals(NOISE_WAVEFORM, tune.instruments().get(1).playlist().entries().getFirst().waveform());
     }
 }
