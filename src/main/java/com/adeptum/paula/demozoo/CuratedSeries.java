@@ -111,5 +111,7 @@ public record CuratedSeries(int id, String name) {
             new CuratedSeries(7, "Stream"),
             new CuratedSeries(1638, "Black Valley"),
             new CuratedSeries(79, "Demobit"),
-            new CuratedSeries(296, "Blacktron Music Compo"));
+            new CuratedSeries(296, "Blacktron Music Compo"),
+            new CuratedSeries(399, "QuaST"),
+            new CuratedSeries(370, "Rush Hours"));
 }

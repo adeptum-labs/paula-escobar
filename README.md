@@ -146,7 +146,7 @@ bottom has no room for among them, and any key puts them away again.
 The browser starts with the party series listed by name, opens into the
 parties by year, then into every music competition of that party and
 finally into the ranked entries. The series and the parties are laid out
-in columns across the width, so sixty-six series sit on one screen rather
+in columns across the width, so sixty-eight series sit on one screen rather
 than three; walking down runs to the foot of a column and on to the head
 of the next. A competition says what it was run in and how many entries it
 drew, a party the date it opened, and an entry keeps its title, its author
