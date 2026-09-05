@@ -82,7 +82,7 @@ public final class TrackResolver {
     private static final String DEFAULT_NAME = "download";
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
-    private static final int SHORTEST_NAME = 4;
+    private static final int SHORTEST_NAME = 3;
     private static final Set<String> ART = Set.of("diz", "nfo", "asc");
 
     private final DemozooClient demozoo;
@@ -123,9 +123,14 @@ public final class TrackResolver {
      * A module on ModArchive is one file at one address, named after its title in the chart it came from.
      */
     public Path resolve(int moduleId, String title, String fileName) throws IOException {
-        final Sought sought = new Sought(MODARCHIVE_KEY + moduleId, title, List.of(title, fileName));
+        final Sought sought = new Sought(MODARCHIVE_KEY + moduleId, title, List.of(title, stem(fileName)));
         final Optional<Path> cached = remembered(sought);
         return cached.isPresent() ? cached.get() : resolve(sought, List.of(ModArchive.downloadUri(moduleId)));
+    }
+
+    private static String stem(String fileName) {
+        final int dot = fileName.lastIndexOf('.');
+        return dot < 0 ? fileName : fileName.substring(0, dot);
     }
 
     /**
