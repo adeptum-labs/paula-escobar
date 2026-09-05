@@ -30,6 +30,7 @@ import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.ogg.OggLoader;
+import com.adeptum.paula.module.sap.SapLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.module.wav.WavLoader;
@@ -43,8 +44,8 @@ class ModuleLoaderRegistryTest {
 
     @Test
     void listsBuiltInFormats() {
-        assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, DigiBoosterLoader.FORMAT, Mp3Loader.FORMAT,
-                FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT), registry.formats());
+        assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
+                Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT), registry.formats());
     }
 
     @Test
