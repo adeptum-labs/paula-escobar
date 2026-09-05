@@ -73,32 +73,51 @@ class TrackResolverTest {
     }
 
     @Test
-    void rewritesSceneOrgViewAndGetLinksToTheArchive() {
+    void rewritesSceneOrgViewAndGetLinksToTheArchive() throws IOException {
         assertEquals(URI.create(SCENE_ORG_FILE), TrackResolver.downloadUri(new Link("SceneOrgFile", SCENE_ORG_VIEW)));
         assertEquals(URI.create(SCENE_ORG_FILE), TrackResolver.downloadUri(new Link("SceneOrgFile", SCENE_ORG_VIEW.replace("/view/", "/get/"))));
     }
 
     @Test
-    void rewritesModarchivePagesToTheDownloadApi() {
+    void rewritesModarchivePagesToTheDownloadApi() throws IOException {
         assertEquals(URI.create(MODARCHIVE_FILE), TrackResolver.downloadUri(new Link("ModarchiveModule", MODARCHIVE_PAGE)));
         assertEquals(URI.create(MODARCHIVE_FILE), TrackResolver.downloadUri(new Link("ModarchiveModule", MODARCHIVE_MODULE_PAGE)));
     }
 
     @Test
-    void otherLinksAreUsedAsTheyAre() {
+    void otherLinksAreUsedAsTheyAre() throws IOException {
         assertEquals(URI.create(MODLAND_FILE), TrackResolver.downloadUri(new Link("ModlandFile", MODLAND_FILE)));
     }
 
     @Test
-    void escapesTheCharactersDemozooLeavesUnescaped() {
+    void escapesTheCharactersDemozooLeavesUnescaped() throws IOException {
         assertEquals(URI.create(MODLAND_SPACED.replace(" ", "%20")),
                 TrackResolver.downloadUri(new Link("ModlandFile", MODLAND_SPACED)));
     }
 
     @Test
-    void keepsEscapesThatAreAlreadyThere() {
+    void keepsEscapesThatAreAlreadyThere() throws IOException {
         final String escaped = MODLAND_SPACED.replace(" ", "%20").replace("Pro/", "%23Pro/");
         assertEquals(URI.create(escaped), TrackResolver.downloadUri(new Link("ModlandFile", escaped)));
+    }
+
+    @Test
+    void refusesAModArchiveLinkWithAnImpossibleId() {
+        assertThrows(IOException.class,
+                () -> TrackResolver.downloadUri(new Link("ModarchiveModule", "https://modarchive.org/module.php?99999999999")));
+    }
+
+    /**
+     * A link Demozoo cannot spell used to stop the whole resolve, taking with it the good link behind it.
+     */
+    @Test
+    void skipsALinkThatIsNoUri(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", "https://files.scene.org/view/x[1].zip",
+                "ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+
+        assertEquals(downloaded(dir, MODLAND_FILE).resolve("funkyeeh.mod"), resolver(dir).resolve(ENTRY));
+        assertEquals(2, http.requests(), "the production, then the one link that reads");
     }
 
     @Test

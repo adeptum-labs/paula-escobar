@@ -35,6 +35,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -111,10 +112,18 @@ public final class TrackResolver {
         if (cached.isPresent()) {
             return cached.get();
         }
-        final List<URI> uris = preferredLinks(demozoo.production(entry.productionId())).stream()
-                .map(TrackResolver::downloadUri).toList();
+        final List<URI> uris = new ArrayList<>();
+        IOException unusable = null;
+        for (final Link link : preferredLinks(demozoo.production(entry.productionId()))) {
+            try {
+                uris.add(downloadUri(link));
+            } catch (IOException e) {
+                log.info("Unusable link {} for {}: {}", link.url(), entry.title(), e.getMessage());
+                unusable = e;
+            }
+        }
         if (uris.isEmpty()) {
-            throw new IOException("No download for " + entry.title());
+            throw unusable == null ? new IOException("No download for " + entry.title()) : unusable;
         }
         return resolve(sought, uris);
     }
@@ -218,12 +227,20 @@ public final class TrackResolver {
                 .toList();
     }
 
-    static URI downloadUri(Link link) {
-        return switch (link.linkClass()) {
-            case SCENE_ORG -> uri(SCENE_ORG_VIEW.matcher(link.url()).replaceFirst(SCENE_ORG_ARCHIVE));
-            case MODARCHIVE -> modarchiveUri(link);
-            default -> uri(link.url());
-        };
+    /**
+     * Demozoo stores its links as typed in, so one now and then holds what no address may: a bracket in the
+     * path, or a module id too long to be a number.
+     */
+    static URI downloadUri(Link link) throws IOException {
+        try {
+            return switch (link.linkClass()) {
+                case SCENE_ORG -> uri(SCENE_ORG_VIEW.matcher(link.url()).replaceFirst(SCENE_ORG_ARCHIVE));
+                case MODARCHIVE -> modarchiveUri(link);
+                default -> uri(link.url());
+            };
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Unusable link " + link.url(), e);
+        }
     }
 
     private static URI modarchiveUri(Link link) {
