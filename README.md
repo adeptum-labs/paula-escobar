@@ -82,15 +82,11 @@ Keys while playing:
 | `?`     | show the keys           |
 | `q`     | quit                    |
 
-The mouse works the panels. A click on the upper one turns it to the next
-visualiser, as `v` does. Down among the scopes it silences channels: click
-one to turn that channel off and click it again to bring it back, or
-shift-click it to leave it alone sounding and shift-click it once more for
-the rest. A double click does what a shift-click does, for the terminals
-that keep shift-click to themselves for selecting text. A silenced channel
-keeps its scope, flat and its number struck through, and is let back in the
-moment it is asked for. What is silenced belongs to the track being played
-and starts afresh with the next one.
+The mouse works the panels: a click on the upper one turns it to the next
+visualiser, and a click on a scope silences that channel until it is clicked
+again. Shift-click, or a double click where the terminal keeps shift-click
+for selecting text, leaves that channel sounding alone and brings the rest
+back on the next. What is silenced belongs to the track being played.
 
 Keys while browsing:
 
@@ -112,119 +108,56 @@ Keys while browsing:
 
 ![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
 
-Both screens fill the terminal: a gradient title bar on top, the key hints
-in a bar at the bottom and box-drawn panels in between, in 24-bit colour
-where the terminal supports it and rounded to 256 or 16 colours where it
-does not. The player shows the song details on the left, with the
-instrument that is sounding lit up, and on the right a 32-band spectrum
-analyser with peak hold, one braille-dot oscilloscope per channel (a
-single one for SID tunes, which is nobody's to silence), a position bar
-with elapsed and total time and stereo VU meters, all redrawn thirty times
-a second. `v`, or a click on the upper panel, turns it over to the next of
-three: the spectrum, a waterfall of where it has been with the newest
-reading at the top, and a vectorscope plotting left against right, where
-a mono mix stands upright, opposed channels lie flat, and the hard panned
-channels of an Amiga module draw a shape of their own. The browser colours
-the first three placings gold, silver and bronze, highlights the line the
-cursor rests on, and shows what is playing with a small spectrum strip above
-the key bar, so music keeps going while you browse. The shot above is
-Approach by Nightbeat, which won the multichannel competition at Icing
-1999, with a scope for each of its 31 channels and the message the musician
-wrote into the sample names beside them.
+Both screens fill the terminal, in 24-bit colour where the terminal has it
+and rounded to 256 or 16 colours where it does not. The player shows the song
+details on the left, with the sounding instrument lit up, and on the right a
+32-band spectrum analyser with peak hold, one braille-dot oscilloscope per
+channel, a position bar and stereo VU meters, redrawn thirty times a second.
+`v` turns the upper panel over to a waterfall of the spectrum and then to a
+vectorscope plotting left against right, where the hard-panned channels of an
+Amiga module draw a shape of their own. The browser colours the first three
+placings gold, silver and bronze and keeps a small spectrum strip of what is
+playing above the key bar, so music keeps going while you browse. The shot
+above is Approach by Nightbeat, which won the multichannel competition at
+Icing 1999, with a scope for each of its 31 channels and the message the
+musician wrote into the sample names beside them.
 
 ### Browsing
 
-`?` lays the keys of the screen you are on over it, the ones the bar at the
-bottom has no room for among them, and any key puts them away again.
+The browser opens with the party series in columns on the left and the
+charts on the right; `tab` switches sides and `?` lays out every key. A
+series opens into its parties by year, a party into its music competitions
+and a competition into the ranked entries, each with its title, its author
+and whatever is the matter with it in a column of its own. Entries in
+executable music competitions are dimmed, since Paula cannot run them, and
+stay in the list so the results are complete; those Demozoo has no download
+for are marked `(no download)`, those whose only download is a container
+nothing here reads `(no reader)`. Playing an entry queues the rest of the
+competition after it in ranked order, so `n` walks through the results.
 
-The browser starts with the party series listed by name on the left and
-the charts on the right; `tab` switches between the two. A chart, Top
-Favourites, Most Downloads or the weekly Featured picks, opens into All,
-MOD, XM, IT, S3M and Other by file extension. A chart list shows forty rows and fetches the
-next forty as the cursor reaches its end, a row below the last saying
-that more follows. A format the chart holds little of reads on for a few
-pages at a time until it has a few rows to show, and reads on again each
-time the cursor is stepped at the end of what is there. The right-hand column says how many
-favourites or downloads a tune has, or the week it was featured. A module
-whose file nothing here reads is dimmed and marked `(no reader)`. Playing
-one queues the rest of the list after it, so `n` walks on through the
-chart. Chart pages are kept in the cache for a day and served stale when
-the network is down; `r` reads the chart in view afresh.
+A chart, Top Favourites, Most Downloads or the weekly Featured picks, opens
+into All, MOD, XM, IT, S3M and Other by file extension. Forty rows are
+fetched at a time and the next forty as the cursor reaches the end, a row
+below the last saying that more follows; the right-hand column gives the
+favourites, the downloads or the week featured. Playing a tune queues the
+rest of the list.
 
-A series opens into the parties by year, then into every music
-competition of that party and finally into the ranked entries. The series and the parties are laid out
-in columns across the width, so sixty-eight series sit on one screen rather
-than three; walking down runs to the foot of a column and on to the head
-of the next. A competition says what it was run in and how many entries it
-drew, a party the date it opened, and an entry keeps its title, its author
-and whatever is the matter with it in columns of their own. Entries in executable music competitions are shown dimmed because
-Paula cannot play them, but they stay in the list so the results are
-complete. Streaming competitions are not dimmed, since MPEG audio, FLAC,
-Ogg Vorbis and wave files all play. C64 competitions play through the SID
-emulation.
-Entries Demozoo has no download for are marked "(no download)" as soon as
-their details have been fetched, since some releases never made it to any
-archive. One whose only download is a container Paula has no reader for,
-an Amiga disk image most often, is marked "(no reader)" the same way. A
-competition run for a format nothing here can decode — the ReBirth songs
-of Alternative Party 2007 are pages of knob settings for a synthesiser
-rather than audio — is marked "(unsupported music format)" from the
-moment it opens, since its name is the only word on it and nothing need
-be fetched to know.
-Playing an entry queues the rest of the competition
-after it in ranked order, so `n` walks through the results.
+Party data comes from [Demozoo](https://demozoo.org); the entry itself from
+scene.org when Demozoo knows the release there, otherwise from ModArchive or
+Modland. Zip, 7z, RAR, LHA and Amiga LZX archives and 1541 disk images are
+unpacked, along with whatever archives they hold in turn, modules wrapped by
+the Amiga's XPK packer are unwrapped, and the file named after the entry is
+played, or the first module in name order when none is. Unpacking, and a
+download long enough to wait for, is counted up on the status line. The
+`file_id.diz` or information file that travels in a party archive, or the
+party's own on scene.org, is shown above the list as a competition opens,
+read in the code page it was drawn in.
 
-Party data comes from [Demozoo](https://demozoo.org). The entry itself is
-fetched from scene.org when Demozoo knows the party release there, otherwise
-from ModArchive or Modland. Zip, 7z, RAR, LHA, Amiga LZX archives and 1541
-disk images are unpacked, along with whatever archives they hold in turn, and
-the file inside named after the entry is played, or the first module in
-name order when none is. Modules wrapped by the
-Amiga's XPK packer are unwrapped as well when they use the NUKE, DUKE or
-SQSH packers, which is what tracker modules of the time were packed with.
-
-A party archive can hold hundreds of entries, so unpacking one says so on
-the status line, naming the archive and counting its way through rather
-than sitting on "Loading", with a bar beneath it. A download long enough
-to be waited on — half a megabyte or more, which a recorded track reaches
-and a module rarely does — counts itself up the same way. The download
-knows how much is coming so its bar fills; an archive only ever knows how
-many entries it has got through, never how many are left, so that one
-sweeps a block to and fro at the pace it is working rather than claiming
-a share it cannot know.
-
-Party archives are often packed with a `file_id.diz` or an information file
-carrying a hand drawn banner for the competition. Art travels inside such
-an archive, so a release handed in as a bare recording is left where it is
-rather than brought down to be looked inside: a streaming competition is a
-list of them, many megabytes apiece. Opening a competition
-brings down its first entry in the background — the download playing it
-would have cost anyway — and the art that comes with it is shown above the
-list for every entry in that competition, an entry's own art taking
-precedence. It is read in the code page it was drawn in: the box characters
-of the PC or the accented letters of the Amiga, whichever the file leans
-towards. Art shaped by terminal escapes is left alone.
-
-Competitions handed in as bare modules carry no such file, and there the
-party stands in for them. Demozoo names the folder a party keeps on
-scene.org, and the file id or information file found in it — the information
-directory first, since that is where a party keeps what belongs to the party
-as a whole — is shown as the competition opens, until an entry's own art
-takes its place. A ticker turns beside an entry whose files are on their way
-down, and beside the competition while its logo is fetched, so a wait looks
-like a wait rather than like nothing happening.
-
-`r` fetches the list in view again: the answer Demozoo gave for it is thrown
-away and asked for anew, and in a competition its party's logo goes with it,
-so a list that has moved on since, or a logo that never arrived, can be had
-without leaving the browser. Downloaded modules are kept, being the
-expensive part.
-
-Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`
-when that variable holds an absolute path): Demozoo answers are refreshed after a week but
-still used when the network is down, and downloaded modules and party logos
-are kept for good. A competition handed in as one archive is downloaded once,
-however many of its entries are played.
+Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`):
+Demozoo answers are refreshed after a week and chart pages after a day, both
+still used when the network is down, and downloaded modules are kept for good,
+a competition handed in as one archive downloaded once however many of its
+entries are played. `r` fetches the list in view afresh, with its logo.
 Delete the directory to start over.
 
 ### SID tunes
