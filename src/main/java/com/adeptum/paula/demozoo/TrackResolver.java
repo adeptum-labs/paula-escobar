@@ -24,6 +24,7 @@ package com.adeptum.paula.demozoo;
 import com.adeptum.paula.archive.ArchiveExtractor;
 import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.modarchive.ModArchive;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playback.Progress;
@@ -63,7 +64,7 @@ public final class TrackResolver {
     private static final Pattern SCENE_ORG_VIEW = Pattern.compile("^https?://files\\.scene\\.org/(?:view|get)/");
     private static final String SCENE_ORG_ARCHIVE = "https://archive.scene.org/pub/";
     private static final Pattern MODARCHIVE_ID = Pattern.compile("(?:query=|\\?)(\\d+)");
-    private static final String MODARCHIVE_DOWNLOAD = "https://api.modarchive.org/downloads.php?moduleid=";
+    private static final String MODARCHIVE_KEY = "modarchive-";
     private static final Pattern ESCAPE = Pattern.compile("%[0-9A-Fa-f]{2}");
     private static final String LEGAL_IN_URI =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
@@ -81,7 +82,7 @@ public final class TrackResolver {
     private static final String DEFAULT_NAME = "download";
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
-    private static final int SHORTEST_NAME = 3;
+    private static final int SHORTEST_NAME = 4;
     private static final Set<String> ART = Set.of("diz", "nfo", "asc");
 
     private final DemozooClient demozoo;
@@ -103,32 +104,48 @@ public final class TrackResolver {
         this.loaders = loaders;
     }
 
+    public Path resolve(CompoEntry entry) throws IOException {
+        final Sought sought = new Sought(String.valueOf(entry.productionId()), entry.title(),
+                List.of(entry.author(), entry.title()));
+        final Optional<Path> cached = remembered(sought);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        final List<URI> uris = preferredLinks(demozoo.production(entry.productionId())).stream()
+                .map(TrackResolver::downloadUri).toList();
+        if (uris.isEmpty()) {
+            throw new IOException("No download for " + entry.title());
+        }
+        return resolve(sought, uris);
+    }
+
+    /**
+     * A module on ModArchive is one file at one address, named after its title in the chart it came from.
+     */
+    public Path resolve(int moduleId, String title, String fileName) throws IOException {
+        final Sought sought = new Sought(MODARCHIVE_KEY + moduleId, title, List.of(title, fileName));
+        final Optional<Path> cached = remembered(sought);
+        return cached.isPresent() ? cached.get() : resolve(sought, List.of(ModArchive.downloadUri(moduleId)));
+    }
+
     /**
      * The links are tried in turn, since the release handed in at the party is now and then a disk image or a
      * bundle of a whole competition that holds nothing the player can play, while a copy elsewhere is the tune
      * itself. A C64 program plays a whole release rather than a tune, so it is kept as a last resort behind
      * whatever the other links offer.
      */
-    public Path resolve(CompoEntry entry) throws IOException {
-        final Optional<Path> cached = remembered(entry);
-        if (cached.isPresent()) {
-            return cached.get();
-        }
-        final List<Link> links = preferredLinks(demozoo.production(entry.productionId()));
-        if (links.isEmpty()) {
-            throw new IOException("No download for " + entry.title());
-        }
+    private Path resolve(Sought sought, List<URI> uris) throws IOException {
         IOException failure = null;
         Path program = null;
-        for (final Link link : links) {
+        for (final URI uri : uris) {
             try {
-                final Path playable = download(link, entry);
+                final Path playable = download(uri, sought);
                 if (!isProgram(playable)) {
                     return playable;
                 }
                 program = program == null ? playable : program;
             } catch (IOException e) {
-                log.info("Nothing playable from {} for {}: {}", link.url(), entry.title(), e.getMessage());
+                log.info("Nothing playable from {} for {}: {}", uri, sought.label(), e.getMessage());
                 failure = e;
             }
         }
@@ -138,20 +155,19 @@ public final class TrackResolver {
         throw failure;
     }
 
-    private Optional<Path> remembered(CompoEntry entry) throws IOException {
-        final Optional<Path> directory = downloads.of(String.valueOf(entry.productionId()));
-        return directory.isPresent() ? playableFile(directory.get(), entry) : Optional.empty();
+    private Optional<Path> remembered(Sought sought) throws IOException {
+        final Optional<Path> directory = downloads.of(sought.key());
+        return directory.isPresent() ? playableFile(directory.get(), sought) : Optional.empty();
     }
 
-    private Path download(Link link, CompoEntry entry) throws IOException {
-        final URI uri = downloadUri(link);
+    private Path download(URI uri, Sought sought) throws IOException {
         final Path directory = downloads.directory(uri);
         if (!Files.isDirectory(directory)) {
             fetch(uri, directory);
         }
-        final Path playable = playableFile(directory, entry)
-                .orElseThrow(() -> new IOException("No playable file in " + lastSegment(uri) + " for " + entry.title()));
-        downloads.remember(String.valueOf(entry.productionId()), directory);
+        final Path playable = playableFile(directory, sought)
+                .orElseThrow(() -> new IOException("No playable file in " + lastSegment(uri) + " for " + sought.label()));
+        downloads.remember(sought.key(), directory);
         return playable;
     }
 
@@ -200,9 +216,14 @@ public final class TrackResolver {
     static URI downloadUri(Link link) {
         return switch (link.linkClass()) {
             case SCENE_ORG -> uri(SCENE_ORG_VIEW.matcher(link.url()).replaceFirst(SCENE_ORG_ARCHIVE));
-            case MODARCHIVE -> uri(MODARCHIVE_DOWNLOAD + firstGroup(MODARCHIVE_ID, link.url()));
+            case MODARCHIVE -> modarchiveUri(link);
             default -> uri(link.url());
         };
+    }
+
+    private static URI modarchiveUri(Link link) {
+        final String id = firstGroup(MODARCHIVE_ID, link.url());
+        return id.isEmpty() ? uri(link.url()) : ModArchive.downloadUri(Integer.parseInt(id));
     }
 
     /**
@@ -283,16 +304,16 @@ public final class TrackResolver {
      * disk image is an archive to unpack and a program to play at once, so where it held no tune of its own the
      * image itself is offered.
      */
-    private Optional<Path> playableFile(Path directory, CompoEntry entry) throws IOException {
+    private Optional<Path> playableFile(Path directory, Sought sought) throws IOException {
         final Optional<Path> download = downloadIn(directory);
         if (download.isEmpty()) {
             return Optional.empty();
         }
         final boolean loadable = loaders.loaderFor(download.get()).isPresent();
         if (!loadable && Archives.detect(download.get()).isEmpty()) {
-            throw new IOException(download.get().getFileName() + " for " + entry.title() + " is not a module or archive");
+            throw new IOException(download.get().getFileName() + " for " + sought.label() + " is not a module or archive");
         }
-        final Optional<Path> playable = firstPlayable(directory, entry);
+        final Optional<Path> playable = firstPlayable(directory, sought);
         return playable.isEmpty() && loadable ? download : playable;
     }
 
@@ -367,7 +388,7 @@ public final class TrackResolver {
      * entry comes first; the rest are taken in name order. Archives are skipped so a download that merely looks
      * like a module by name is never handed to the loaders.
      */
-    private Optional<Path> firstPlayable(Path directory, CompoEntry entry) throws IOException {
+    private Optional<Path> firstPlayable(Path directory, Sought sought) throws IOException {
         if (!Files.isDirectory(directory)) {
             return Optional.empty();
         }
@@ -375,7 +396,7 @@ public final class TrackResolver {
             return files.filter(Files::isRegularFile)
                     .filter(file -> loaders.loaderFor(file).isPresent())
                     .filter(TrackResolver::isPlainFile)
-                    .min(Comparator.comparing((Path file) -> namesTheEntry(file, entry) ? 0 : 1)
+                    .min(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
                             .thenComparing(file -> isProgram(file) ? 1 : 0)
                             .thenComparing(Path::toString));
         } catch (UncheckedIOException e) {
@@ -390,9 +411,9 @@ public final class TrackResolver {
         return SidLoader.PROGRAMS.contains(ModuleFormat.extensionOf(file.getFileName().toString()));
     }
 
-    private static boolean namesTheEntry(Path file, CompoEntry entry) {
+    private static boolean namesWhatIsSought(Path file, Sought sought) {
         final String name = simplified(file.getFileName().toString());
-        return Stream.of(entry.author(), entry.title())
+        return sought.names().stream()
                 .flatMap(text -> Arrays.stream(simplified(text).split(" ")))
                 .filter(word -> word.length() >= SHORTEST_NAME)
                 .anyMatch(name::contains);
@@ -408,5 +429,12 @@ public final class TrackResolver {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * What is being looked for: a cache key to remember the download by, a label for messages, and the words a
+     * file inside a bundle might be named by.
+     */
+    private record Sought(String key, String label, List<String> names) {
     }
 }

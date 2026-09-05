@@ -413,6 +413,40 @@ class TrackResolverTest {
         assertEquals("page.html for Funkyeeh is not a module or archive", error.getMessage());
     }
 
+    @Test
+    void resolvesAModuleByItsModArchiveId(@TempDir Path dir) throws IOException {
+        http.put(MODARCHIVE_FILE, TestModules.proTracker(), Optional.of("gauged.mod"));
+
+        final Path resolved = resolver(dir).resolve(123, "Gauged", "gauged.mod");
+
+        assertEquals(downloaded(dir, MODARCHIVE_FILE).resolve("gauged.mod"), resolved);
+        assertEquals(resolved, resolver(dir).resolve(123, "Gauged", "gauged.mod"), "remembered");
+        assertEquals(1, http.requests(), "no Demozoo lookup and no second download");
+    }
+
+    @Test
+    void keepsAModuleApartFromAProductionOfTheSameNumber(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("ModlandFile", MODLAND_FILE));
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+        http.put(MODARCHIVE_FILE.replace("123", "7"), TestModules.digiBooster(), Optional.of("seven.dbm"));
+
+        final Path production = resolver(dir).resolve(ENTRY);
+        final Path module = resolver(dir).resolve(7, "Seven", "seven.dbm");
+
+        assertEquals("funkyeeh.mod", production.getFileName().toString());
+        assertEquals("seven.dbm", module.getFileName().toString());
+    }
+
+    @Test
+    void picksTheFileNamedLikeTheModuleFromAnArchive(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("aaa.mod", TestModules.proTracker());
+        entries.put("gauged.mod", TestModules.proTracker());
+        http.put(MODARCHIVE_FILE, TestArchives.zip(entries), Optional.of("gauged.zip"));
+
+        assertEquals("gauged.mod", resolver(dir).resolve(123, "Something Else", "gauged.mod").getFileName().toString());
+    }
+
     private static Path downloaded(Path dir, String url) {
         return new DownloadCache(new CacheDirectory(dir)).directory(URI.create(url));
     }
