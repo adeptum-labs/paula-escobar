@@ -40,8 +40,9 @@ public final class TestSaps {
     public static final int SUBTUNES = 2;
     public static final Duration LENGTH = Duration.ofSeconds(2);
 
-    private static final String HEADER = "SAP\r\nAUTHOR \"" + AUTHOR + "\"\r\nNAME \"" + NAME + "\"\r\nDATE \"" + DATE
-            + "\"\r\nSONGS " + SUBTUNES + "\r\nDEFSONG 0\r\nTYPE B\r\nINIT 2000\r\nPLAYER 2010\r\nTIME 00:02\r\nTIME 00:03\r\n";
+    private static final String HEADER_WITHOUT_TIMES = "SAP\r\nAUTHOR \"" + AUTHOR + "\"\r\nNAME \"" + NAME
+            + "\"\r\nDATE \"" + DATE + "\"\r\nSONGS " + SUBTUNES + "\r\nDEFSONG 0\r\nTYPE B\r\nINIT 2000\r\nPLAYER 2010\r\n";
+    private static final String HEADER = HEADER_WITHOUT_TIMES + "TIME 00:02\r\nTIME 00:03\r\n";
     private static final byte[] SEGMENT = {(byte) 0xFF, (byte) 0xFF, 0x00, 0x20, 0x10, 0x20};
     private static final byte[] CODE = {
         (byte) 0xA9, 0x40, (byte) 0x8D, 0x00, (byte) 0xD2,
@@ -54,11 +55,19 @@ public final class TestSaps {
     }
 
     public static byte[] sap() {
-        return ByteBuffer.allocate(HEADER.length() + SEGMENT.length + CODE.length)
-                .put(HEADER.getBytes(StandardCharsets.US_ASCII)).put(SEGMENT).put(CODE).array();
+        return withHeader(HEADER);
+    }
+
+    public static byte[] untimedSap() {
+        return withHeader(HEADER_WITHOUT_TIMES);
     }
 
     public static Path writeSap(Path directory) throws IOException {
         return Files.write(directory.resolve("test.sap"), sap());
+    }
+
+    private static byte[] withHeader(String header) {
+        return ByteBuffer.allocate(header.length() + SEGMENT.length + CODE.length)
+                .put(header.getBytes(StandardCharsets.US_ASCII)).put(SEGMENT).put(CODE).array();
     }
 }

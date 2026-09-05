@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -82,6 +83,13 @@ class SapLoaderTest {
 
         assertEquals(0, module.song());
         assertEquals(TestSaps.LENGTH, module.length());
+    }
+
+    @Test
+    void playsAnUntaggedTuneForThreeMinutes(@TempDir Path dir) throws IOException {
+        final SapModule module = (SapModule) loader.load(Files.write(dir.resolve("untimed.sap"), TestSaps.untimedSap()));
+        assertEquals(SapLoader.DEFAULT_LENGTH, module.length());
+        assertEquals(Duration.ofMinutes(3), SapLoader.DEFAULT_LENGTH);
     }
 
     @Test
