@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -68,9 +69,42 @@ public final class DemozooJson {
 
     public static List<Competition> competitions(byte[] body) throws IOException {
         return parse(body, party -> objects(party, "competitions")
-                .filter(competition -> MUSIC.equals(object(competition, "production_type").getString("supertype", "")))
+                .filter(DemozooJson::isMusic)
                 .map(DemozooJson::competition)
                 .toList());
+    }
+
+    /**
+     * Demozoo leaves a fifth of its competitions untyped, every Kindergarden music competition of the nineties
+     * and Assembly 1998's among them, so one without a type is judged by what was entered in it: it is a music
+     * competition when most of its typed entries are.
+     */
+    private static boolean isMusic(JsonObject competition) {
+        if (has(competition, "production_type")) {
+            return isMusicType(object(competition, "production_type"));
+        }
+        final List<List<JsonObject>> typed = entryTypes(competition).filter(types -> !types.isEmpty()).toList();
+        final long music = typed.stream().filter(types -> types.stream().anyMatch(DemozooJson::isMusicType)).count();
+        return music * 2 > typed.size();
+    }
+
+    private static boolean isMusicType(JsonObject type) {
+        return MUSIC.equals(type.getString("supertype", ""));
+    }
+
+    private static Stream<List<JsonObject>> entryTypes(JsonObject competition) {
+        return objects(competition, "results")
+                .filter(result -> has(result, "production"))
+                .map(result -> objects(result.getJsonObject("production"), "types").toList());
+    }
+
+    /**
+     * An untyped competition is named after the music type most of its entries share.
+     */
+    private static JsonObject commonestMusicType(JsonObject competition) {
+        final List<JsonObject> types = entryTypes(competition).flatMap(List::stream).filter(DemozooJson::isMusicType).toList();
+        final Map<Integer, Long> counts = types.stream().collect(Collectors.groupingBy(type -> type.getInt("id", 0), Collectors.counting()));
+        return types.stream().max(Comparator.comparing(type -> counts.get(type.getInt("id", 0)))).orElse(JsonValue.EMPTY_JSON_OBJECT);
     }
 
     /**
@@ -103,7 +137,7 @@ public final class DemozooJson {
     }
 
     private static Competition competition(JsonObject competition) {
-        final JsonObject type = object(competition, "production_type");
+        final JsonObject type = has(competition, "production_type") ? object(competition, "production_type") : commonestMusicType(competition);
         final int typeId = type.getInt("id", 0);
         final List<CompoEntry> entries = objects(competition, "results")
                 .filter(result -> has(result, "production"))

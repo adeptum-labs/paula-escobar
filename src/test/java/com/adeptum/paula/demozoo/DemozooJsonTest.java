@@ -79,6 +79,36 @@ class DemozooJsonTest {
         assertEquals(Set.of(29), entries.get(1).typeIds(), "falls back to the competition type");
     }
 
+    /**
+     * Demozoo leaves a fifth of its competitions untyped, every Kindergarden music competition of the nineties
+     * among them, so what was entered in one has to say what it was.
+     */
+    @Test
+    void judgesAnUntypedCompetitionByWhatWasEnteredInIt() throws IOException {
+        final String party = """
+                {"id":149,"name":"Kindergarden 2001","competitions":[
+                  {"id":1,"name":"4 Channel Music","production_type":null,"results":[
+                    {"position":1,"ranking":"1","production":{"id":1,"title":"Oldskaal","author_nicks":[],"types":[{"id":29,"name":"Tracked Music","supertype":"music"}]}},
+                    {"position":2,"ranking":"2","production":{"id":2,"title":"Arcane Sleeps","author_nicks":[],"types":[{"id":31,"name":"Executable Music","supertype":"music"}]}},
+                    {"position":3,"ranking":"3","production":{"id":3,"title":"Chunky 2 planar","author_nicks":[],"types":[{"id":29,"name":"Tracked Music","supertype":"music"}]}},
+                    {"position":4,"ranking":"4","production":{"id":4,"title":"Untyped","author_nicks":[],"types":[]}}]},
+                  {"id":2,"name":"Wild","production_type":null,"results":[
+                    {"position":1,"ranking":"1","production":{"id":5,"title":"Egg","author_nicks":[],"types":[{"id":41,"name":"Video","supertype":"production"}]}},
+                    {"position":2,"ranking":"2","production":{"id":6,"title":"A Tune","author_nicks":[],"types":[{"id":29,"name":"Tracked Music","supertype":"music"}]}},
+                    {"position":3,"ranking":"3","production":{"id":7,"title":"Sock","author_nicks":[],"types":[{"id":41,"name":"Video","supertype":"production"}]}}]},
+                  {"id":3,"name":"Obscure computer","results":[
+                    {"position":1,"ranking":"1","production":{"id":8,"title":"Thing","author_nicks":[],"types":[]}}]}]}
+                """;
+
+        final List<Competition> compos = DemozooJson.competitions(bytes(party));
+
+        assertEquals(List.of("4 Channel Music"), compos.stream().map(Competition::name).toList(),
+                "most entries of the first are music, most of the Wild are not, and nothing says what the last held");
+        assertEquals("Tracked Music", compos.get(0).typeName(), "named after what most of its entries are");
+        assertEquals(29, compos.get(0).typeId());
+        assertEquals(Set.of(29), compos.get(0).entries().get(3).typeIds(), "an untyped entry takes that type too");
+    }
+
     @Test
     void flagsExecutableMusicAsUnplayableAndStreamingAsPlayable() {
         assertTrue(new CompoEntry(1, "1", 1, "t", "a", Set.of(29)).likelyPlayable());
