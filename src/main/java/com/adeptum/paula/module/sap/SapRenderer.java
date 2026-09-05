@@ -95,7 +95,8 @@ public final class SapRenderer implements Renderer {
     }
 
     /**
-     * ASAP starts the song over itself to reach a point behind it, which may drop what was silenced.
+     * ASAP starts the song over itself to reach a point behind it and carries the mask across; it is put
+     * back here all the same, as the other renderers do after a restart.
      */
     @Override
     public void seek(Duration target) {
@@ -108,6 +109,10 @@ public final class SapRenderer implements Renderer {
         asap.mutePokeyChannels(muteMask);
     }
 
+    /**
+     * Reads the mixer's last buffer as it stands; the pump thread may move on meanwhile, which only ever
+     * shifts a scope by a few samples.
+     */
     @Override
     public List<ChannelState> channels() {
         final List<ChannelState> channels = new ArrayList<>(pokeyChannels);
@@ -132,9 +137,11 @@ public final class SapRenderer implements Renderer {
     }
 
     private void remember(short[] interleavedStereo, int frames) {
-        Arrays.fill(recent, 0);
-        for (int at = 0; at < Math.min(WAVEFORM_SAMPLES, frames); at++) {
-            recent[at] = (interleavedStereo[at * OUTPUT_CHANNELS] + interleavedStereo[at * OUTPUT_CHANNELS + 1])
+        final int kept = Math.min(WAVEFORM_SAMPLES, frames);
+        Arrays.fill(recent, kept, WAVEFORM_SAMPLES, 0);
+        for (int at = 0; at < kept; at++) {
+            final int frame = frames - kept + at;
+            recent[at] = (interleavedStereo[frame * OUTPUT_CHANNELS] + interleavedStereo[frame * OUTPUT_CHANNELS + 1])
                     / (2.0 * Short.MAX_VALUE);
         }
     }
