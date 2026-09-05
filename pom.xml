@@ -30,7 +30,7 @@
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <javamod.version>3.9.7</javamod.version>
+    <javamod.version>3.9.7-paula-1</javamod.version>
     <jlha.version>0.0.11</jlha.version>
     <commons-compress.version>1.28.0</commons-compress.version>
     <junrar.version>7.5.5</junrar.version>

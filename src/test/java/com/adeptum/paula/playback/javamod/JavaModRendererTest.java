@@ -59,6 +59,20 @@ class JavaModRendererTest {
         assertTrue(buffers < MAX_BUFFERS, "song should end once it loops and fades out");
     }
 
+    /**
+     * The interpolation looks ahead of where the old sample was, and the sample swapped in for it may be far
+     * shorter than that.
+     */
+    @Test
+    void keepsRenderingWhenAShorterSampleIsSwappedInAtTheLoopEnd(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTrackerSwappingSamples(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        for (int i = 0; i < SAMPLE_RATE / FRAMES; i++) {
+            assertEquals(FRAMES, renderer.render(buffer), "buffer " + i);
+        }
+    }
+
     @Test
     void seekSkipsAheadAndKeepsRendering(@TempDir Path dir) throws Exception {
         final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);

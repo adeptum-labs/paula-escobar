@@ -50,6 +50,9 @@ public final class TestModules {
     private static final int HEADER_LENGTH = 1084;
     private static final int PATTERN_LENGTH = 64 * 4 * 4;
     private static final int SAMPLE_LENGTH = 64;
+    private static final int LONG_SAMPLE_LENGTH = 1000;
+    private static final int SHORT_LOOP_LENGTH = 256;
+    private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int DBM_LENGTH = 1024;
 
@@ -77,6 +80,35 @@ public final class TestModules {
         buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
         for (int i = 0; i < SAMPLE_LENGTH; i++) {
             buffer.put((byte) (i < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return buffer.array();
+    }
+
+    public static Path writeProTrackerSwappingSamples(Path directory) throws IOException {
+        return Files.write(directory.resolve("swap.mod"), proTrackerSwappingSamples());
+    }
+
+    /**
+     * A ProTracker module whose first channel plays a long sample looping over its first part, then names a
+     * short sample without a loop on the next row, which ProTracker swaps in once the loop comes round.
+     */
+    public static byte[] proTrackerSwappingSamples() {
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + LONG_SAMPLE_LENGTH + SAMPLE_LENGTH);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded("long", 22)).putShort((short) (LONG_SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) (SHORT_LOOP_LENGTH / 2));
+        buffer.put(padded("short", 22)).putShort((short) (SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) 1);
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        buffer.put((byte) (PERIOD_C2 >> 8)).put((byte) PERIOD_C2).put((byte) 0x10).put((byte) 0);
+        buffer.position(HEADER_LENGTH + ROW_LENGTH);
+        buffer.put((byte) 0).put((byte) 0).put((byte) 0x20).put((byte) 0);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        for (int i = 0; i < LONG_SAMPLE_LENGTH + SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
         }
         return buffer.array();
     }

@@ -1,0 +1,67 @@
+#!/bin/sh
+#
+# Paula Escobar is a terminal music player for demoscene and chip music.
+# Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Website: https://www.adeptum.se
+# Contact: info@adeptum.se
+#
+# Rebuilds the JavaMod jar vendored in lib/: the release jar from GitHub with
+# the mixer fix in javamod-sample-swap.patch compiled into it. Needs a JDK of
+# 17 or later on the path, or in JAVA_HOME.
+#
+# Usage: tools/patch-javamod [upstream version] [vendored version]
+
+set -eu
+upstream=${1:-3.9.7}
+vendored=${2:-$upstream-paula-1}
+tools=$(cd "$(dirname "$0")" && pwd)
+lib=$tools/../lib/de/quippy/javamod/$vendored
+bin=${JAVA_HOME:+$JAVA_HOME/bin/}
+mixer=de/quippy/javamod/multimedia/mod/mixer/BasicModMixer
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+curl -fsSL -o "$work/javamod.jar" "https://github.com/quippy-git/javamod/releases/download/v$upstream/javamod.jar"
+curl -fsSL -o "$work/BasicModMixer.java" "https://raw.githubusercontent.com/quippy-git/javamod/v$upstream/source/$mixer.java"
+patch -s -d "$work" -p1 < "$tools/javamod-sample-swap.patch"
+"${bin}javac" --release 17 -nowarn -proc:none -cp "$work/javamod.jar" -d "$work/classes" "$work/BasicModMixer.java"
+(cd "$work/classes" && "${bin}jar" uf "$work/javamod.jar" "$mixer.class")
+
+mkdir -p "$lib"
+cp "$work/javamod.jar" "$lib/javamod-$vendored.jar"
+cat > "$lib/javamod-$vendored.pom" <<POM
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>de.quippy</groupId>
+  <artifactId>javamod</artifactId>
+  <version>$vendored</version>
+  <name>JavaMod</name>
+  <description>Pure Java player for tracker modules, SID, OPL and more, by Daniel Becker; release $upstream with tools/javamod-sample-swap.patch applied</description>
+  <url>https://github.com/quippy-git/javamod</url>
+  <licenses>
+    <license>
+      <name>GNU General Public License v3.0</name>
+      <url>https://www.gnu.org/licenses/gpl-3.0.txt</url>
+    </license>
+  </licenses>
+</project>
+POM
+for file in "$lib/javamod-$vendored.jar" "$lib/javamod-$vendored.pom"; do
+    sha1sum "$file" | cut -d' ' -f1 > "$file.sha1"
+done
+echo "Vendored JavaMod $vendored in $lib"

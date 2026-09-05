@@ -20,7 +20,10 @@ FastTracker II, Scream Tracker, Impulse Tracker, Farandole and MultiTracker
 files among others. Commodore 64 SID tunes play through the libsidplay2
 port with reSID chip emulation that JavaMod bundles. Its jar is vendored
 under `lib/` as a small Maven repository because no current release is
-published to Maven Central. DigiBooster modules, which JavaMod does not
+published to Maven Central; `tools/patch-javamod` rebuilds it from the
+release with the mixer fix in `tools/javamod-sample-swap.patch` compiled
+in, which stops a ProTracker sample swap at a loop end from reading past
+the end of the shorter sample. DigiBooster modules, which JavaMod does not
 read, have a replayer of their own inside Paula Escobar. The recorded
 formats a streaming music competition is handed in as play too: MPEG audio
 frame by frame through the JLayer decoder in that same jar, FLAC through
