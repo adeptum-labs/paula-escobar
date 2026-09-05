@@ -23,6 +23,10 @@ package com.adeptum.paula.modarchive;
 
 import java.net.URI;
 
+/**
+ * Where a module lies on the site, given its id. It is the one thing about modarchive.org the resolver needs
+ * without a chart page in front of it, so it stands apart from the reading of the charts.
+ */
 public final class ModArchive {
 
     private static final String DOWNLOAD = "https://api.modarchive.org/downloads.php?moduleid=";

@@ -155,7 +155,9 @@ began. The charts section opens into Top Favourites, Most Downloads and the
 weekly Featured picks, and each of those opens in turn into All, MOD, XM, IT,
 S3M and Other by file extension. A chart list shows forty rows and fetches the
 next forty as the cursor reaches its end, a narrow format reading a few
-pages on to stay ahead of it. The right-hand column says how many
+pages on to stay ahead of it. A format the chart holds little of may show
+nothing at first, and reads on a few pages more each time the cursor is
+stepped at the end of what is there. The right-hand column says how many
 favourites or downloads a tune has, or the week it was featured. A module
 whose file nothing here reads is dimmed and marked `(no reader)`. Playing
 one queues the rest of the list after it, so `n` walks on through the
@@ -389,7 +391,7 @@ thrown away without a trace — before anyone sees it.
 | `com.adeptum.paula.audio`        | `AudioSink`, the audio backends and PCM encoding            |
 | `com.adeptum.paula.playback`     | `Renderer`, `PlaybackEngine`, the track loader and the session |
 | `com.adeptum.paula.playback.javamod` | pulls mixed audio from JavaMod into the pipeline        |
-| `com.adeptum.paula.playlist`     | playlist navigation over local and Demozoo tracks           |
+| `com.adeptum.paula.playlist`     | playlist navigation over local, Demozoo and ModArchive tracks |
 | `com.adeptum.paula.demozoo`      | Demozoo API model, cached client, track resolution and browsing art |
 | `com.adeptum.paula.modarchive`   | ModArchive charts read off the site's pages and cached      |
 | `com.adeptum.paula.archive`      | zip, 7z, RAR and LHA extraction, detection by magic bytes   |
