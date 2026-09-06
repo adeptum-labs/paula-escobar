@@ -144,7 +144,8 @@ into All, MOD, XM, IT, S3M and Other by file extension. Forty rows are
 fetched at a time and the next forty as the cursor reaches the end, a row
 below the last saying that more follows; the right-hand column gives the
 favourites, the downloads or the week featured. Playing a tune queues the
-rest of the list.
+rest of the list, and `m` on a tune opens the modules of the artist
+registered for it on ModArchive.
 
 Party data comes from [Demozoo](https://demozoo.org); the entry itself from
 scene.org when Demozoo knows the release there, otherwise from ModArchive or
