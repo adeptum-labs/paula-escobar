@@ -414,6 +414,18 @@ class TrackResolverTest {
     }
 
     @Test
+    void unpacksTheTapeImageInsideAPartyFile(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final byte[] tape = TestArchives.t64(Map.of("THESEUS", TestSids.program()));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("compo.t64", tape)), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("THESEUS.prg", resolved.getFileName().toString());
+        assertArrayEquals(TestSids.program(), Files.readAllBytes(resolved));
+    }
+
+    @Test
     void playsTheTuneRatherThanTheWholeReleaseWhereBothAreOffered(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW, "ModlandFile", MODLAND_FILE));
         http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("compo.d64", TestArchives.d64(Map.of("THESEUS", TestSids.program())))), Optional.empty());

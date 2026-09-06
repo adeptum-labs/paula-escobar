@@ -42,16 +42,13 @@ public final class D64Extractor implements ArchiveExtractor {
     private static final int FIRST_DIRECTORY_SECTOR = 1;
     private static final int ENTRIES_PER_BLOCK = 8;
     private static final int ENTRY_LENGTH = 32;
-    private static final int NAME_LENGTH = 16;
     private static final int NAME_AT = 3;
     private static final int TRACK_AT = 1;
     private static final int SECTOR_AT = 2;
     private static final int PROGRAM = 0x02;
     private static final int TYPE_MASK = 0x07;
     private static final int CLOSED = 0x80;
-    private static final int NAME_PADDING = 0xA0;
     private static final int LOAD_ADDRESS_LENGTH = 2;
-    private static final char REPLACEMENT = '-';
     private static final String EXTENSION = ".prg";
     private static final Set<Long> SIZES = Set.of(174848L, 175531L, 196608L, 197376L);
 
@@ -76,7 +73,7 @@ public final class D64Extractor implements ArchiveExtractor {
     public void extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
         final byte[] image = Files.readAllBytes(archive);
         for (final byte[] entry : directory(image)) {
-            final String name = fileName(entry) + EXTENSION;
+            final String name = C64Names.of(entry, NAME_AT) + EXTENSION;
             if (wanted.test(name)) {
                 Files.write(Archives.target(into, name), contents(image, unsigned(entry, TRACK_AT), unsigned(entry, SECTOR_AT)));
             }
@@ -168,23 +165,6 @@ public final class D64Extractor implements ArchiveExtractor {
             return 19;
         }
         return track <= 30 ? 18 : 17;
-    }
-
-    /**
-     * Disk names are padded with shifted spaces and may hold the slashes and dots of a scene handle, none of
-     * which belong in a file name.
-     */
-    private static String fileName(byte[] entry) {
-        final StringBuilder name = new StringBuilder(NAME_LENGTH);
-        for (int at = 0; at < NAME_LENGTH; at++) {
-            final int character = entry[NAME_AT + at] & 0xFF;
-            if (character == NAME_PADDING || character == 0) {
-                break;
-            }
-            name.append(character < ' ' || character > '~' || character == '/' || character == '\\' ? REPLACEMENT : (char) character);
-        }
-        final String trimmed = name.toString().strip();
-        return trimmed.isEmpty() ? "program" : trimmed;
     }
 
     private static int unsigned(byte[] entry, int at) {

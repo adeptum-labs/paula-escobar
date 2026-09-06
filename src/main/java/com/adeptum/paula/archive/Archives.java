@@ -39,11 +39,12 @@ import java.util.Set;
 public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
-    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64", "7z", "rar", "gz");
+    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64", "t64", "7z", "rar", "gz");
     private static final Set<String> UNREADABLE_EXTENSIONS = Set.of("adf", "dms", "arj", "ace");
     private static final List<ArchiveExtractor> EXTRACTORS =
             List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor(),
-                    new SevenZipExtractor(), new RarExtractor(), new GzipExtractor(), new D64Extractor());
+                    new SevenZipExtractor(), new RarExtractor(), new GzipExtractor(), new T64Extractor(),
+                    new D64Extractor());
 
     private Archives() {
     }

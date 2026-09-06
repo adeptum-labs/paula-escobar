@@ -111,11 +111,12 @@ tune.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
-packed modules and 1541 disk images are unpacked as deep as they go, and the
-file named after the entry is played, with the art of its `file_id.diz` or
-the party's own logo shown above the list. Everything fetched is kept under
-`~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): Demozoo answers a week and
-chart pages a day, both still used offline, downloaded modules for good.
+packed modules and 1541 disk and tape images are unpacked as deep as they
+go, and the file named after the entry is played, with the art of its
+`file_id.diz` or the party's own logo shown above the list. Everything
+fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): Demozoo
+answers a week and chart pages a day, both still used offline, downloaded
+modules for good.
 `r` fetches the list in view afresh; delete the directory to start over.
 
 ### Chip and Amiga formats
@@ -131,9 +132,9 @@ hands a CD-rate file through untouched.
 
 A SID tune plays for the length in the High Voltage SID Collection's song
 length database, fetched into the cache on first use and refreshed monthly,
-or three minutes when unlisted; a C64 party file that is a 1541 disk image
-has its programs run by the same emulation. Atari 8-bit SAP files and the
-native modules of the Atari trackers play through
+or three minutes when unlisted; a C64 party file that is a 1541 disk or a
+tape image has its programs run by the same emulation. Atari 8-bit SAP files
+and the native modules of the Atari trackers play through
 [ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
 for the length their TIME tag gives, each POKEY channel with a scope of its
 own. DigiBooster Pro 2 and 3 modules and AHX and HivelyTracker modules are

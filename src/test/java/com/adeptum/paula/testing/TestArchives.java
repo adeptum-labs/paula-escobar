@@ -50,6 +50,11 @@ public final class TestArchives {
     private static final int RAR_VERSION = 20;
     private static final int RAR_DOS_TIME = 0x2D3A7BB0;
 
+    private static final String T64_DESCRIPTOR = "C64S tape image file";
+    private static final int T64_MAX_ENTRIES_AT = 0x22;
+    private static final int T64_DIRECTORY_AT = 0x40;
+    private static final int T64_ENTRY_LENGTH = 32;
+
     private static final int D64_LENGTH = 174848;
     private static final int D64_DIRECTORY_TRACK = 18;
     private static final int D64_BLOCK_DATA = 254;
@@ -159,6 +164,41 @@ public final class TestArchives {
             sector = writeChain(image, track, sector, program.getValue());
         }
         return image;
+    }
+
+    /**
+     * A tape image of the given programs, each of which arrives with its load address at the head and is
+     * stored without it, as a tape does.
+     */
+    public static byte[] t64(Map<String, byte[]> programs) {
+        final int directory = T64_DIRECTORY_AT + programs.size() * T64_ENTRY_LENGTH;
+        final byte[] image = new byte[directory + programs.values().stream().mapToInt(p -> p.length - 2).sum()];
+        System.arraycopy(T64_DESCRIPTOR.getBytes(StandardCharsets.US_ASCII), 0, image, 0, T64_DESCRIPTOR.length());
+        image[T64_MAX_ENTRIES_AT] = (byte) programs.size();
+        int at = T64_DIRECTORY_AT;
+        int offset = directory;
+        for (final Map.Entry<String, byte[]> program : programs.entrySet()) {
+            final byte[] bytes = program.getValue();
+            final int start = (bytes[0] & 0xFF) | (bytes[1] & 0xFF) << 8;
+            image[at] = 1;
+            image[at + 1] = (byte) 0x82;
+            writeWord(image, at + 2, start);
+            writeWord(image, at + 4, start + bytes.length - 2);
+            writeWord(image, at + 8, offset);
+            final byte[] name = program.getKey().getBytes(StandardCharsets.US_ASCII);
+            for (int character = 0; character < 16; character++) {
+                image[at + 16 + character] = character < name.length ? name[character] : (byte) ' ';
+            }
+            System.arraycopy(bytes, 2, image, offset, bytes.length - 2);
+            offset += bytes.length - 2;
+            at += T64_ENTRY_LENGTH;
+        }
+        return image;
+    }
+
+    private static void writeWord(byte[] image, int at, int value) {
+        image[at] = (byte) value;
+        image[at + 1] = (byte) (value >> 8);
     }
 
     private static int writeChain(byte[] image, int track, int firstSector, byte[] data) {
