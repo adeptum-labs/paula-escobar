@@ -50,6 +50,11 @@ public final class TestArchives {
     private static final int RAR_VERSION = 20;
     private static final int RAR_DOS_TIME = 0x2D3A7BB0;
 
+    private static final byte[] UMX_MAGIC = {(byte) 0xC1, (byte) 0x83, 0x2A, (byte) 0x9E};
+    private static final int UMX_VERSION_AT = 4;
+    private static final int UMX_VERSION = 68;
+    private static final int UMX_HEADER_LENGTH = 0x40;
+
     private static final String T64_DESCRIPTOR = "C64S tape image file";
     private static final int T64_MAX_ENTRIES_AT = 0x22;
     private static final int T64_DIRECTORY_AT = 0x40;
@@ -194,6 +199,18 @@ public final class TestArchives {
             at += T64_ENTRY_LENGTH;
         }
         return image;
+    }
+
+    /**
+     * An Unreal package around one module: the tag the engine knows the file by, a header of the size the
+     * versions that shipped music wrote, and then the tune whole.
+     */
+    public static byte[] umx(byte[] module) {
+        final byte[] file = new byte[UMX_HEADER_LENGTH + module.length];
+        System.arraycopy(UMX_MAGIC, 0, file, 0, UMX_MAGIC.length);
+        writeWord(file, UMX_VERSION_AT, UMX_VERSION);
+        System.arraycopy(module, 0, file, UMX_HEADER_LENGTH, module.length);
+        return file;
     }
 
     private static void writeWord(byte[] image, int at, int value) {

@@ -414,6 +414,18 @@ class TrackResolverTest {
     }
 
     @Test
+    void unwrapsTheModuleInsideAnUnrealPackage(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final byte[] packaged = TestArchives.umx(TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("music.umx", packaged)), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("music.mod", resolved.getFileName().toString());
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
     void unpacksTheTapeImageInsideAPartyFile(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
         final byte[] tape = TestArchives.t64(Map.of("THESEUS", TestSids.program()));

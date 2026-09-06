@@ -111,13 +111,13 @@ tune.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
-packed modules and 1541 disk and tape images are unpacked as deep as they
-go, and the file named after the entry is played, with the art of its
-`file_id.diz` or the party's own logo shown above the list. Everything
-fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): Demozoo
-answers a week and chart pages a day, both still used offline, downloaded
-modules for good.
-`r` fetches the list in view afresh; delete the directory to start over.
+packed modules, Unreal music packages and 1541 disk and tape images are
+unpacked as deep as they go, and the file named after the entry is played,
+with the art of its `file_id.diz` or the party's own logo shown above the
+list. Everything fetched is kept under `~/.cache/paula` (or
+`$XDG_CACHE_HOME/paula`): Demozoo answers a week and chart pages a day, both
+still used offline, downloaded modules for good. `r` fetches the list in
+view afresh; delete the directory to start over.
 
 ### Chip and Amiga formats
 
