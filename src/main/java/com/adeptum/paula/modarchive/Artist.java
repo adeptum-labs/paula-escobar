@@ -24,16 +24,25 @@ package com.adeptum.paula.modarchive;
 import java.net.URI;
 
 /**
- * A list of modules the site serves page by page, named so the browser can title it and the cache can file it.
+ * A registered artist on the site, whose modules are listed page by page under the member's number.
  */
-public sealed interface Listing permits Chart, Artist {
+public record Artist(int memberId, String name) implements Listing {
 
-    String SITE = "https://modarchive.org/index.php?";
-    String PAGE = "&page=";
+    private static final String ID_PREFIX = "artist-";
+    private static final String QUERY = "request=view_artist_modules&query=";
 
-    String id();
+    @Override
+    public String id() {
+        return ID_PREFIX + memberId;
+    }
 
-    String title();
+    @Override
+    public String title() {
+        return name;
+    }
 
-    URI page(int page);
+    @Override
+    public URI page(int page) {
+        return URI.create(SITE + QUERY + memberId + PAGE + page);
+    }
 }

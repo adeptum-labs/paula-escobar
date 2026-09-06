@@ -86,6 +86,46 @@ class ModArchiveHtmlTest {
     }
 
     @Test
+    void readsAnArtistsModules() throws IOException {
+        final Artist artist = new Artist(69185, "Purple Motion");
+        final ChartPage page = ModArchiveHtml.parse(artist, 1, saved("artist"));
+
+        assertEquals(artist, page.listing());
+        assertEquals(3, page.entries().size());
+        assertEquals(new ChartEntry(214141, "Puzzix", "purple_motion_-_puzzix.it", ""), page.entries().get(0),
+                "an unrated module carries no measure");
+        assertEquals(new ChartEntry(180373, "Future Brain", "future_brain.stm", "9 / 10"), page.entries().get(2));
+        assertEquals(3, page.lastPage());
+    }
+
+    @Test
+    void aBuiltArtistPageReadsLikeASavedOne() throws IOException {
+        final Artist artist = new Artist(69185, "Purple Motion");
+        final ChartPage saved = ModArchiveHtml.parse(artist, 1, saved("artist"));
+        final byte[] built = ModArchivePages.artistPage(artist, 1, 3, saved.entries().toArray(ChartEntry[]::new));
+
+        assertEquals(saved, ModArchiveHtml.parse(artist, 1, built));
+    }
+
+    @Test
+    void readsTheRegisteredArtistsOfAModule() throws IOException {
+        assertEquals(List.of(new Artist(69185, "Purple Motion")), ModArchiveHtml.artists(saved("module")));
+        assertEquals(List.of(new Artist(1, "A & B"), new Artist(2, "C")),
+                ModArchiveHtml.artists(ModArchivePages.modulePage(new Artist(1, "A & B"), new Artist(2, "C"))));
+    }
+
+    @Test
+    void aModuleWithoutRegisteredArtistsNamesNone() {
+        assertEquals(List.of(), ModArchiveHtml.artists(ModArchivePages.modulePage()));
+    }
+
+    @Test
+    void refusesAnArtistPageWithoutRows() {
+        final byte[] page = "<html><body><h1>X's Modules</h1></body></html>".getBytes(StandardCharsets.UTF_8);
+        assertThrows(IOException.class, () -> ModArchiveHtml.parse(new Artist(1, "X"), 1, page));
+    }
+
+    @Test
     void refusesAPageWithoutEntries() {
         final byte[] page = "<html><body>Maintenance</body></html>".getBytes(StandardCharsets.UTF_8);
         assertThrows(IOException.class, () -> ModArchiveHtml.parse(Chart.FEATURED, 1, page));

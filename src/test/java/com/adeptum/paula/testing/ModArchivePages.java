@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.testing;
 
+import com.adeptum.paula.modarchive.Artist;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Builds a chart listing page in the shape modarchive.org itself serves, so a parser test exercises the
+ * Builds the pages of modarchive.org in the shape the site itself serves them, so a parser test exercises the
  * same anchors, spans and pagination form the site's HTML actually carries, entities and all.
  */
 public final class ModArchivePages {
@@ -44,6 +45,41 @@ public final class ModArchivePages {
             html.append(entryBlock(chart, entry));
         }
         return html.append("</body></html>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * An artist's module list in the site's shape: a heading with the name and a table row per module, the
+     * file in the link's title, the name in a span and the rating in another, with the pagination up top.
+     */
+    public static byte[] artistPage(Artist artist, int page, int lastPage, ChartEntry... entries) {
+        final StringBuilder html = new StringBuilder("<html><body><h1>").append(escape(artist.name())).append("'s Modules</h1>")
+                .append("<p><a class='pagination' href=\"?request=view_artist_modules&amp;query=").append(artist.memberId())
+                .append("&amp;page=").append(lastPage).append("#mods\">").append(lastPage).append("</a></p><table>");
+        for (final ChartEntry entry : entries) {
+            html.append("<tr><td><span class=\"format-icon\">").append(entry.extension().toUpperCase()).append("</span></td>")
+                    .append("<td><a class=\"module-listing\" href=\"module.php?").append(entry.moduleId())
+                    .append("\" title=\"").append(escape(entry.fileName())).append("\">").append(escape(entry.fileName())).append("</a></td>")
+                    .append("<td><span class=\"module-listing\">").append(escape(entry.title())).append("</span></td>")
+                    .append("<td><span class='module-listing'>")
+                    .append(entry.measure().isEmpty() ? "Unrated" : "Rated " + entry.measure()).append("</span></td></tr>");
+        }
+        return html.append("</table></body></html>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * A module's own page, as far as the artists it names go: the registered ones in a list under their heading.
+     */
+    public static byte[] modulePage(Artist... artists) {
+        final StringBuilder html = new StringBuilder("<html><body><h1>a module</h1>");
+        if (artists.length > 0) {
+            html.append("<h2><img src='rosette.png'> Registered Artist(s):</h2><ul class='nolist'>");
+            for (final Artist artist : artists) {
+                html.append("<li><img src=\"member.png\">&nbsp;<a class=\"standard-link\" href=\"member.php?").append(artist.memberId())
+                        .append("\">").append(escape(artist.name())).append("</a> </li>");
+            }
+            html.append("</ul>");
+        }
+        return html.append("<h2>Ratings</h2></body></html>").toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private static String about(int lastPage) {

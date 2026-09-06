@@ -24,14 +24,16 @@ package com.adeptum.paula.modarchive;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads a chart listing off the site's own pages, which have no other form. Each row sits in a block of its
- * own, so a block that does not read is left out rather than losing the page; a page with no rows at all is
+ * Reads the site's own pages, which have no other form: a chart, where each row sits in a block of its own,
+ * an artist's modules, where each is a table row, and a module's page, which names its registered artists.
+ * A row that does not read is left out rather than losing the page; a listing page with no rows at all is
  * refused, since that is the site changing shape or being down, and neither is worth keeping.
  */
 final class ModArchiveHtml {
@@ -40,6 +42,14 @@ final class ModArchiveHtml {
     private static final Pattern MODULE = Pattern.compile(
             "<a class=\"chart-listing-title\" href=\"module\\.php\\?(\\d+)\">(.*?)</a>", Pattern.DOTALL);
     private static final Pattern FILE_NAME = Pattern.compile("<span class=\"chart-listing\">(.*?)</span>", Pattern.DOTALL);
+    private static final String ROW = "<tr>";
+    private static final Pattern ARTIST_MODULE = Pattern.compile(
+            "<a class=\"module-listing\" href=\"module\\.php\\?(\\d+)\" title=\"(.*?)\"", Pattern.DOTALL);
+    private static final Pattern ARTIST_TITLE = Pattern.compile("<span class=\"module-listing\">(.*?)</span>", Pattern.DOTALL);
+    private static final Pattern RATING = Pattern.compile("Rated ([\\d.]+ / 10)");
+    private static final String REGISTERED_ARTISTS = "Registered Artist(s)";
+    private static final String LIST_END = "</ul>";
+    private static final Pattern MEMBER = Pattern.compile("member\\.php\\?(\\d+)\">(.*?)</a>", Pattern.DOTALL);
     private static final Pattern PAGE = Pattern.compile("[?&;]page=(\\d+)");
     private static final Pattern TAG = Pattern.compile("<[^>]+>");
     private static final Pattern ENTITY = Pattern.compile("&(#(\\d+)|amp|lt|gt|quot|nbsp);");
@@ -49,15 +59,45 @@ final class ModArchiveHtml {
 
     static ChartPage parse(Listing listing, int page, byte[] body) throws IOException {
         final String html = new String(body, StandardCharsets.UTF_8);
-        final Chart chart = (Chart) listing;
-        final List<ChartEntry> entries = new ArrayList<>();
-        for (final String block : html.split(Pattern.quote(BLOCK))) {
-            entry(chart, block).ifPresent(entries::add);
-        }
+        final List<ChartEntry> entries = switch (listing) {
+            case Chart chart -> Arrays.stream(html.split(Pattern.quote(BLOCK))).flatMap(block -> entry(chart, block).stream()).toList();
+            case Artist artist -> Arrays.stream(html.split(Pattern.quote(ROW))).flatMap(row -> entry(row).stream()).toList();
+        };
         if (entries.isEmpty()) {
-            throw new IOException("No chart entries on " + chart.title() + " page " + page);
+            throw new IOException("No entries on " + listing.title() + " page " + page);
         }
-        return new ChartPage(chart, page, lastPage(html, page), entries);
+        return new ChartPage(listing, page, lastPage(html, page), entries);
+    }
+
+    /**
+     * The artists a module page names as registered, in the order it lists them; none where the page has
+     * no such list, which is how the site shows a module whose author never signed up.
+     */
+    static List<Artist> artists(byte[] modulePage) {
+        final String html = new String(modulePage, StandardCharsets.UTF_8);
+        final int heading = html.indexOf(REGISTERED_ARTISTS);
+        if (heading < 0) {
+            return List.of();
+        }
+        final int end = html.indexOf(LIST_END, heading);
+        final Matcher members = MEMBER.matcher(html.substring(heading, end < 0 ? html.length() : end));
+        final List<Artist> artists = new ArrayList<>();
+        while (members.find()) {
+            artists.add(new Artist(Integer.parseInt(members.group(1)), unescape(members.group(2)).strip()));
+        }
+        return artists;
+    }
+
+    private static Optional<ChartEntry> entry(String row) {
+        final Matcher module = ARTIST_MODULE.matcher(row);
+        if (!module.find()) {
+            return Optional.empty();
+        }
+        final Matcher title = ARTIST_TITLE.matcher(row);
+        final Matcher rating = RATING.matcher(row);
+        return Optional.of(new ChartEntry(Integer.parseInt(module.group(1)),
+                title.find() ? unescape(title.group(1)).strip() : "", unescape(module.group(2)).strip(),
+                rating.find() ? rating.group(1) : ""));
     }
 
     private static Optional<ChartEntry> entry(Chart chart, String block) {
