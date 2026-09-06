@@ -30,13 +30,10 @@ untouched.
 
 ## Building
 
-```
-mvn package
-```
-
-produces `target/paula`, a native executable. The build needs Maven and a
-GraalVM for JDK 21 or newer registered in `~/.m2/toolchains.xml` with the
-vendor `graalvm`, for example:
+`mvn package` produces `target/paula`, a native executable. It needs Maven,
+a C compiler (`cc`, or Visual Studio's `cl` on Windows) and a GraalVM for
+JDK 21 or newer registered in `~/.m2/toolchains.xml` with the vendor
+`graalvm`:
 
 ```xml
 <toolchain>
@@ -51,14 +48,8 @@ vendor `graalvm`, for example:
 </toolchain>
 ```
 
-A C compiler is needed as well (`cc` on Linux and macOS, Visual Studio's
-`cl` on Windows); `native-image` itself already requires one. The sound
-shim in `src/main/c` is compiled into a static library during
-`prepare-package`, so `mvn test` runs without it.
-
-Compilation, tests and `native-image` all run on that toolchain, so
-`JAVA_HOME` and `GRAALVM_HOME` do not matter. `mvn test` runs the unit tests
-without building the native image.
+Everything runs on that toolchain, so `JAVA_HOME` and `GRAALVM_HOME` do not
+matter. `mvn test` runs the unit tests without the native image or the C.
 
 ## Usage
 
@@ -83,11 +74,9 @@ Keys while playing:
 | `?`     | show the keys           |
 | `q`     | quit                    |
 
-The mouse works the panels: a click on the upper one turns it to the next
-visualiser, and a click on a scope silences that channel until it is clicked
-again. Shift-click, or a double click where the terminal keeps shift-click
-for selecting text, leaves that channel sounding alone and brings the rest
-back on the next. What is silenced belongs to the track being played.
+The mouse works the panels: a click on the upper one turns to the next
+visualiser, a click on a scope silences that channel until clicked again,
+and a shift-click or double click leaves that channel sounding alone.
 
 Keys while browsing:
 
@@ -110,141 +99,88 @@ Keys while browsing:
 
 ![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
 
-Both screens fill the terminal, in 24-bit colour where the terminal has it
-and rounded to 256 or 16 colours where it does not. The player shows the song
-details on the left, with the sounding instrument lit up, and on the right a
-32-band spectrum analyser with peak hold, one braille-dot oscilloscope per
-channel, a position bar and stereo VU meters, redrawn thirty times a second.
-`v` turns the upper panel over to a waterfall of the spectrum and then to a
-vectorscope plotting left against right, where the hard-panned channels of an
-Amiga module draw a shape of their own. The browser colours the first three
-placings gold, silver and bronze and keeps a small spectrum strip of what is
-playing above the key bar, so music keeps going while you browse. The shot
-above is Approach by Nightbeat, which won the multichannel competition at
-Icing 1999, with a scope for each of its 31 channels and the message the
-musician wrote into the sample names beside them.
+Both screens fill the terminal in 24-bit colour, or 256 or 16 where that is
+all there is. The player shows the song details on the left, with the
+sounding instrument lit up, and on the right a spectrum analyser, one
+braille-dot oscilloscope per channel, a position bar and VU meters; `v`
+turns the upper panel to a waterfall and then to a vectorscope. The browser
+colours the first three placings gold, silver and bronze and keeps a small
+spectrum strip of what is playing above the key bar. The shot above is
+Approach by Nightbeat, which won the multichannel competition at Icing 1999,
+with a scope for each of its 31 channels.
 
 ### Browsing
 
-The browser opens with the party series in columns on the left and the
-charts on the right; `tab` switches sides and `?` lays out every key. A
-series opens into its parties by year, a party into its music competitions
-and a competition into the ranked entries, each with its title, its author
-and whatever is the matter with it in a column of its own. Entries in
-executable music competitions are dimmed, since Paula cannot run them, and
-stay in the list so the results are complete; those Demozoo has no download
-for are marked `(no download)`, those whose only download is a container
-nothing here reads `(no reader)`. Playing an entry queues the rest of the
-competition after it in ranked order, so `n` walks through the results. `m`
-on an entry opens everything else its musician has on Demozoo, newest first,
-to play the same way.
+The party series sit in columns on the left and the charts on the right;
+`tab` switches sides. A series opens into its parties, a party into its
+music competitions and a competition into the ranked entries, each with its
+title, its author and whatever is the matter with it: dimmed for executable
+music Paula cannot run, `(no download)` where Demozoo has no file,
+`(no reader)` where the file is a container nothing here opens. A chart
+opens into All, MOD, XM, IT, S3M and Other and is read forty rows at a time
+as the cursor reaches the end. Playing a line queues the rest of its list,
+so `n` walks on through the results, and `m` opens everything else the
+musician has, on Demozoo for an entry and on ModArchive for a chart tune.
 
-A chart, Top Favourites, Most Downloads or the weekly Featured picks, opens
-into All, MOD, XM, IT, S3M and Other by file extension. Forty rows are
-fetched at a time and the next forty as the cursor reaches the end, a row
-below the last saying that more follows; the right-hand column gives the
-favourites, the downloads or the week featured. Playing a tune queues the
-rest of the list, and `m` on a tune opens the modules of the artist
-registered for it on ModArchive.
+Party data comes from [Demozoo](https://demozoo.org) and the files from
+scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
+packed modules and 1541 disk images are unpacked as deep as they go, and the
+file named after the entry is played, with the art of its `file_id.diz` or
+the party's own logo shown above the list. Everything fetched is kept under
+`~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): Demozoo answers a week and
+chart pages a day, both still used offline, downloaded modules for good.
+`r` fetches the list in view afresh; delete the directory to start over.
 
-Party data comes from [Demozoo](https://demozoo.org); the entry itself from
-scene.org when Demozoo knows the release there, otherwise from ModArchive or
-Modland. Zip, 7z, RAR, LHA and Amiga LZX archives and 1541 disk images are
-unpacked, along with whatever archives they hold in turn, modules wrapped by
-the Amiga's XPK packer are unwrapped, and the file named after the entry is
-played, or the first module in name order when none is. Unpacking, and a
-download long enough to wait for, is counted up on the status line. The
-`file_id.diz` or information file that travels in a party archive, or the
-party's own on scene.org, is shown above the list as a competition opens,
-read in the code page it was drawn in.
+### Chip and Amiga formats
 
-Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`):
-Demozoo answers are refreshed after a week and chart pages after a day, both
-still used when the network is down, and downloaded modules are kept for good,
-a competition handed in as one archive downloaded once however many of its
-entries are played. `r` fetches the list in view afresh, with its logo.
-Delete the directory to start over.
-
-### SID tunes
-
-A SID tune never ends on its own, so Paula plays it for the length listed in
-the High Voltage SID Collection's song length database, downloaded into the
-cache the first time a SID is played and refreshed monthly; tunes it does not
-know play for three minutes. The start subtune is played and the player shows
-the author and release credits. A C64 party file is often a 1541 disk image
-holding every entry as a program; the images are unpacked like any other
-archive and the programs run by the same emulation when no link offers the
-tune itself.
-
-### Atari 8-bit tunes
-
-SAP files and the native modules of Chaos Music Composer, Delta Music
-Composer, Music ProTracker, Raster Music Tracker, Theta Music Composer and
-Future Composer play through ASAP's emulation of the POKEY and the 6502, for
-the length the TIME tag gives or three minutes without one, starting at the
-default subtune. Every POKEY channel has a scope of its own and can be
-silenced like a tracker channel. Nothing under `net.sf.asap` is edited by
-hand; `tools/generate-asap` regenerates it and pins what it takes.
-
-### DigiBooster modules
-
-The modules of DigiBooster Pro 2 and DigiBooster 3, which no other Java
-player reads, are played by a replayer written for Paula that follows
-[libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3),
-the reference replayer released by APC&TCP under the two-clause BSD licence,
-and renders the modules on Modland sample for sample as that library does.
-
-### AHX and HivelyTracker modules
-
-AHX, the four-voice Amiga synthesizer tracker of Dexter and Pink whose files
-carry the chip music competitions of the late nineties, and HivelyTracker,
-its successor with up to sixteen voices, ring modulation and a stereo
-position per voice, are played by a replayer written for Paula. It follows
-`hvl_replay.c` of [HivelyTracker](https://github.com/pete-gordon/hivelytracker),
-Pete Gordon's reference replayer released under the three-clause BSD
-licence, and renders a tune sample for sample as that replayer does at its
-stereo separation of two. Every voice has a scope of its own and can be
-silenced; the first subsong is played.
+A SID tune plays for the length in the High Voltage SID Collection's song
+length database, fetched into the cache on first use and refreshed monthly,
+or three minutes when unlisted; a C64 party file that is a 1541 disk image
+has its programs run by the same emulation. Atari 8-bit SAP files and the
+native modules of the Atari trackers play through ASAP's POKEY and 6502
+emulation for the length their TIME tag gives, each POKEY channel with a
+scope of its own. DigiBooster Pro 2 and 3 modules and AHX and HivelyTracker
+modules are played by replayers written for Paula that follow
+[libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
+and [HivelyTracker](https://github.com/pete-gordon/hivelytracker)'s
+`hvl_replay.c` and render sample for sample as those do, with a scope and
+muting per voice. Nothing under `net.sf.asap` is edited by hand;
+`tools/generate-asap` regenerates it, as `tools/patch-javamod` rebuilds the
+vendored JavaMod jar with its fixes.
 
 ### Audio output
 
 The native executable plays sound itself through
-[miniaudio](https://miniaud.io), compiled into it, because a native image
-finds no Java Sound mixers, which [GraalVM does not intend to
-fix](https://github.com/oracle/graal/issues/9620). It picks the first backend
-that answers, WASAPI on Windows, CoreAudio on macOS, PulseAudio (also
-PipeWire), ALSA and JACK on Linux, or the one named with `--output`;
-`--output null` plays into nothing at the right speed, and the runnable jar
-uses Java Sound. The build plays the test module through Core Audio on macOS,
-WASAPI on Windows and the null backend on Linux and checks the recording
-`--record FILE` kept, a wave file of everything played. `--quit-after SECONDS`
-stops Paula by itself and lets it run without a terminal. Log output goes to
-`paula.log` in the working directory.
+[miniaudio](https://miniaud.io), since a native image finds no Java Sound
+mixers, picking the first backend that answers (WASAPI, CoreAudio,
+PulseAudio, ALSA, JACK) or the one named with `--output`; `--output null`
+plays into nothing at the right speed and the runnable jar uses Java Sound.
+`--record FILE` keeps a wave file of everything played and
+`--quit-after SECONDS` stops Paula without a terminal, which is how the
+build proves the sound on every platform. Logging goes to `paula.log` in the
+working directory.
 
-Over ssh, `tools/paula-sound` starts the player where it lives and plays it
-out of the machine you sit at: that machine serves PulseAudio on its loopback
-(`pactl load-module module-native-protocol-tcp listen=127.0.0.1`) and carries
-a reverse tunnel to it with `RemoteForward 4713 127.0.0.1:4713` in its
-`~/.ssh/config`; the script points `PULSE_SERVER` at the tunnel and makes sure
-a sound server answers before starting anything, saying what to run where
-when one does not.
+Over ssh, `tools/paula-sound` plays out of the machine you sit at: that
+machine serves PulseAudio on its loopback with
+`pactl load-module module-native-protocol-tcp listen=127.0.0.1` and carries
+a reverse tunnel with `RemoteForward 4713 127.0.0.1:4713` in its
+`~/.ssh/config`; the script points `PULSE_SERVER` at the tunnel and says
+what is missing when nothing answers.
 
 ## Releases
 
 Every release hangs off its tag on GitHub with an executable for Linux, macOS
-and Windows, built on each by GitHub Actions, and the runnable jar, which is
-also kept under `releases/` here. Take the executable for your machine if
-there is one; the jar needs a Java 21 runtime and plays everywhere as it is:
+and Windows and the runnable jar, also kept under `releases/` here; the jar
+needs a Java 21 runtime:
 
 ```
 java -jar paula-escobar-0.1.0.jar
 ```
 
 `./create-release.sh` builds and tests at the version the pom is working
-towards, keeps the jar under `releases/`, records it in a `Release X.Y.Z`
-commit with an annotated tag and opens the next snapshot; it pushes nothing.
-Sending the tag builds the three executables and drafts the release, to be
-read over before anyone sees it:
+towards, records the jar in a `Release X.Y.Z` commit with an annotated tag
+and opens the next snapshot, pushing nothing. Sending the tag builds the
+executables and drafts the release:
 
 ```
 git push && git push origin v0.1.0
