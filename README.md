@@ -1,5 +1,9 @@
 # Paula Escobar
 
+[![Latest release](https://img.shields.io/github/v/release/adeptum-labs/paula-escobar.svg?style=flat-square)](https://github.com/adeptum-labs/paula-escobar/releases/latest)
+[![Tests](https://img.shields.io/github/actions/workflow/status/adeptum-labs/paula-escobar/tests.yml?branch=master&label=tests&style=flat-square)](https://github.com/adeptum-labs/paula-escobar/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/adeptum-labs/paula-escobar.svg?style=flat-square)](https://github.com/adeptum-labs/paula-escobar/blob/master/LICENSE)
+
 A terminal music player for demoscene and chip music, named after the Amiga's
 sound chip. It plays tracker modules, SID and Atari tunes and streamed audio,
 and it opens the party archives: the music competitions of over sixty party
