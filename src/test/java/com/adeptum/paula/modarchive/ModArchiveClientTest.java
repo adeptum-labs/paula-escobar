@@ -62,16 +62,16 @@ class ModArchiveClientTest {
         http.put(PAGE_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 3, SECOND), Optional.empty());
         http.put(DOWNLOADS_ONE, ModArchivePages.page(Chart.MOST_DOWNLOADS, 1, 25, new ChartEntry(1, "a", "a.it", "9 downloads")), Optional.empty());
 
-        assertEquals(SECOND, client(dir).chart(Chart.TOP_FAVOURITES, 2).entries().get(0));
-        assertEquals("9 downloads", client(dir).chart(Chart.MOST_DOWNLOADS, 1).entries().get(0).measure());
+        assertEquals(SECOND, client(dir).list(Chart.TOP_FAVOURITES, 2).entries().get(0));
+        assertEquals("9 downloads", client(dir).list(Chart.MOST_DOWNLOADS, 1).entries().get(0).measure());
     }
 
     @Test
     void keepsAPageAndServesItAgainWithoutAsking(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
 
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
-        assertEquals(FIRST, client(dir).chart(Chart.TOP_FAVOURITES, 1).entries().get(0));
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
+        assertEquals(FIRST, client(dir).list(Chart.TOP_FAVOURITES, 1).entries().get(0));
 
         assertEquals(1, http.requests());
         assertTrue(Files.exists(dir.resolve("modarchive/top-favourites/1.html")));
@@ -80,26 +80,26 @@ class ModArchiveClientTest {
     @Test
     void asksAgainAfterADay(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
         clock = Clock.fixed(NOW.plus(TTL).plusSeconds(1), ZoneOffset.UTC);
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
         assertEquals(2, http.requests());
     }
 
     @Test
     void servesTheOldPageWhenTheSiteIsOutOfReach(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
         clock = Clock.fixed(NOW.plus(TTL).plusSeconds(1), ZoneOffset.UTC);
         http.goOffline();
-        assertEquals(FIRST, client(dir).chart(Chart.TOP_FAVOURITES, 1).entries().get(0));
-        assertThrows(IOException.class, () -> client(dir).chart(Chart.TOP_FAVOURITES, 2), "never seen, nothing to serve");
+        assertEquals(FIRST, client(dir).list(Chart.TOP_FAVOURITES, 1).entries().get(0));
+        assertThrows(IOException.class, () -> client(dir).list(Chart.TOP_FAVOURITES, 2), "never seen, nothing to serve");
     }
 
     @Test
     void keepsNothingOfAPageThatDoesNotRead(@TempDir Path dir) {
         http.put(PAGE_ONE, "<html>Down for maintenance</html>");
-        assertThrows(IOException.class, () -> client(dir).chart(Chart.TOP_FAVOURITES, 1));
+        assertThrows(IOException.class, () -> client(dir).list(Chart.TOP_FAVOURITES, 1));
         assertFalse(Files.exists(dir.resolve("modarchive/top-favourites/1.html")));
     }
 
@@ -107,11 +107,11 @@ class ModArchiveClientTest {
     void forgettingAChartDropsItsPages(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
         http.put(PAGE_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 3, SECOND), Optional.empty());
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
-        client(dir).chart(Chart.TOP_FAVOURITES, 2);
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
+        client(dir).list(Chart.TOP_FAVOURITES, 2);
 
         client(dir).forget(Chart.TOP_FAVOURITES);
-        client(dir).chart(Chart.TOP_FAVOURITES, 1);
+        client(dir).list(Chart.TOP_FAVOURITES, 1);
 
         assertEquals(3, http.requests());
         assertFalse(Files.exists(dir.resolve("modarchive/top-favourites/2.html")));

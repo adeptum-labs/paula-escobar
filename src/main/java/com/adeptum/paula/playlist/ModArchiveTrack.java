@@ -21,19 +21,19 @@
 
 package com.adeptum.paula.playlist;
 
-import com.adeptum.paula.modarchive.Chart;
+import com.adeptum.paula.modarchive.Listing;
 import com.adeptum.paula.modarchive.ChartEntry;
 
 /**
- * A module from one of ModArchive's charts, carrying the chart so the browser can point back at the row it
- * came from.
+ * A module from one of ModArchive's listings, carrying the listing so the browser can point back at the row
+ * it came from.
  */
-public record ModArchiveTrack(Chart chart, ChartEntry entry) implements Track {
+public record ModArchiveTrack(Listing listing, ChartEntry entry) implements Track {
 
     private static final String SEPARATOR = " · ";
 
     @Override
     public String label() {
-        return chart.title() + SEPARATOR + entry.title() + SEPARATOR + entry.fileName();
+        return listing.title() + SEPARATOR + entry.title() + SEPARATOR + entry.fileName();
     }
 }

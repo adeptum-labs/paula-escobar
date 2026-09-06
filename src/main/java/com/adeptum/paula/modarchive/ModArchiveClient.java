@@ -58,16 +58,16 @@ public final class ModArchiveClient {
         this.pages = new CachedResource(cache, ttl, clock);
     }
 
-    public ChartPage chart(Chart chart, int page) throws IOException {
-        return pages.read(cache.file(CACHE_SEGMENT, chart.id(), page + PAGE_SUFFIX),
-                () -> http.get(chart.page(page)).body(), body -> ModArchiveHtml.parse(chart, page, body));
+    public ChartPage list(Listing listing, int page) throws IOException {
+        return pages.read(cache.file(CACHE_SEGMENT, listing.id(), page + PAGE_SUFFIX),
+                () -> http.get(listing.page(page)).body(), body -> ModArchiveHtml.parse(listing, page, body));
     }
 
     /**
-     * Drops every page kept for a chart, so it is read off the site again from its first page.
+     * Drops every page kept for a listing, so it is read off the site again from its first page.
      */
-    public void forget(Chart chart) {
-        final Path directory = cache.root().resolve(CACHE_SEGMENT).resolve(chart.id());
+    public void forget(Listing listing) {
+        final Path directory = cache.root().resolve(CACHE_SEGMENT).resolve(listing.id());
         if (!Files.isDirectory(directory)) {
             return;
         }
@@ -76,7 +76,7 @@ public final class ModArchiveClient {
                 Files.delete(file);
             }
         } catch (IOException e) {
-            log.warn("Could not forget the {} chart: {}", chart.title(), e.getMessage());
+            log.warn("Could not forget the {} listing: {}", listing.title(), e.getMessage());
         }
     }
 }

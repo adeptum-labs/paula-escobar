@@ -47,8 +47,9 @@ final class ModArchiveHtml {
     private ModArchiveHtml() {
     }
 
-    static ChartPage parse(Chart chart, int page, byte[] body) throws IOException {
+    static ChartPage parse(Listing listing, int page, byte[] body) throws IOException {
         final String html = new String(body, StandardCharsets.UTF_8);
+        final Chart chart = (Chart) listing;
         final List<ChartEntry> entries = new ArrayList<>();
         for (final String block : html.split(Pattern.quote(BLOCK))) {
             entry(chart, block).ifPresent(entries::add);

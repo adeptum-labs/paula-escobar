@@ -36,6 +36,7 @@ import com.adeptum.paula.demozoo.Work;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import com.adeptum.paula.modarchive.ChartPage;
+import com.adeptum.paula.modarchive.Listing;
 import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.modarchive.Slice;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -263,7 +264,7 @@ public final class Browser {
         }
     }
 
-    private record TuneItem(Chart chart, ChartEntry entry, boolean readable) implements Item {
+    private record TuneItem(Listing listing, ChartEntry entry, boolean readable) implements Item {
 
         @Override
         public String label() {
@@ -318,7 +319,7 @@ public final class Browser {
         private int partyId;
         private int compoId;
         private Nick musician;
-        private Chart chart;
+        private Listing listing;
         private Slice slice;
         private int nextPage = 1;
         private int lastPage = Integer.MAX_VALUE;
@@ -576,39 +577,39 @@ public final class Browser {
      */
     private void growAtTheEndOfTheList() {
         final Level level = levels.peek();
-        if (more != null || pending != null || level.chart == null || level.restingAtTheEnd
+        if (more != null || pending != null || level.listing == null || level.restingAtTheEnd
                 || level.nextPage > level.lastPage || level.cursor < level.items.size() - 1
                 || (lastGrown != null && lastGrown.plus(dwell).isAfter(clock.instant()))) {
             return;
         }
         filling = level;
-        final Chart chart = level.chart;
+        final Listing listing = level.listing;
         final Slice slice = level.slice;
         final int from = level.nextPage;
         final Set<Integer> seen = Set.copyOf(level.seen);
         more = CompletableFuture.supplyAsync(() -> {
             try {
-                return grow(chart, slice, from, seen);
+                return grow(listing, slice, from, seen);
             } catch (IOException e) {
                 throw new CompletionException(e);
             }
         }, executor);
     }
 
-    private Grown grow(Chart chart, Slice slice, int from, Set<Integer> seen) throws IOException {
+    private Grown grow(Listing listing, Slice slice, int from, Set<Integer> seen) throws IOException {
         final List<Item> items = new ArrayList<>();
         int page = from;
         int lastPage = from;
         int read = 0;
         boolean enough;
         do {
-            final ChartPage chartPage = modarchive.chart(chart, page);
+            final ChartPage chartPage = modarchive.list(listing, page);
             lastPage = chartPage.lastPage();
             final int before = items.size();
             chartPage.entries().stream()
                     .filter(slice::holds)
                     .filter(entry -> !seen.contains(entry.moduleId()))
-                    .forEach(entry -> items.add(new TuneItem(chart, entry, canBeRead(entry))));
+                    .forEach(entry -> items.add(new TuneItem(listing, entry, canBeRead(entry))));
             enough = items.size() >= WANTED_ROWS || items.size() - before == chartPage.entries().size();
             page++;
             read++;
@@ -621,7 +622,7 @@ public final class Browser {
      * there does not look like the end of the chart.
      */
     private boolean moreBelow(Level level) {
-        return level.chart != null && level.nextPage <= level.lastPage;
+        return level.listing != null && level.nextPage <= level.lastPage;
     }
 
     private boolean canBeRead(ChartEntry entry) {
@@ -846,7 +847,7 @@ public final class Browser {
 
     private void openChart(FormatItem format) {
         final Level level = new Level(format.label(), NOTHING_HERE, List.of());
-        level.chart = format.chart();
+        level.listing = format.chart();
         level.slice = format.slice();
         levels.push(level);
     }
@@ -863,8 +864,8 @@ public final class Browser {
             return;
         }
         final Level level = levels.peek();
-        if (level.chart != null) {
-            modarchive.forget(level.chart);
+        if (level.listing != null) {
+            modarchive.forget(level.listing);
             more = null;
             filling = null;
             lastGrown = null;
@@ -1014,7 +1015,7 @@ public final class Browser {
         final List<Track> tracks = level.items.subList(level.cursor, level.items.size()).stream()
                 .map(TuneItem.class::cast)
                 .filter(tune -> tune == chosen || tune.readable())
-                .<Track>map(tune -> new ModArchiveTrack(tune.chart(), tune.entry()))
+                .<Track>map(tune -> new ModArchiveTrack(tune.listing(), tune.entry()))
                 .toList();
         return new Playlist(tracks);
     }
@@ -1125,10 +1126,10 @@ public final class Browser {
             case WorkItem work -> nowPlaying instanceof MusicianTrack track
                     && track.musician().releaserId() == work.musician().releaserId()
                     && track.work().entry().productionId() == work.work().entry().productionId();
-            case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.chart() == chart.chart();
-            case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.chart() == format.chart()
+            case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(chart.chart());
+            case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(format.chart())
                     && format.slice().holds(track.entry());
-            case TuneItem tune -> nowPlaying instanceof ModArchiveTrack track && track.chart() == tune.chart()
+            case TuneItem tune -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(tune.listing())
                     && track.entry().moduleId() == tune.entry().moduleId();
         };
     }
@@ -1196,7 +1197,7 @@ public final class Browser {
 
     private AttributedString statusLine() {
         if (more != null) {
-            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(filling.chart.title())
+            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(filling.listing.title())
                     .append(COMPO_SEPARATOR).append(filling.title).append('…'));
         }
         if (pending != null) {

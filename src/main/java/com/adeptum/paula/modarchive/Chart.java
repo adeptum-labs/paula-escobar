@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  * The charts modarchive.org keeps, each read off its own listing pages. The revered chart is left out, since
  * the site serves it the same rows as the downloads.
  */
-public enum Chart {
+public enum Chart implements Listing {
 
     TOP_FAVOURITES("top-favourites", "Top Favourites", "request=view_top_favourites",
             Pattern.compile("A favourite of ([\\d,]+) member"), " favourites"),
@@ -38,8 +38,6 @@ public enum Chart {
     FEATURED("featured", "Featured", "request=view_chart&query=featured",
             Pattern.compile("Featured (Week \\d+, \\d+)"), "");
 
-    private static final String SITE = "https://modarchive.org/index.php?";
-    private static final String PAGE = "&page=";
 
     private final String id;
     private final String title;
@@ -55,14 +53,17 @@ public enum Chart {
         this.unit = unit;
     }
 
+    @Override
     public String id() {
         return id;
     }
 
+    @Override
     public String title() {
         return title;
     }
 
+    @Override
     public URI page(int page) {
         return URI.create(SITE + query + PAGE + page);
     }

@@ -21,14 +21,19 @@
 
 package com.adeptum.paula.modarchive;
 
-import java.util.List;
+import java.net.URI;
 
 /**
- * One page of a listing, as read off the site: the rows it carries and how many pages follow it.
+ * A list of modules the site serves page by page, named so the browser can title it and the cache can file it.
  */
-public record ChartPage(Listing listing, int page, int lastPage, List<ChartEntry> entries) {
+public sealed interface Listing permits Chart {
 
-    public ChartPage {
-        entries = List.copyOf(entries);
-    }
+    String SITE = "https://modarchive.org/index.php?";
+    String PAGE = "&page=";
+
+    String id();
+
+    String title();
+
+    URI page(int page);
 }
