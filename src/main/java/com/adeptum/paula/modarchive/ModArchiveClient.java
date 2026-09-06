@@ -25,23 +25,27 @@ import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.cache.CachedResource;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Fetches the chart pages of modarchive.org one at a time and keeps them for a day, since a chart moves
- * slowly and the site is a volunteer's.
+ * Fetches the pages of modarchive.org one at a time and keeps them for a day, since a chart moves slowly
+ * and the site is a volunteer's.
  */
 @Slf4j
 public final class ModArchiveClient {
 
     private static final String CACHE_SEGMENT = "modarchive";
     private static final String PAGE_SUFFIX = ".html";
+    private static final String MODULES = "modules";
+    private static final String MODULE_QUERY = "request=view_by_moduleid&query=";
     private static final Duration DEFAULT_TTL = Duration.ofDays(1);
 
     private final HttpFetcher http;
@@ -61,6 +65,14 @@ public final class ModArchiveClient {
     public ChartPage list(Listing listing, int page) throws IOException {
         return pages.read(cache.file(CACHE_SEGMENT, listing.id(), page + PAGE_SUFFIX),
                 () -> http.get(listing.page(page)).body(), body -> ModArchiveHtml.parse(listing, page, body));
+    }
+
+    /**
+     * The registered artists behind a module, read off its page; none where the site names none.
+     */
+    public List<Artist> artists(int moduleId) throws IOException {
+        return pages.read(cache.file(CACHE_SEGMENT, MODULES, moduleId + PAGE_SUFFIX),
+                () -> http.get(URI.create(Listing.SITE + MODULE_QUERY + moduleId)).body(), ModArchiveHtml::artists);
     }
 
     /**

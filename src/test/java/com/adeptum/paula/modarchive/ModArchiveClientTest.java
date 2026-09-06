@@ -36,6 +36,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -45,6 +46,8 @@ class ModArchiveClientTest {
     private static final String PAGE_ONE = "https://modarchive.org/index.php?request=view_top_favourites&page=1";
     private static final String PAGE_TWO = "https://modarchive.org/index.php?request=view_top_favourites&page=2";
     private static final String DOWNLOADS_ONE = "https://modarchive.org/index.php?request=view_chart&query=tophits&page=1";
+    private static final String ARTIST_ONE = "https://modarchive.org/index.php?request=view_artist_modules&query=69185&page=1";
+    private static final String MODULE_PAGE = "https://modarchive.org/index.php?request=view_by_moduleid&query=212083";
     private static final Duration TTL = Duration.ofDays(1);
     private static final Instant NOW = Instant.now();
     private static final ChartEntry FIRST = new ChartEntry(212083, "UnreaL ][ / PM", "2nd_pm.s3m", "438 favourites");
@@ -81,7 +84,7 @@ class ModArchiveClientTest {
     void asksAgainAfterADay(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
         client(dir).list(Chart.TOP_FAVOURITES, 1);
-        clock = Clock.fixed(NOW.plus(TTL).plusSeconds(1), ZoneOffset.UTC);
+        clock = Clock.fixed(NOW.plus(TTL).plusSeconds(60), ZoneOffset.UTC);
         client(dir).list(Chart.TOP_FAVOURITES, 1);
         assertEquals(2, http.requests());
     }
@@ -90,7 +93,7 @@ class ModArchiveClientTest {
     void servesTheOldPageWhenTheSiteIsOutOfReach(@TempDir Path dir) throws IOException {
         http.put(PAGE_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 3, FIRST), Optional.empty());
         client(dir).list(Chart.TOP_FAVOURITES, 1);
-        clock = Clock.fixed(NOW.plus(TTL).plusSeconds(1), ZoneOffset.UTC);
+        clock = Clock.fixed(NOW.plus(TTL).plusSeconds(60), ZoneOffset.UTC);
         http.goOffline();
         assertEquals(FIRST, client(dir).list(Chart.TOP_FAVOURITES, 1).entries().get(0));
         assertThrows(IOException.class, () -> client(dir).list(Chart.TOP_FAVOURITES, 2), "never seen, nothing to serve");
@@ -101,6 +104,30 @@ class ModArchiveClientTest {
         http.put(PAGE_ONE, "<html>Down for maintenance</html>");
         assertThrows(IOException.class, () -> client(dir).list(Chart.TOP_FAVOURITES, 1));
         assertFalse(Files.exists(dir.resolve("modarchive/top-favourites/1.html")));
+    }
+
+    @Test
+    void listsAnArtistsModulesLikeAChart(@TempDir Path dir) throws IOException {
+        final Artist artist = new Artist(69185, "Purple Motion");
+        final ChartEntry rated = new ChartEntry(180373, "Future Brain", "future_brain.stm", "9 / 10");
+        http.put(ARTIST_ONE, ModArchivePages.artistPage(artist, 1, 3, rated), Optional.empty());
+
+        final ChartPage page = client(dir).list(artist, 1);
+
+        assertEquals(List.of(rated), page.entries());
+        assertEquals(3, page.lastPage());
+        assertTrue(Files.isRegularFile(dir.resolve("modarchive/artist-69185/1.html")));
+    }
+
+    @Test
+    void namesTheRegisteredArtistsOfAModuleAndKeepsThePage(@TempDir Path dir) throws IOException {
+        final Artist artist = new Artist(69185, "Purple Motion");
+        http.put(MODULE_PAGE, ModArchivePages.modulePage(artist), Optional.empty());
+
+        assertEquals(List.of(artist), client(dir).artists(212083));
+        assertEquals(List.of(artist), client(dir).artists(212083));
+        assertEquals(1, http.requests());
+        assertTrue(Files.isRegularFile(dir.resolve("modarchive/modules/212083.html")));
     }
 
     @Test
