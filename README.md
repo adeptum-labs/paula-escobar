@@ -111,10 +111,10 @@ tune.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
-packed modules, Unreal music packages and 1541 disk and tape images are
-unpacked as deep as they go, and the file named after the entry is played,
-with the art of its `file_id.diz` or the party's own logo shown above the
-list. Everything fetched is kept under `~/.cache/paula` (or
+and PowerPacker crunched modules, Unreal music packages and 1541 disk and
+tape images are unpacked as deep as they go, and the file named after the
+entry is played, with the art of its `file_id.diz` or the party's own logo
+shown above the list. Everything fetched is kept under `~/.cache/paula` (or
 `$XDG_CACHE_HOME/paula`): Demozoo answers a week and chart pages a day, both
 still used offline, downloaded modules for good. `r` fetches the list in
 view afresh; delete the directory to start over.
@@ -201,8 +201,10 @@ in [XADMaster](https://github.com/MacPaw/XADMaster), copyright MacPaw Inc.,
 licensed under the GNU Lesser General Public License version 2.1 or later and
 used under the GPL as that licence permits. The XPK unpacker follows Teemu
 Suutari's [ancient](https://github.com/temisu/ancient), distributed under the
-BSD 2-Clause License. The AHX and HivelyTracker replayer follows
-HivelyTracker's, copyright Pete Gordon, distributed under the BSD 3-Clause
+BSD 2-Clause License. The PowerPacker decruncher follows the one in
+libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and Dag Lem,
+distributed under the GNU General Public License. The AHX and HivelyTracker
+replayer follows HivelyTracker's, copyright Pete Gordon, under the BSD 3-Clause
 License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
 are read with Apache Commons Compress over the XZ for Java library, both under
 the Apache License 2.0. RAR archives are read with

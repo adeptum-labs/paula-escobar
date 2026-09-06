@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.GZIPOutputStream;
@@ -49,6 +50,15 @@ public final class TestArchives {
     private static final int RAR_STORED = 0x30;
     private static final int RAR_VERSION = 20;
     private static final int RAR_DOS_TIME = 0x2D3A7BB0;
+
+    private static final byte[] PP_MAGIC = {'P', 'P', '2', '0'};
+    private static final int PP_EFFICIENCY = 0x09;
+    private static final int PP_HEADER_LENGTH = 8;
+    private static final int PP_INDEX_BITS = 2;
+    private static final int PP_RUN_CONTINUES = 3;
+    private static final int PP_SHORTEST_OFFSET_WIDTH = 9;
+    private static final int PP_MATCHED_TAIL = 2;
+    private static final int PP_MATCH_LENGTH = 2;
 
     private static final byte[] UMX_MAGIC = {(byte) 0xC1, (byte) 0x83, 0x2A, (byte) 0x9E};
     private static final int UMX_VERSION_AT = 4;
@@ -199,6 +209,91 @@ public final class TestArchives {
             at += T64_ENTRY_LENGTH;
         }
         return image;
+    }
+
+    /**
+     * The given bytes crunched as one long run of literals, which is all a cruncher has to emit when nothing
+     * in the file repeats.
+     */
+    public static byte[] powerPacker(byte[] content) {
+        final Bits bits = new Bits();
+        bits.add(0, 1);
+        literals(bits, content, 0, content.length);
+        return crunched(bits, content.length);
+    }
+
+    /**
+     * The same, with a match in the middle: two bytes copied from the two written just before them, which is
+     * the shortest back-reference the format has.
+     */
+    public static byte[] powerPackerWithMatch(byte[] content) {
+        final Bits bits = new Bits();
+        bits.add(0, 1);
+        literals(bits, content, content.length - PP_MATCHED_TAIL, content.length);
+        bits.add(0, PP_INDEX_BITS);
+        bits.add(0, PP_SHORTEST_OFFSET_WIDTH);
+        bits.add(0, 1);
+        literals(bits, content, 0, content.length - PP_MATCHED_TAIL - PP_MATCH_LENGTH);
+        return crunched(bits, content.length);
+    }
+
+    /**
+     * A run is written as its length less one, in twos, every one of them the largest a pair of bits holds
+     * until the last; the bytes themselves follow in the order the output is filled, which is backwards.
+     */
+    private static void literals(Bits bits, byte[] content, int from, int to) {
+        int count = to - from - 1;
+        while (count >= PP_RUN_CONTINUES) {
+            bits.add(PP_RUN_CONTINUES, PP_INDEX_BITS);
+            count -= PP_RUN_CONTINUES;
+        }
+        bits.add(count, PP_INDEX_BITS);
+        for (int at = to - 1; at >= from; at--) {
+            bits.add(content[at] & 0xFF, Byte.SIZE);
+        }
+    }
+
+    /**
+     * The stream is laid down backwards a longword at a time, so the first bits read sit in the last longword
+     * of the file, above however many bits of padding the trailer counts off.
+     */
+    private static byte[] crunched(Bits bits, int length) {
+        final int skip = (Integer.SIZE - bits.count % Integer.SIZE) % Integer.SIZE;
+        final int words = (bits.count + skip) / Integer.SIZE;
+        final byte[] file = new byte[PP_HEADER_LENGTH + words * Integer.BYTES + Integer.BYTES];
+        System.arraycopy(PP_MAGIC, 0, file, 0, PP_MAGIC.length);
+        Arrays.fill(file, PP_MAGIC.length, PP_HEADER_LENGTH, (byte) PP_EFFICIENCY);
+        for (int bit = 0; bit < bits.count; bit++) {
+            if (bits.set.get(bit)) {
+                final int placed = bit + skip;
+                final int at = file.length - Integer.BYTES - (placed / Integer.SIZE + 1) * Integer.BYTES;
+                file[at + Integer.BYTES - 1 - placed % Integer.SIZE / Byte.SIZE] |=
+                        (byte) (1 << placed % Byte.SIZE);
+            }
+        }
+        writeInt(file, file.length - Integer.BYTES, length << Byte.SIZE | skip);
+        return file;
+    }
+
+    private static void writeInt(byte[] file, int at, int value) {
+        for (int byteIndex = 0; byteIndex < Integer.BYTES; byteIndex++) {
+            file[at + byteIndex] = (byte) (value >>> (Integer.BYTES - 1 - byteIndex) * Byte.SIZE);
+        }
+    }
+
+    /**
+     * The bits a crunched file is read in, kept in the order they are read rather than the order they lie in.
+     */
+    private static final class Bits {
+
+        private final BitSet set = new BitSet();
+        private int count;
+
+        private void add(int value, int width) {
+            for (int bit = width - 1; bit >= 0; bit--) {
+                set.set(count++, (value >> bit & 1) != 0);
+            }
+        }
     }
 
     /**
