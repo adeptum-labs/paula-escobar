@@ -25,6 +25,7 @@ import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
 import com.adeptum.paula.module.UnsupportedModuleException;
+import com.adeptum.paula.module.pcm.PcmEncoding;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -122,7 +123,7 @@ public final class WavReader {
     private static WavAudio riff(Path path, byte[] file) throws UnsupportedModuleException {
         int rate = 0;
         int channels = 0;
-        WavEncoding encoding = null;
+        PcmEncoding encoding = null;
         for (final Chunks chunks = new Chunks(file, LITTLE_ENDIAN); chunks.next();) {
             if ("fmt ".equals(chunks.id) && chunks.size >= FMT_MINIMUM) {
                 channels = (int) number(file, chunks.body + FMT_CHANNELS, SHORT_BYTES, LITTLE_ENDIAN);
@@ -147,12 +148,12 @@ public final class WavReader {
                 : tag;
     }
 
-    private static WavEncoding riffEncoding(Path path, int tag, int bits) throws UnsupportedModuleException {
+    private static PcmEncoding riffEncoding(Path path, int tag, int bits) throws UnsupportedModuleException {
         return switch (tag) {
-            case TAG_PCM -> new WavEncoding(bits, LITTLE_ENDIAN,
-                    bits == Byte.SIZE ? WavEncoding.Kind.UNSIGNED : WavEncoding.Kind.SIGNED);
-            case TAG_FLOAT -> new WavEncoding(bits, LITTLE_ENDIAN, WavEncoding.Kind.FLOAT);
-            case TAG_MU_LAW -> new WavEncoding(Byte.SIZE, LITTLE_ENDIAN, WavEncoding.Kind.MU_LAW);
+            case TAG_PCM -> new PcmEncoding(bits, LITTLE_ENDIAN,
+                    bits == Byte.SIZE ? PcmEncoding.Kind.UNSIGNED : PcmEncoding.Kind.SIGNED);
+            case TAG_FLOAT -> new PcmEncoding(bits, LITTLE_ENDIAN, PcmEncoding.Kind.FLOAT);
+            case TAG_MU_LAW -> new PcmEncoding(Byte.SIZE, LITTLE_ENDIAN, PcmEncoding.Kind.MU_LAW);
             default -> throw new UnsupportedModuleException(path, "unplayable wave encoding " + tag);
         };
     }
@@ -163,7 +164,7 @@ public final class WavReader {
         int frames = 0;
         int from = 0;
         int bytes = 0;
-        WavEncoding encoding = null;
+        PcmEncoding encoding = null;
         for (final Chunks chunks = new Chunks(file, BIG_ENDIAN); chunks.next();) {
             if ("COMM".equals(chunks.id) && chunks.size >= COMM_MINIMUM) {
                 channels = (int) number(file, chunks.body + COMM_CHANNELS, SHORT_BYTES, BIG_ENDIAN);
@@ -190,14 +191,14 @@ public final class WavReader {
         return chunks.size >= COMM_COMPRESSED ? text(file, chunks.body + COMM_COMPRESSION) : "NONE";
     }
 
-    private static WavEncoding aiffEncoding(Path path, String compression, int bits)
+    private static PcmEncoding aiffEncoding(Path path, String compression, int bits)
             throws UnsupportedModuleException {
         return switch (compression) {
-            case "NONE", "twos" -> new WavEncoding(bits, BIG_ENDIAN, WavEncoding.Kind.SIGNED);
-            case "sowt" -> new WavEncoding(bits, LITTLE_ENDIAN, WavEncoding.Kind.SIGNED);
-            case "raw " -> new WavEncoding(bits, BIG_ENDIAN, WavEncoding.Kind.UNSIGNED);
-            case "fl32", "FL32" -> new WavEncoding(Float.SIZE, BIG_ENDIAN, WavEncoding.Kind.FLOAT);
-            case "ulaw", "ULAW" -> new WavEncoding(Byte.SIZE, BIG_ENDIAN, WavEncoding.Kind.MU_LAW);
+            case "NONE", "twos" -> new PcmEncoding(bits, BIG_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case "sowt" -> new PcmEncoding(bits, LITTLE_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case "raw " -> new PcmEncoding(bits, BIG_ENDIAN, PcmEncoding.Kind.UNSIGNED);
+            case "fl32", "FL32" -> new PcmEncoding(Float.SIZE, BIG_ENDIAN, PcmEncoding.Kind.FLOAT);
+            case "ulaw", "ULAW" -> new PcmEncoding(Byte.SIZE, BIG_ENDIAN, PcmEncoding.Kind.MU_LAW);
             default -> throw new UnsupportedModuleException(path, "unplayable AIFF compression " + compression);
         };
     }
@@ -217,19 +218,19 @@ public final class WavReader {
                 (int) Math.min(declared == AU_SIZE_UNKNOWN ? file.length : declared, file.length - from));
     }
 
-    private static WavEncoding auEncoding(Path path, int encoding) throws UnsupportedModuleException {
+    private static PcmEncoding auEncoding(Path path, int encoding) throws UnsupportedModuleException {
         return switch (encoding) {
-            case AU_MU_LAW -> new WavEncoding(Byte.SIZE, BIG_ENDIAN, WavEncoding.Kind.MU_LAW);
-            case AU_EIGHT_BIT -> new WavEncoding(Byte.SIZE, BIG_ENDIAN, WavEncoding.Kind.SIGNED);
-            case AU_SIXTEEN_BIT -> new WavEncoding(Short.SIZE, BIG_ENDIAN, WavEncoding.Kind.SIGNED);
-            case AU_TWENTY_FOUR_BIT -> new WavEncoding(TWENTY_FOUR_BITS, BIG_ENDIAN, WavEncoding.Kind.SIGNED);
-            case AU_THIRTY_TWO_BIT -> new WavEncoding(Integer.SIZE, BIG_ENDIAN, WavEncoding.Kind.SIGNED);
-            case AU_FLOAT -> new WavEncoding(Float.SIZE, BIG_ENDIAN, WavEncoding.Kind.FLOAT);
+            case AU_MU_LAW -> new PcmEncoding(Byte.SIZE, BIG_ENDIAN, PcmEncoding.Kind.MU_LAW);
+            case AU_EIGHT_BIT -> new PcmEncoding(Byte.SIZE, BIG_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case AU_SIXTEEN_BIT -> new PcmEncoding(Short.SIZE, BIG_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case AU_TWENTY_FOUR_BIT -> new PcmEncoding(TWENTY_FOUR_BITS, BIG_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case AU_THIRTY_TWO_BIT -> new PcmEncoding(Integer.SIZE, BIG_ENDIAN, PcmEncoding.Kind.SIGNED);
+            case AU_FLOAT -> new PcmEncoding(Float.SIZE, BIG_ENDIAN, PcmEncoding.Kind.FLOAT);
             default -> throw new UnsupportedModuleException(path, "unplayable AU encoding " + encoding);
         };
     }
 
-    private static WavAudio audio(Path path, int rate, int channels, WavEncoding encoding, int from, int bytes)
+    private static WavAudio audio(Path path, int rate, int channels, PcmEncoding encoding, int from, int bytes)
             throws UnsupportedModuleException {
         if (encoding == null) {
             throw new UnsupportedModuleException(path, "the audio file never says how it is encoded");
@@ -243,7 +244,7 @@ public final class WavReader {
         return new WavAudio(rate, channels, encoding, from, bytes);
     }
 
-    private static int framed(int frames, int channels, WavEncoding encoding) {
+    private static int framed(int frames, int channels, PcmEncoding encoding) {
         return encoding == null ? 0 : frames * channels * encoding.bytes();
     }
 

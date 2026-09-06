@@ -21,13 +21,14 @@
 
 package com.adeptum.paula.module.wav;
 
+import com.adeptum.paula.module.pcm.PcmEncoding;
 import java.time.Duration;
 
 /**
  * Where the samples of one wave file are and what they sound like: the run of bytes holding them, how they are
  * encoded, how many channels they are woven into and how fast they run.
  */
-public record WavAudio(int rate, int channels, WavEncoding encoding, int from, int bytes) {
+public record WavAudio(int rate, int channels, PcmEncoding encoding, int from, int bytes) {
 
     private static final int MILLIS = 1000;
 

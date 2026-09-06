@@ -19,7 +19,7 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.module.wav;
+package com.adeptum.paula.module.pcm;
 
 import java.nio.ByteOrder;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
  * How one sample sits in a file: how wide it is, which end its bytes start at, and what the number it holds
  * means. Whatever that is, it comes out as one of the sixteen-bit samples the engine mixes.
  */
-public record WavEncoding(int bits, ByteOrder order, WavEncoding.Kind kind) {
+public record PcmEncoding(int bits, ByteOrder order, PcmEncoding.Kind kind) {
 
     private static final int MU_LAW_BIAS = 0x84;
     private static final int MU_LAW_MANTISSA = 0x0F;
