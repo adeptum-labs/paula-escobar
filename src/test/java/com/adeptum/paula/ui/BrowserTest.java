@@ -949,6 +949,18 @@ class BrowserTest {
     }
 
     @Test
+    void theRightmostColumnLinesUpOnItsRightEdge() {
+        final ChartEntry few = new ChartEntry(5, "few", "few.mod", "9 favourites");
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, few), Optional.empty());
+        openFavourites(Slice.ALL);
+
+        final List<String> lines = render();
+        final int unrealEnd = lines.get(2).indexOf("438 favourites") + "438 favourites".length();
+        final int fewEnd = lines.get(3).indexOf("9 favourites") + "9 favourites".length();
+        assertEquals(unrealEnd, fewEnd, lines.get(2) + "\n" + lines.get(3));
+    }
+
+    @Test
     void aTuneByMoreThanOneArtistAsksWhichToFollow() {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL), Optional.empty());
         http.put(modulePage(UNREAL.moduleId()), ModArchivePages.modulePage(PURPLE, PINK), Optional.empty());

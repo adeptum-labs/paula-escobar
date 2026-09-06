@@ -1142,7 +1142,8 @@ public final class Browser {
         }
         if (trailing > 0) {
             final int gap = Math.max(COLUMN_GAP, layout.cellWidth() - ticker.length() - written - trailing);
-            line.append(" ".repeat(gap)).append(fitted(item.trailing(), trailing).stripTrailing());
+            final String tail = fitted(item.trailing(), trailing).stripTrailing();
+            line.append(" ".repeat(gap + trailing - tail.length())).append(tail);
         }
         line.style(selected ? Palette.SELECTED_ACCENT : Palette.ACCENT).append(ticker);
         return Frame.pad(line.toAttributedString(), layout.cellWidth(),
