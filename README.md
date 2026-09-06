@@ -1,32 +1,26 @@
 # Paula Escobar
 
 A terminal music player for demoscene and chip music, named after the Amiga's
-sound chip. Everything happens in the terminal: picocli drives the command
-line and JLine draws a full-screen, colour player view. The build produces a
-native executable with GraalVM, so there is no JVM to start and no jar to
-carry around.
+sound chip. It plays tracker modules, SID and Atari tunes and streamed audio,
+and it opens the party archives: the music competitions of over sixty party
+series and the [ModArchive](https://modarchive.org) charts, browsed year by
+year and played on the spot. Everything happens in the terminal, and the build
+produces a native executable with GraalVM, so there is no JVM to start and no
+jar to carry around.
 
-Besides local files it opens the party archives: the music competitions of
-over sixty party series, from The Party, Assembly and The Gathering through
-Breakpoint and Revision to Swedish Icing, the Polish classics and X, the
-Commodore 64's own party, can be browsed year by year, and any placed entry
-is downloaded from scene.org, ModArchive or Modland and played on the spot.
-The charts of [ModArchive](https://modarchive.org), its most favoured, most
-downloaded and featured modules, can be browsed by format the same way.
+## The screens
 
-Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
-Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
-reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
-`lib/` with the fixes in `tools/javamod-*.patch` compiled in by
-`tools/patch-javamod`. Atari 8-bit tunes play through
-[ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
-whose Java `tools/generate-asap` generates into the tree. DigiBooster, AHX
-and HivelyTracker modules have replayers of their own inside Paula Escobar.
-MPEG audio, FLAC, Ogg
-Vorbis, wave, AIFF and AU files, the formats a streaming competition is
-handed in as, are decoded by JLayer, jFLAC and jOrbis and resampled to the
-rate the engine mixes at; `--rate 44100` hands a CD-rate file through
-untouched.
+![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
+
+Both screens fill the terminal in 24-bit colour, or 256 or 16 where that is
+all there is. The player shows the song details on the left, with the
+sounding instrument lit up, and on the right a spectrum analyser, one
+braille-dot oscilloscope per channel, a position bar and VU meters; `v`
+turns the upper panel to a waterfall and then to a vectorscope. The browser
+colours the first three placings gold, silver and bronze and keeps a small
+spectrum strip of what is playing above the key bar. The shot above is
+Approach by Nightbeat, which won the multichannel competition at Icing 1999,
+with a scope for each of its 31 channels.
 
 ## Building
 
@@ -95,32 +89,21 @@ Keys while browsing:
 | `space`             | pause / resume what is playing           |
 | `q`                 | quit                                     |
 
-### The screens
-
-![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
-
-Both screens fill the terminal in 24-bit colour, or 256 or 16 where that is
-all there is. The player shows the song details on the left, with the
-sounding instrument lit up, and on the right a spectrum analyser, one
-braille-dot oscilloscope per channel, a position bar and VU meters; `v`
-turns the upper panel to a waterfall and then to a vectorscope. The browser
-colours the first three placings gold, silver and bronze and keeps a small
-spectrum strip of what is playing above the key bar. The shot above is
-Approach by Nightbeat, which won the multichannel competition at Icing 1999,
-with a scope for each of its 31 channels.
-
 ### Browsing
 
 The party series sit in columns on the left and the charts on the right;
-`tab` switches sides. A series opens into its parties, a party into its
-music competitions and a competition into the ranked entries, each with its
-title, its author and whatever is the matter with it: dimmed for executable
-music Paula cannot run, `(no download)` where Demozoo has no file,
-`(no reader)` where the file is a container nothing here opens. A chart
-opens into All, MOD, XM, IT, S3M and Other and is read forty rows at a time
-as the cursor reaches the end. Playing a line queues the rest of its list,
-so `n` walks on through the results, and `m` opens everything else the
-musician has, on Demozoo for an entry and on ModArchive for a chart tune.
+`tab` switches sides. The series run from The Party, Assembly and The
+Gathering through Breakpoint and Revision to Swedish Icing, the Polish
+classics and X, the Commodore 64's own party. A series opens into its
+parties, a party into its music competitions and a competition into the
+ranked entries, each with its title, its author and whatever is the matter
+with it: dimmed for executable music Paula cannot run, `(no download)` where
+Demozoo has no file, `(no reader)` where the file is a container nothing here
+opens. A chart opens into All, MOD, XM, IT, S3M and Other and is read forty
+rows at a time as the cursor reaches the end. Playing a line queues the rest
+of its list, so `n` walks on through the results, and `m` opens everything
+else the musician has, on Demozoo for an entry and on ModArchive for a chart
+tune.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
@@ -133,14 +116,24 @@ chart pages a day, both still used offline, downloaded modules for good.
 
 ### Chip and Amiga formats
 
+Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
+Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
+reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
+`lib/` with the fixes in `tools/javamod-*.patch` compiled in by
+`tools/patch-javamod`. MPEG audio, FLAC, Ogg Vorbis, wave, AIFF and AU files,
+the formats a streaming competition is handed in as, are decoded by JLayer,
+jFLAC and jOrbis and resampled to the rate the engine mixes at; `--rate 44100`
+hands a CD-rate file through untouched.
+
 A SID tune plays for the length in the High Voltage SID Collection's song
 length database, fetched into the cache on first use and refreshed monthly,
 or three minutes when unlisted; a C64 party file that is a 1541 disk image
 has its programs run by the same emulation. Atari 8-bit SAP files and the
-native modules of the Atari trackers play through ASAP's POKEY and 6502
-emulation for the length their TIME tag gives, each POKEY channel with a
-scope of its own. DigiBooster Pro 2 and 3 modules and AHX and HivelyTracker
-modules are played by replayers written for Paula that follow
+native modules of the Atari trackers play through
+[ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
+for the length their TIME tag gives, each POKEY channel with a scope of its
+own. DigiBooster Pro 2 and 3 modules and AHX and HivelyTracker modules are
+played by replayers written for Paula that follow
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
 and [HivelyTracker](https://github.com/pete-gordon/hivelytracker)'s
 `hvl_replay.c` and render sample for sample as those do, with a scope and
