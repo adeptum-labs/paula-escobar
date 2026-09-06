@@ -928,7 +928,8 @@ class BrowserTest {
     }
 
     @Test
-    void theFooterNamesTheMusicianKey() {
+    void theFooterNamesTheTabAndMusicianKeys() {
+        assertTrue(render().getLast().contains("tab charts"), render().getLast());
         assertTrue(render().getLast().contains("m musician"), render().getLast());
         assertTrue(Browser.keys().stream().anyMatch(key -> key.key().equals("m") && key.action().equals("more by the musician")));
     }

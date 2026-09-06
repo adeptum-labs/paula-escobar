@@ -412,9 +412,9 @@ public final class Browser {
     private static final String TICKER_SPACE = "  ";
     private static final Duration TICKER_FRAME = Duration.ofMillis(100);
     private static final List<Frame.Key> KEYS = List.of(
-            new Frame.Key("↑/↓", "move"), new Frame.Key("enter", "open"), new Frame.Key("m", "musician"),
-            new Frame.Key("backspace", "back"), new Frame.Key("b", "player"), new Frame.Key("?", "keys"),
-            new Frame.Key("q", "quit"));
+            new Frame.Key("↑↓", "move"), new Frame.Key("tab", "charts"), new Frame.Key("enter", "open"),
+            new Frame.Key("m", "musician"), new Frame.Key("esc", "back"), new Frame.Key("b", "player"),
+            new Frame.Key("?", "keys"), new Frame.Key("q", "quit"));
     private static final List<Frame.Key> ALL_KEYS = List.of(
             new Frame.Key("↑ ↓", "move the cursor"),
             new Frame.Key("PgUp PgDn", "move ten lines"),
