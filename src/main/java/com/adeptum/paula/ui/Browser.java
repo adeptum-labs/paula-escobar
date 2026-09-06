@@ -33,6 +33,7 @@ import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.demozoo.Work;
+import com.adeptum.paula.modarchive.Artist;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import com.adeptum.paula.modarchive.ChartPage;
@@ -85,7 +86,7 @@ import org.jline.utils.AttributedStyle;
 public final class Browser {
 
     private sealed interface Item
-            permits SeriesItem, PartyItem, CompoItem, EntryItem, MusicianItem, WorkItem, ChartItem, FormatItem, TuneItem {
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, MusicianItem, WorkItem, ChartItem, FormatItem, ArtistItem, TuneItem {
 
         String label();
 
@@ -264,6 +265,14 @@ public final class Browser {
         }
     }
 
+    private record ArtistItem(Artist artist) implements Item {
+
+        @Override
+        public String label() {
+            return artist.name();
+        }
+    }
+
     private record TuneItem(Listing listing, ChartEntry entry, boolean readable) implements Item {
 
         @Override
@@ -306,6 +315,10 @@ public final class Browser {
 
     private interface Loader {
         List<Item> load() throws IOException;
+    }
+
+    private interface LevelLoader {
+        Level load() throws IOException;
     }
 
     private static final class Level {
@@ -372,9 +385,11 @@ public final class Browser {
     private static final String PARTIES_TITLE = "Parties";
     private static final String CHARTS_TITLE = "Charts";
     private static final String MUSICIANS_TITLE = "Musicians";
+    private static final String ARTISTS_TITLE = "Artists";
     private static final String NOTHING_HERE = "Nothing here";
     private static final String NO_MUSIC = "No music competitions";
     private static final String NO_MUSICIAN = "No musician is named for this entry";
+    private static final String NO_ARTIST = "No artist is registered for this module";
     private static final String LOADING = "Loading ";
     private static final String COMPO_SEPARATOR = " · ";
     private static final String CRUMB_SEPARATOR = " › ";
@@ -788,6 +803,7 @@ public final class Browser {
                 case ChartItem chart -> levels.push(new Level(chart.label(), NOTHING_HERE,
                         Arrays.stream(Slice.values()).<Item>map(slice -> new FormatItem(chart.chart(), slice)).toList()));
                 case FormatItem format -> openChart(format);
+                case ArtistItem artist -> levels.push(artistLevel(artist.artist()));
                 case SeriesItem series -> load(series.label(), NOTHING_HERE, () -> partyItems(series.series().id()));
                 case PartyItem party -> load(party.label(), NO_MUSIC, () -> compoItems(party.party()));
                 case CompoItem compo -> openCompo(compo);
@@ -800,19 +816,24 @@ public final class Browser {
     }
 
     /**
-     * Everything else the musician behind the chosen release has put out. An entry credited to more than one
-     * of them asks which, since only one of the names is the one worth following.
+     * Everything else the musician behind the chosen release has put out: on Demozoo for a competition entry,
+     * on ModArchive for a tune from its lists. A release credited to more than one of them asks which, since
+     * only one of the names is the one worth following.
      */
     private void moreByTheMusician(Level level) {
         if (pending != null) {
             return;
         }
-        final Optional<List<Nick>> musicians = level.selected().flatMap(Browser::entryOf).map(CompoEntry::musicians);
-        if (musicians.isEmpty()) {
-            return;
-        }
+        level.selected().ifPresent(item -> {
+            switch (item) {
+                case TuneItem tune -> moreByTheArtist(tune);
+                default -> entryOf(item).map(CompoEntry::musicians).ifPresent(this::moreByTheMusicians);
+            }
+        });
+    }
+
+    private void moreByTheMusicians(List<Nick> nicks) {
         error = null;
-        final List<Nick> nicks = musicians.get();
         if (nicks.isEmpty()) {
             error = NO_MUSICIAN;
         } else if (nicks.size() == 1) {
@@ -820,6 +841,29 @@ public final class Browser {
         } else {
             levels.push(new Level(MUSICIANS_TITLE, NOTHING_HERE, nicks.stream().<Item>map(MusicianItem::new).toList()));
         }
+    }
+
+    /**
+     * The module's page names its registered artists, so it is read first; a page naming none is reported
+     * where a failed fetch would be, since either way there is nothing to open.
+     */
+    private void moreByTheArtist(TuneItem tune) {
+        error = null;
+        loadLevel(() -> {
+            final List<Artist> artists = modarchive.artists(tune.entry().moduleId());
+            if (artists.isEmpty()) {
+                throw new IOException(NO_ARTIST);
+            }
+            return artists.size() == 1 ? artistLevel(artists.getFirst())
+                    : new Level(ARTISTS_TITLE, NOTHING_HERE, artists.stream().<Item>map(ArtistItem::new).toList());
+        });
+    }
+
+    private static Level artistLevel(Artist artist) {
+        final Level level = new Level(artist.name(), NOTHING_HERE, List.of());
+        level.listing = artist;
+        level.slice = Slice.ALL;
+        return level;
     }
 
     private void openWorks(Nick musician) {
@@ -857,7 +901,7 @@ public final class Browser {
      * or a logo that never arrived, can be had afresh without leaving the browser. The entries of a
      * competition come with the party's answer, so reloading one goes back through the competition list and
      * steps into it again once it has been fetched. A musician's work is asked for again where it stands, and
-     * a chart drops every page it has read and begins again at its first.
+     * a chart or an artist's list drops every page it has read and begins again at its first.
      */
     private void reload() {
         if (atRoot() || pending != null) {
@@ -870,7 +914,11 @@ public final class Browser {
             filling = null;
             lastGrown = null;
             levels.pop();
-            open(levels.peek());
+            if (level.listing instanceof Artist artist) {
+                levels.push(artistLevel(artist));
+            } else {
+                open(levels.peek());
+            }
             return;
         }
         if (level.musician != null) {
@@ -922,15 +970,20 @@ public final class Browser {
      * of the first release that can be played, the way a competition is.
      */
     private void load(String title, String emptyText, Nick musician, Loader loader) {
+        loadLevel(() -> {
+            final Level level = new Level(title, emptyText, loader.load());
+            level.musician = musician;
+            if (musician != null) {
+                fetchArtOfTheFirstPlayable(level, level.items.stream().flatMap(item -> entryOf(item).stream()).toList());
+            }
+            return level;
+        });
+    }
+
+    private void loadLevel(LevelLoader loader) {
         pending = CompletableFuture.supplyAsync(() -> {
             try {
-                final Level level = new Level(title, emptyText, loader.load());
-                level.musician = musician;
-                if (musician != null) {
-                    fetchArtOfTheFirstPlayable(level,
-                            level.items.stream().flatMap(item -> entryOf(item).stream()).toList());
-                }
-                return level;
+                return loader.load();
             } catch (IOException e) {
                 throw new CompletionException(e);
             }
@@ -1127,6 +1180,7 @@ public final class Browser {
                     && track.musician().releaserId() == work.musician().releaserId()
                     && track.work().entry().productionId() == work.work().entry().productionId();
             case ChartItem chart -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(chart.chart());
+            case ArtistItem artist -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(artist.artist());
             case FormatItem format -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(format.chart())
                     && format.slice().holds(track.entry());
             case TuneItem tune -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(tune.listing())

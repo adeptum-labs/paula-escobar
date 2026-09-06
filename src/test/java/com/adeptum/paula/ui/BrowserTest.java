@@ -35,6 +35,7 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
+import com.adeptum.paula.modarchive.Artist;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
 import com.adeptum.paula.modarchive.ModArchiveClient;
@@ -140,6 +141,17 @@ class BrowserTest {
     private static final ChartEntry DEBRIS = new ChartEntry(57925, "space_debris", "space_debris.mod", "389 favourites");
     private static final ChartEntry ODD = new ChartEntry(3, "odd one", "odd.abc", "1 favourites");
     private static final ChartEntry DEADLOCK = new ChartEntry(4, "Deadlock", "DEADLOCK.XM", "300 favourites");
+    private static final Artist PURPLE = new Artist(69185, "Purple Motion");
+    private static final Artist PINK = new Artist(1, "Pink");
+    private static final ChartEntry FUTURE_BRAIN = new ChartEntry(180373, "Future Brain", "future_brain.stm", "9 / 10");
+
+    private static String modulePage(int moduleId) {
+        return "https://modarchive.org/index.php?request=view_by_moduleid&query=" + moduleId;
+    }
+
+    private static String artistPage(Artist artist, int page) {
+        return "https://modarchive.org/index.php?request=view_artist_modules&query=" + artist.memberId() + "&page=" + page;
+    }
 
     private static String favouritesPage(int page) {
         return "https://modarchive.org/index.php?request=view_top_favourites&page=" + page;
@@ -914,17 +926,61 @@ class BrowserTest {
     }
 
     @Test
-    void theMusicianKeyMeansNothingOnAChartTune() {
+    void theMusicianKeyOpensTheArtistBehindAChartTune() {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        http.put(modulePage(UNREAL.moduleId()), ModArchivePages.modulePage(PURPLE), Optional.empty());
+        http.put(artistPage(PURPLE, 1), ModArchivePages.artistPage(PURPLE, 1, 1, FUTURE_BRAIN, UNREAL), Optional.empty());
         openFavourites(Slice.ALL);
-        final int requests = http.requests();
-        final List<String> before = render();
+
+        press('m');
+        browser.tick();
+        clock.advance(DWELL.multipliedBy(2));
+        browser.tick();
+        browser.tick();
+
+        final List<String> lines = render();
+        assertTrue(lines.get(1).contains("Purple Motion"), "the artist's list is titled after them: " + lines.get(1));
+        assertTrue(lines.get(2).startsWith("│> Future Brain") && lines.get(2).contains("9 / 10"), lines.get(2));
+        assertTrue(lines.get(3).contains("UnreaL"), lines.get(3));
+        press(Key.Special.ENTER);
+        final Playlist playlist = browser.takeSelection().orElseThrow();
+        assertEquals(new ModArchiveTrack(PURPLE, FUTURE_BRAIN), playlist.current());
+        assertEquals(2, playlist.size(), "the rest of the artist's list follows");
+    }
+
+    @Test
+    void aTuneByMoreThanOneArtistAsksWhichToFollow() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL), Optional.empty());
+        http.put(modulePage(UNREAL.moduleId()), ModArchivePages.modulePage(PURPLE, PINK), Optional.empty());
+        http.put(artistPage(PINK, 1), ModArchivePages.artistPage(PINK, 1, 1, FUTURE_BRAIN), Optional.empty());
+        openFavourites(Slice.ALL);
+
+        press('m');
+        browser.tick();
+        assertTrue(render().get(1).contains("Artists"), render().get(1));
+        assertTrue(render().get(2).startsWith("│> Purple Motion") && render().get(3).startsWith("│  Pink"), render().get(3));
+
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        clock.advance(DWELL.multipliedBy(2));
+        browser.tick();
+        browser.tick();
+        assertTrue(render().get(1).contains("Pink"), render().get(1));
+        assertTrue(render().get(2).contains("Future Brain"), render().get(2));
+    }
+
+    @Test
+    void aModuleWithoutARegisteredArtistSaysSo() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL), Optional.empty());
+        http.put(modulePage(UNREAL.moduleId()), ModArchivePages.modulePage(), Optional.empty());
+        openFavourites(Slice.ALL);
+        final String title = render().get(1);
 
         press('m');
         browser.tick();
 
-        assertEquals(requests, http.requests(), "a chart tune names no musician to ask about");
-        assertEquals(before, render(), "and the chart is left as it was");
+        assertEquals(title, render().get(1), "the chart stays in view");
+        assertTrue(render().stream().anyMatch(line -> line.contains("No artist is registered for this module")), String.join("\n", render()));
     }
 
     @Test
