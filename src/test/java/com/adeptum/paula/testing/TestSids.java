@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 /**
  * Builds a minimal but valid PSID v2 file: the init routine turns the volume up and holds a pulse wave on voice
@@ -55,6 +56,9 @@ public final class TestSids {
     private static final byte[] PLAY = {0x60};
     private static final int BASIC_START = 0x0801;
     private static final int PROGRAM_LENGTH = 512;
+    private static final String P00_MAGIC = "C64File";
+    private static final int P00_HEADER_LENGTH = 26;
+    private static final int P00_NAME_LENGTH = 16;
 
     /**
      * 10 SYS 2062, the line that starts the machine code following it.
@@ -77,6 +81,21 @@ public final class TestSids {
 
     public static Path writeProgram(Path directory) throws IOException {
         return Files.write(directory.resolve("tune.prg"), program());
+    }
+
+    /**
+     * The same program as a PC64 file, which keeps the name the C64 knew it by ahead of the bytes because the
+     * file systems it was carried over could not.
+     */
+    public static byte[] p00() {
+        final ByteBuffer buffer = ByteBuffer.allocate(P00_HEADER_LENGTH + PROGRAM_LENGTH);
+        buffer.put(P00_MAGIC.getBytes(StandardCharsets.US_ASCII)).put((byte) 0);
+        buffer.put(Arrays.copyOf(NAME.getBytes(StandardCharsets.US_ASCII), P00_NAME_LENGTH));
+        return buffer.putShort((short) 0).put(program()).array();
+    }
+
+    public static Path writeP00(Path directory) throws IOException {
+        return Files.write(directory.resolve("tune.p00"), p00());
     }
 
     public static Path writePsid(Path directory) throws IOException {

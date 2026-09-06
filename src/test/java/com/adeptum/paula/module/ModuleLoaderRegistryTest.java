@@ -62,6 +62,9 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.wav")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.au")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.aif")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.aiff")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.mp1")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.p00")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.ogg")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.oga")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());

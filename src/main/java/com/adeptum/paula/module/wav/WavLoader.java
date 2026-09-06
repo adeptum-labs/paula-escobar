@@ -37,7 +37,8 @@ import java.util.Set;
  */
 public final class WavLoader implements ModuleLoader {
 
-    public static final ModuleFormat FORMAT = new ModuleFormat("wav", "Wave audio", Set.of("wav", "au", "aif"));
+    public static final ModuleFormat FORMAT =
+            new ModuleFormat("wav", "Wave audio", Set.of("wav", "wave", "au", "snd", "aif", "aiff", "aifc"));
 
     private static final String SECONDS = "seconds";
 

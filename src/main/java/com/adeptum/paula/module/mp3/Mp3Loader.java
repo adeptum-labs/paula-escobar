@@ -40,7 +40,7 @@ import java.util.Set;
  */
 public final class Mp3Loader implements ModuleLoader {
 
-    public static final ModuleFormat FORMAT = new ModuleFormat("mp3", "MPEG audio", Set.of("mp3", "mp2"));
+    public static final ModuleFormat FORMAT = new ModuleFormat("mp3", "MPEG audio", Set.of("mp3", "mp2", "mp1"));
 
     private static final String SECONDS = "seconds";
 

@@ -61,7 +61,27 @@ class WavLoaderTest {
         assertTrue(loader.supports(Path.of("TUNE.WAV")));
         assertTrue(loader.supports(Path.of("tune.aif")));
         assertTrue(loader.supports(Path.of("tune.au")));
+        assertTrue(loader.supports(Path.of("tune.wave")));
+        assertTrue(loader.supports(Path.of("tune.aiff")));
+        assertTrue(loader.supports(Path.of("tune.aifc")));
+        assertTrue(loader.supports(Path.of("tune.snd")));
         assertFalse(loader.supports(Path.of("tune.mp3")));
+    }
+
+    /**
+     * The container is known by its first bytes, so the spellings the same files are handed in under read the
+     * same as the three the loader was first written for.
+     */
+    @Test
+    void readsTheLongerSpellingsOfTheSameContainers(@TempDir Path dir) throws IOException {
+        assertEquals("16-bit PCM, 22050 Hz, mono", describe(dir, AIFF, "tune.aiff"));
+        assertEquals("8-bit µ-law, 8000 Hz, mono", describe(dir, AU, "tune.snd"));
+        assertEquals("16-bit PCM, 44100 Hz, stereo", describe(dir, WAVE, "tune.wave"));
+    }
+
+    private String describe(Path dir, String resource, String name) throws IOException {
+        final byte[] file = Files.readAllBytes(fixture(dir, resource));
+        return ((WavModule) loader.load(Files.write(dir.resolve(name), file))).audio().describe();
     }
 
     @Test

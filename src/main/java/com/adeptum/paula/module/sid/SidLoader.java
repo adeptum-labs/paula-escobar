@@ -43,13 +43,14 @@ import lombok.extern.slf4j.Slf4j;
 public final class SidLoader implements ModuleLoader {
 
     public static final ModuleFormat FORMAT =
-            new ModuleFormat("sid", "Commodore 64 SID and programs (libsidplay2)", Set.of("sid", "psid", "rsid", "prg", "c64"));
+            new ModuleFormat("sid", "Commodore 64 SID and programs (libsidplay2)",
+                    Set.of("sid", "psid", "rsid", "prg", "c64", "p00"));
 
     /**
      * A program has no header to say how it is played, so the engine runs it as the C64 would; it knows those
      * files by their name rather than their contents, which is why they are loaded from their path.
      */
-    public static final Set<String> PROGRAMS = Set.of("prg", "c64");
+    public static final Set<String> PROGRAMS = Set.of("prg", "c64", "p00");
 
     private static final int VOICES_PER_CHIP = 3;
     private static final int NAME = 0;

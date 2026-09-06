@@ -51,6 +51,7 @@ class SidLoaderTest {
         assertTrue(loader.supports(Path.of("c.rsid")));
         assertTrue(loader.supports(Path.of("d.prg")), "programs run on the same emulation");
         assertTrue(loader.supports(Path.of("e.c64")));
+        assertTrue(loader.supports(Path.of("f.p00")));
         assertFalse(loader.supports(Path.of("f.mod")));
         assertFalse(loader.supports(Path.of("sid")), "a bare name is not an extension");
         assertEquals("sid", loader.format().id());
@@ -76,6 +77,18 @@ class SidLoaderTest {
         final Module module = loader.load(TestSids.writeProgram(dir));
 
         assertTrue(module.metadata().format().name().contains("PRG"), module.metadata().format().name());
+        assertEquals(1, module.metadata().songLength());
+        assertTrue(module.createRenderer(SAMPLE_RATE).render(new short[FRAMES * 2]) > 0, "the program plays");
+    }
+
+    /**
+     * A PC64 file has to reach the engine by its path like any other program, since the name ahead of the bytes
+     * is what tells the engine which of the two it is holding.
+     */
+    @Test
+    void runsAProgramCarriedInAPc64File(@TempDir Path dir) throws Exception {
+        final Module module = loader.load(TestSids.writeP00(dir));
+
         assertEquals(1, module.metadata().songLength());
         assertTrue(module.createRenderer(SAMPLE_RATE).render(new short[FRAMES * 2]) > 0, "the program plays");
     }

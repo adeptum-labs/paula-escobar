@@ -48,6 +48,7 @@ class Mp3LoaderTest {
         assertTrue(loader.supports(Path.of("tune.mp3")));
         assertTrue(loader.supports(Path.of("TUNE.MP3")));
         assertTrue(loader.supports(Path.of("tune.mp2")));
+        assertTrue(loader.supports(Path.of("tune.mp1")), "the decoder covers all three layers");
         assertFalse(loader.supports(Path.of("tune.mod")));
     }
 
