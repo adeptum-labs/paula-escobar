@@ -17,27 +17,82 @@
  *
  * Website: https://www.adeptum.se
  * Contact: info@adeptum.se
+ *
+ * The replay follows the MED loaders and med_extras.c of libxmp,
+ * Copyright © 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr,
+ * licensed under the MIT licence and used here under the GNU General
+ * Public License.
  */
 
 package com.adeptum.paula.module.med;
 
+import java.util.List;
+
 /**
- * An instrument: the sample it plays and how, or the machinery of a synthetic one, together with what the
+ * An instrument: the samples it plays and how, or the machinery of a synthetic one, together with what the
  * player has to know before a note of it sounds.
+ *
+ * <p>A multi-octave instrument holds one sample per octave, each twice the length of the one below, and a
+ * table saying which of them a given octave of the keyboard plays and how far it is then transposed.
  */
-record MedInstrument(String name, short[] sample, int loopStart, int loopLength, int volume, int transpose,
-                     int finetune, int hold, int decay, int octaves, int midiChannel,
-                     MedSynthInstrument synth) {
+record MedInstrument(String name, List<MedLayer> layers, int octaves, int volume, int transpose, int finetune,
+                     int hold, int decay, int midiChannel, MedSynthInstrument synth) {
 
     /**
-     * A MIDI instrument names an instrument on a keyboard rather than a sound in the file; it keeps its name
-     * and number so the panel stays honest, and sounds nothing.
+     * Which of the octave samples each octave of the keyboard plays, and how far that sample is then moved,
+     * for instruments of two to seven octaves.
      */
-    boolean isSilent() {
-        return sample == null && synth == null;
+    private static final int[][] SAMPLE_OF_OCTAVE = {
+        {1, 1, 1, 0, 0, 0, 0, 0, 0},
+        {2, 2, 2, 2, 2, 2, 1, 1, 0},
+        {3, 3, 3, 2, 2, 2, 1, 1, 0},
+        {4, 4, 4, 3, 2, 2, 1, 1, 0},
+        {5, 5, 5, 5, 4, 3, 2, 1, 0},
+        {6, 6, 6, 6, 5, 4, 3, 2, 1}};
+
+    private static final int[][] TRANSPOSE_OF_OCTAVE = {
+        {12, 12, 12, 0, 0, 0, 0, 0, 0},
+        {12, 12, 12, 12, 12, 12, 0, 0, -12},
+        {12, 12, 12, 0, 0, 0, -12, -12, -24},
+        {24, 24, 24, 12, 0, 0, -12, -24, -36},
+        {12, 12, 12, 12, 0, -12, -24, -36, -48},
+        {12, 12, 12, 12, 0, -12, -24, -36, -48}};
+
+    private static final int FEWEST_OCTAVES = 2;
+    private static final int KEYBOARD_OCTAVES = 9;
+
+    MedInstrument {
+        layers = List.copyOf(layers);
     }
 
-    boolean loops() {
-        return loopLength > 1;
+    /**
+     * A MIDI instrument names a sound on a keyboard rather than one in the file; it keeps its name and number
+     * so the panel stays honest, and sounds nothing.
+     */
+    boolean isSilent() {
+        return layers.isEmpty() && synth == null;
+    }
+
+    boolean isMultiOctave() {
+        return octaves >= FEWEST_OCTAVES && layers.size() >= octaves;
+    }
+
+    MedLayer layerAt(int note) {
+        if (layers.isEmpty()) {
+            return null;
+        }
+        return isMultiOctave() ? layers.get(SAMPLE_OF_OCTAVE[row()][keyboardOctave(note)]) : layers.getFirst();
+    }
+
+    int transposeAt(int note) {
+        return isMultiOctave() ? TRANSPOSE_OF_OCTAVE[row()][keyboardOctave(note)] : 0;
+    }
+
+    private int row() {
+        return Math.min(octaves, SAMPLE_OF_OCTAVE.length + 1) - FEWEST_OCTAVES;
+    }
+
+    private static int keyboardOctave(int note) {
+        return Math.clamp((note - 1) / MedTables.NOTES_PER_OCTAVE, 0, KEYBOARD_OCTAVES - 1);
     }
 }

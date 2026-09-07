@@ -326,13 +326,18 @@ final class MedEngine {
             voice.silence();
             return;
         }
+        final MedLayer layer = playing.layerAt(command.note());
+        if (layer == null) {
+            voice.silence();
+            return;
+        }
         voice.note = command.note();
         voice.finetune = playing.finetune();
         voice.hold = playing.hold();
         voice.decay = playing.decay();
         voice.holdLeft = playing.hold();
         voice.held = false;
-        voice.start(playing, periodOf(command.note(), playing, voice.finetune), playing.volume());
+        voice.start(layer, periodOf(command.note(), playing, voice.finetune), playing.volume());
     }
 
     private MedInstrument instrumentFor(MedVoice voice, MedCommand command) {
@@ -347,7 +352,7 @@ final class MedEngine {
      * finetune, which the format writes as eighths of a semitone either way.
      */
     private int periodOf(int note, MedInstrument playing, int tuning) {
-        final int sounded = Math.max(1, note + playing.transpose());
+        final int sounded = Math.max(1, note + playing.transpose() + playing.transposeAt(note));
         final int period = MedTables.period(sounded);
         final int tuned = period - period * tuning / (MedTables.NOTES_PER_OCTAVE * FINETUNES * FINETUNE_EIGHTHS);
         return clampPeriod(tuned);

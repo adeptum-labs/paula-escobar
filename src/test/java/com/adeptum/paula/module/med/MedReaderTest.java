@@ -89,8 +89,8 @@ class MedReaderTest {
 
         assertNotNull(instrument);
         assertEquals(TestModules.MED_VOLUME, instrument.volume());
-        assertEquals(SAMPLE_LENGTH, instrument.sample().length, "a frame for every byte the file held");
-        assertTrue(instrument.loops(), "the settings give it a loop");
+        assertEquals(SAMPLE_LENGTH, instrument.layerAt(1).sample().length, "a frame for every byte the file held");
+        assertTrue(instrument.layerAt(1).loops(), "the settings give it a loop");
         assertFalse(instrument.isSilent());
     }
 

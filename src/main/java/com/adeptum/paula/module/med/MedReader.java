@@ -28,6 +28,7 @@ package com.adeptum.paula.module.med;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
 
@@ -366,7 +367,11 @@ final class MedReader {
         bytes.seek(at);
         final int length = bytes.u32();
         final int type = bytes.s16();
-        if (type == SYNTHETIC || type == HYBRID || MedTables.octavesOfType(type) > 0) {
+        final int octaves = MedTables.octavesOfType(type);
+        if (octaves > 0) {
+            return multiOctave(bytes, length, octaves, name, settings, hold);
+        }
+        if (type == SYNTHETIC || type == HYBRID) {
             return silent(name, settings, hold);
         }
         final int kind = type & TYPE_MASK;
@@ -378,13 +383,37 @@ final class MedReader {
         if (!bytes.has(wide ? frames * 2 : frames)) {
             throw new IOException("OctaMED instrument longer than the module");
         }
-        return new MedInstrument(name, sample(bytes, frames, wide), settings.loopStart, settings.loopLength,
-                settings.volume, settings.transpose, hold.finetune, hold.hold, hold.decay, 1, 0, null);
+        final MedLayer layer = new MedLayer(sample(bytes, frames, wide), settings.loopStart, settings.loopLength);
+        return new MedInstrument(name, List.of(layer), 1, settings.volume, settings.transpose, hold.finetune,
+                hold.hold, hold.decay, 0, null);
     }
 
     private static MedInstrument silent(String name, Settings settings, Hold hold) {
-        return new MedInstrument(name, null, 0, 0, settings.volume, settings.transpose, hold.finetune,
-                hold.hold, hold.decay, 1, settings.midiChannel, null);
+        return new MedInstrument(name, List.of(), 0, settings.volume, settings.transpose, hold.finetune,
+                hold.hold, hold.decay, settings.midiChannel, null);
+    }
+
+    /**
+     * A multi-octave instrument is one run of bytes holding an octave of samples at a time, each twice the
+     * length of the one below it, and its loop grows with them.
+     */
+    private static MedInstrument multiOctave(MedBytes bytes, int length, int octaves, String name,
+                                             Settings settings, Hold hold) throws IOException {
+        final List<MedLayer> layers = new ArrayList<>(octaves);
+        int frames = length / ((1 << octaves) - 1);
+        int loopStart = settings.loopStart;
+        int loopLength = settings.loopLength;
+        for (int octave = 0; octave < octaves; octave++) {
+            if (!bytes.has(frames)) {
+                throw new IOException("OctaMED instrument longer than the module");
+            }
+            layers.add(new MedLayer(sample(bytes, frames, false), loopStart, loopLength));
+            frames <<= 1;
+            loopStart <<= 1;
+            loopLength <<= 1;
+        }
+        return new MedInstrument(name, layers, octaves, settings.volume, settings.transpose, hold.finetune,
+                hold.hold, hold.decay, 0, null);
     }
 
     /**

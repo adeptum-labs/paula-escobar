@@ -81,12 +81,13 @@ final class MedVoice {
     }
 
     /**
-     * Starts the instrument at the head of its sample, keeping the effects that a new note does not clear.
+     * Starts one layer of an instrument at the head of its sample, keeping the effects a new note does not
+     * clear.
      */
-    void start(MedInstrument playing, int startPeriod, int startVolume) {
-        sample = playing.sample();
-        loopStart = playing.loops() ? playing.loopStart() : 0;
-        loopLength = playing.loops() ? playing.loopLength() : 0;
+    void start(MedLayer layer, int startPeriod, int startVolume) {
+        sample = layer.sample();
+        loopStart = layer.loops() ? layer.loopStart() : 0;
+        loopLength = layer.loops() ? layer.loopLength() : 0;
         period = startPeriod;
         targetPeriod = startPeriod;
         volume = startVolume;
