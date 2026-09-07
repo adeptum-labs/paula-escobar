@@ -26,6 +26,7 @@
 
 package com.adeptum.paula.module.med;
 
+import java.util.Arrays;
 import java.util.OptionalLong;
 
 /**
@@ -35,6 +36,12 @@ import java.util.OptionalLong;
  */
 final class MedEngine {
 
+    private static final int STEREO = 2;
+    private static final int AMIGA_CLOCK = 3546895;
+    private static final int GAIN_BITS = 14;
+    private static final int GAIN_UNIT = 1 << GAIN_BITS;
+    private static final int CLIP_HIGH = 0x7FFF;
+    private static final int CLIP_LOW = -0x8000;
     private static final int FULL_VOLUME = 64;
     private static final int MIDDLE_PANNING = 128;
     private static final int TICKS_PER_MINUTE = 24;
@@ -67,6 +74,8 @@ final class MedEngine {
     private int arpeggioStep;
     private int nextOrder = -1;
     private int nextLine = -1;
+    private int tickFramesLeft;
+    private int[] accumulator = new int[0];
     private boolean ended;
 
     MedEngine(MedFile module, int sampleRate) {
@@ -96,6 +105,93 @@ final class MedEngine {
         return ended;
     }
 
+
+    /**
+     * Mixes the next frames and says how many of them the song still had music for; a shorter answer than
+     * asked means the song ended inside the buffer.
+     */
+    int mix(short[] out, int frames) {
+        room(frames);
+        Arrays.fill(accumulator, 0, frames * STEREO, 0);
+        int mixed = 0;
+        int left = frames;
+        while (!ended && left > 0) {
+            if (tickFramesLeft == 0) {
+                nextTick();
+                tickFramesLeft = tickFrames;
+                if (ended) {
+                    break;
+                }
+            }
+            final int chunk = Math.min(tickFramesLeft, left);
+            for (final MedVoice voice : voices) {
+                mixIn(voice, mixed * STEREO, chunk);
+            }
+            left -= chunk;
+            tickFramesLeft -= chunk;
+            mixed += chunk;
+        }
+        flush(out, frames);
+        return mixed;
+    }
+
+    private void room(int frames) {
+        if (accumulator.length < frames * STEREO) {
+            accumulator = new int[frames * STEREO];
+        }
+    }
+
+    /**
+     * One voice into the running total, at the gain its volume and its side of the stereo field ask for. The
+     * loudest frame of the chunk is kept so the scope of that track has something to draw.
+     */
+    private void mixIn(MedVoice voice, int at, int frames) {
+        if (!voice.sounding || voice.sample == null) {
+            voice.peak = 0;
+            return;
+        }
+        final double step = (double) AMIGA_CLOCK / (soundingPeriod(voice) * (double) sampleRate);
+        final int gain = (int) ((long) soundingVolume(voice) * voice.trackVolume * song.masterVolume()
+                * GAIN_UNIT / ((long) FULL_VOLUME * FULL_VOLUME * FULL_VOLUME));
+        final int right = voice.panning;
+        final int leftSide = MedVoice.HARD_RIGHT - right;
+        int peak = 0;
+        for (int frame = 0; frame < frames && voice.sounding; frame++) {
+            final int sample = voice.frameAt();
+            peak = Math.max(peak, Math.abs(sample));
+            if (!voice.muted) {
+                final int level = sample * gain >> GAIN_BITS;
+                accumulator[at + frame * STEREO] += level * leftSide / MedVoice.HARD_RIGHT;
+                accumulator[at + frame * STEREO + 1] += level * right / MedVoice.HARD_RIGHT;
+            }
+            voice.advance(step);
+        }
+        voice.peak = peak;
+    }
+
+    private void flush(short[] out, int frames) {
+        for (int slot = 0; slot < frames * STEREO; slot++) {
+            out[slot] = (short) Math.max(CLIP_LOW, Math.min(CLIP_HIGH, accumulator[slot]));
+        }
+    }
+
+    /**
+     * How many frames the song lasts, played through without mixing anything, or nothing at all where it runs
+     * past the length a caller is willing to wait for.
+     */
+    static OptionalLong songFrames(MedFile module, int sampleRate, long limit) {
+        final MedEngine engine = new MedEngine(module, sampleRate);
+        long frames = 0;
+        while (frames < limit) {
+            engine.nextTick();
+            if (engine.ended) {
+                return OptionalLong.of(frames);
+            }
+            frames += engine.tickFrames;
+        }
+        return OptionalLong.empty();
+    }
+
     /**
      * Moves the sequencer to a line without sounding anything on the way, which is how a seek catches up.
      */
@@ -103,6 +199,7 @@ final class MedEngine {
         order = atOrder;
         line = atLine;
         tick = 0;
+        tickFramesLeft = 0;
         ended = false;
     }
 

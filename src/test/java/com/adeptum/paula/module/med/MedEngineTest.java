@@ -34,6 +34,8 @@ class MedEngineTest {
 
     private static final int SAMPLE_RATE = 44100;
     private static final int LONGER_THAN_THE_SONG = 1000;
+    private static final int FRAMES = 4096;
+    private static final int AUDIBLE = 1000;
 
     private MedEngine engine() throws IOException {
         return new MedEngine(MedReader.read(TestModules.medMmd0()), SAMPLE_RATE);
@@ -93,5 +95,58 @@ class MedEngineTest {
         engine.nextTick();
 
         assertFalse(engine.voice(0).sounding, "the third line carries no note");
+    }
+
+    @Test
+    void mixesTheNoteIntoBothSides() throws IOException {
+        final MedEngine engine = engine();
+        final short[] out = new short[FRAMES * 2];
+
+        assertEquals(FRAMES, engine.mix(out, FRAMES), "the song is still playing");
+        assertTrue(loudest(out) > AUDIBLE, "the square wave is heard, peak was " + loudest(out));
+    }
+
+    @Test
+    void mixesNothingOnceTheSongHasEnded() throws IOException {
+        final MedEngine engine = engine();
+        final short[] out = new short[FRAMES * 2];
+
+        while (engine.mix(out, FRAMES) == FRAMES) {
+            continue;
+        }
+
+        assertEquals(0, engine.mix(out, FRAMES), "nothing is left to play");
+    }
+
+    @Test
+    void silencesAMutedTrack() throws IOException {
+        final MedEngine engine = engine();
+        final short[] out = new short[FRAMES * 2];
+        engine.mix(out, FRAMES);
+        final int heard = loudest(out);
+
+        engine.position(0, 0);
+        engine.voice(0).muted = true;
+        engine.mix(out, FRAMES);
+
+        assertTrue(heard > AUDIBLE, "it was heard before it was silenced");
+        assertEquals(0, loudest(out), "and nothing after");
+    }
+
+    @Test
+    void knowsHowLongTheSongIs() throws IOException {
+        final MedFile module = MedReader.read(TestModules.medMmd0());
+
+        final long frames = MedEngine.songFrames(module, SAMPLE_RATE, SAMPLE_RATE * 60L).orElseThrow();
+
+        assertTrue(frames > 0 && frames < SAMPLE_RATE * 10L, "four lines are seconds, not minutes, was " + frames);
+    }
+
+    private static int loudest(short[] out) {
+        int peak = 0;
+        for (final short sample : out) {
+            peak = Math.max(peak, Math.abs(sample));
+        }
+        return peak;
     }
 }
