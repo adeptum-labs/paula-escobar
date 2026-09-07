@@ -24,7 +24,7 @@ package com.adeptum.paula.module.med;
 /**
  * A block of {@code lines} lines, holding one entry per track and line.
  */
-record MedBlock(String name, int tracks, int lines, MedEntry[] entries) {
+record MedBlock(int tracks, int lines, MedEntry[] entries) {
 
     MedEntry entry(int line, int track) {
         return track < tracks && line < lines ? entries[line * tracks + track] : MedEntry.EMPTY;

@@ -1,0 +1,432 @@
+/*
+ * Paula Escobar is a terminal music player for demoscene and chip music.
+ * Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Website: https://www.adeptum.se
+ * Contact: info@adeptum.se
+ *
+ * The replay follows the MED loaders and med_extras.c of libxmp,
+ * Copyright © 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr,
+ * licensed under the MIT licence and used here under the GNU General
+ * Public License.
+ */
+
+package com.adeptum.paula.module.med;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Reads the modules of MED and OctaMED. A file is a header of offsets into itself: one to the song, one to the
+ * table of blocks and one to the table of instruments, with a fourth to the block of later additions that
+ * carries the name, the annotation and what each instrument holds and decays for.
+ *
+ * <p>MMD0 packs a line into three bytes and MMD1 into four; MMDC packs the same lines as MMD0 does and then
+ * runs the whole block through a simple counted compression.
+ */
+final class MedReader {
+
+    private static final String MMD = "MMD";
+    private static final int VERSION_AT = 3;
+    private static final char FIRST_VERSION = '0';
+    private static final char COMPRESSED = 'C';
+    private static final int MMD0 = 0;
+    private static final int MMD1 = 1;
+
+    private static final int SONG_OFFSET_AT = 8;
+    private static final int BLOCKS_OFFSET_AT = 16;
+    private static final int SAMPLES_OFFSET_AT = 24;
+    private static final int EXPANSION_OFFSET_AT = 32;
+
+    private static final int SAMPLE_SETTINGS = 63;
+    private static final int PLAY_SEQUENCE_LENGTH = 256;
+    private static final int TRACK_VOLUMES = 16;
+    private static final int MOST_BLOCKS = 255;
+    private static final int MOST_LINES = 3200;
+    private static final int MOST_TRACKS = 16;
+
+    private static final int SYNTHETIC = -1;
+    private static final int HYBRID = -2;
+    private static final int SAMPLE = 0;
+    private static final int MIX_MODE_SAMPLE = 7;
+    private static final int SIXTEEN_BIT = 0x10;
+    private static final int AURA_SIXTEEN_BIT = 0x18;
+    private static final int STEREO = 0x20;
+    private static final int TYPE_MASK = ~(SIXTEEN_BIT | AURA_SIXTEEN_BIT | STEREO);
+
+    private static final int HOLD_AND_DECAY_SIZE = 2;
+    private static final int FINETUNE_SIZE = 4;
+    private static final int INSTRUMENT_NAME_LENGTH = 40;
+    private static final int LONGEST_ANNOTATION = 0x10000;
+
+    private static final int MMD0_NOTE_MASK = 0x3F;
+    private static final int MMD1_NOTE_MASK = 0x7F;
+    private static final int MMD0_INSTRUMENT_MASK = 0x3F;
+    private static final int MMD0_COMMAND_MASK = 0x0F;
+    private static final int MMD0_INSTRUMENT_HIGH = 0x80;
+    private static final int MMD0_INSTRUMENT_MIDDLE = 0x40;
+
+    private static final int PACKED_RUN = 0x80;
+    private static final int PACKED_WRAP = 256;
+
+    private static final int DEFAULT_TEMPO = 33;
+    private static final int DEFAULT_SPEED = 6;
+    private static final int FULL_VOLUME = 64;
+
+    private MedReader() {
+    }
+
+    static boolean looksLikeMed(byte[] head) {
+        if (head.length <= VERSION_AT || head[0] != 'M' || head[1] != 'M' || head[2] != 'D') {
+            return false;
+        }
+        final int version = version(head[VERSION_AT]);
+        return head[VERSION_AT] == COMPRESSED || version >= MMD0 && version <= MMD1;
+    }
+
+    static MedFile read(byte[] file) throws IOException {
+        final MedBytes bytes = new MedBytes(file);
+        final String identifier = bytes.text(VERSION_AT + 1);
+        if (!identifier.startsWith(MMD)) {
+            throw new IOException("Not an OctaMED module");
+        }
+        final char kind = identifier.charAt(VERSION_AT);
+        final boolean compressed = kind == COMPRESSED;
+        final int version = compressed ? MMD0 : version((byte) kind);
+        if (version < MMD0 || version > MMD1) {
+            throw new IOException("OctaMED module of a kind this cannot read: " + identifier);
+        }
+
+        bytes.seek(SONG_OFFSET_AT);
+        final int songAt = bytes.u32();
+        bytes.seek(BLOCKS_OFFSET_AT);
+        final int blocksAt = bytes.u32();
+        bytes.seek(SAMPLES_OFFSET_AT);
+        final int samplesAt = bytes.u32();
+        bytes.seek(EXPANSION_OFFSET_AT);
+        final int expansionAt = bytes.u32();
+
+        bytes.seek(songAt);
+        final Settings[] settings = settings(bytes);
+        final Song song = song(bytes);
+        final Expansion expansion = expansionAt == 0 ? Expansion.NONE : expansion(bytes, expansionAt, song.samples);
+
+        final List<MedBlock> blocks = blocks(bytes, blocksAt, song, version, compressed);
+        final List<MedInstrument> instruments = instruments(bytes, samplesAt, song, settings, expansion);
+        return new MedFile(expansion.name, expansion.annotation, version, song.toSong(), blocks, instruments);
+    }
+
+    private static int version(byte identifier) {
+        return identifier - FIRST_VERSION;
+    }
+
+    /**
+     * What the song says about each of its sixty-three instrument slots, which is where the loop, the volume
+     * and the transpose live rather than with the sample itself.
+     */
+    private static Settings[] settings(MedBytes bytes) throws IOException {
+        final Settings[] settings = new Settings[SAMPLE_SETTINGS];
+        for (int slot = 0; slot < SAMPLE_SETTINGS; slot++) {
+            final int loopStart = bytes.u16() << 1;
+            final int loopLength = bytes.u16() << 1;
+            final int midiChannel = bytes.u8();
+            bytes.skip(1);
+            settings[slot] = new Settings(loopStart, loopLength, midiChannel, bytes.u8(), bytes.s8());
+        }
+        return settings;
+    }
+
+    private static Song song(MedBytes bytes) throws IOException {
+        final int blocks = bytes.u16();
+        final int length = bytes.u16();
+        if (blocks > MOST_BLOCKS || length > PLAY_SEQUENCE_LENGTH) {
+            throw new IOException("OctaMED song of " + blocks + " blocks and " + length + " positions");
+        }
+        final int[] playSeq = new int[length];
+        for (int position = 0; position < PLAY_SEQUENCE_LENGTH; position++) {
+            final int block = bytes.u8();
+            if (position < length) {
+                playSeq[position] = block;
+            }
+        }
+        final int tempo = bytes.u16();
+        final int transpose = bytes.s8();
+        final int flags = bytes.u8();
+        final int flags2 = bytes.u8();
+        final int speed = bytes.u8();
+        final int[] trackVolumes = new int[TRACK_VOLUMES];
+        for (int track = 0; track < TRACK_VOLUMES; track++) {
+            trackVolumes[track] = bytes.u8();
+        }
+        final int masterVolume = bytes.u8();
+        final int samples = bytes.u8();
+        if (samples > SAMPLE_SETTINGS) {
+            throw new IOException("OctaMED song of " + samples + " instruments");
+        }
+        return new Song(blocks, playSeq, tempo, speed, transpose, flags, flags2, masterVolume, trackVolumes,
+                samples);
+    }
+
+    /**
+     * The later additions: the song's own name, the annotation the musician left, and a row per instrument
+     * saying how long it holds a note and how fast it fades once let go.
+     */
+    private static Expansion expansion(MedBytes bytes, int expansionAt, int samples) throws IOException {
+        bytes.seek(expansionAt);
+        bytes.skip(Integer.BYTES);
+        final int holdsAt = bytes.u32();
+        final int holdEntries = bytes.u16();
+        final int holdSize = bytes.u16();
+        final int annotationAt = bytes.u32();
+        final int annotationLength = bytes.u32();
+        final int namesAt = bytes.u32();
+        final int nameEntries = bytes.u16();
+        final int nameSize = bytes.u16();
+        bytes.skip(Integer.BYTES * 4);
+        final int songNameAt = bytes.u32();
+        final int songNameLength = bytes.u32();
+
+        final Hold[] holds = holds(bytes, holdsAt, holdEntries, holdSize, samples);
+        final String[] names = names(bytes, namesAt, nameEntries, nameSize, samples);
+        return new Expansion(text(bytes, songNameAt, songNameLength),
+                text(bytes, annotationAt, Math.min(annotationLength, LONGEST_ANNOTATION)), holds, names,
+                holdSize);
+    }
+
+    private static Hold[] holds(MedBytes bytes, int at, int entries, int size, int samples) throws IOException {
+        final Hold[] holds = new Hold[samples];
+        Arrays.fill(holds, Hold.NONE);
+        if (at == 0 || size < HOLD_AND_DECAY_SIZE) {
+            return holds;
+        }
+        bytes.seek(at);
+        for (int slot = 0; slot < samples && slot < entries; slot++) {
+            final int row = bytes.position();
+            final int hold = bytes.u8();
+            final int decay = bytes.u8();
+            int finetune = 0;
+            if (size >= FINETUNE_SIZE) {
+                bytes.skip(1);
+                finetune = bytes.s8();
+            }
+            holds[slot] = new Hold(hold, decay, finetune);
+            bytes.seek(row + size);
+        }
+        return holds;
+    }
+
+    private static String[] names(MedBytes bytes, int at, int entries, int size, int samples) throws IOException {
+        final String[] names = new String[samples];
+        Arrays.fill(names, "");
+        if (at == 0 || size == 0) {
+            return names;
+        }
+        bytes.seek(at);
+        for (int slot = 0; slot < samples && slot < entries; slot++) {
+            final int row = bytes.position();
+            names[slot] = bytes.text(Math.min(size, INSTRUMENT_NAME_LENGTH));
+            bytes.seek(row + size);
+        }
+        return names;
+    }
+
+    private static String text(MedBytes bytes, int at, int length) throws IOException {
+        if (at == 0 || length <= 0) {
+            return "";
+        }
+        bytes.seek(at);
+        return bytes.text(Math.min(length, bytes.length() - at));
+    }
+
+    private static List<MedBlock> blocks(MedBytes bytes, int blocksAt, Song song, int version,
+                                         boolean compressed) throws IOException {
+        bytes.seek(blocksAt);
+        final int[] offsets = new int[song.blocks];
+        for (int block = 0; block < song.blocks; block++) {
+            offsets[block] = bytes.u32();
+        }
+        final List<MedBlock> blocks = new ArrayList<>(song.blocks);
+        for (final int offset : offsets) {
+            blocks.add(offset == 0 ? empty() : block(bytes, offset, song, version, compressed));
+        }
+        return blocks;
+    }
+
+    private static MedBlock empty() {
+        return new MedBlock(1, 1, new MedEntry[]{MedEntry.EMPTY});
+    }
+
+    private static MedBlock block(MedBytes bytes, int at, Song song, int version, boolean compressed)
+            throws IOException {
+        bytes.seek(at);
+        final int tracks;
+        final int lines;
+        if (version >= MMD1) {
+            tracks = bytes.u16();
+            lines = bytes.u16() + 1;
+            bytes.skip(Integer.BYTES);
+        } else {
+            tracks = bytes.u8();
+            lines = bytes.u8() + 1;
+        }
+        if (lines > MOST_LINES || tracks > MOST_TRACKS || tracks == 0) {
+            throw new IOException("OctaMED block of " + tracks + " tracks and " + lines + " lines");
+        }
+        final int width = version >= MMD1 ? 4 : 3;
+        final byte[] packed = compressed ? unpack(bytes, tracks * lines * width) : bytes.bytes(tracks * lines * width);
+        final MedEntry[] entries = new MedEntry[tracks * lines];
+        for (int index = 0; index < entries.length; index++) {
+            entries[index] = version >= MMD1 ? mmd1Entry(packed, index * width, song)
+                    : mmd0Entry(packed, index * width, song);
+        }
+        return new MedBlock(tracks, lines, entries);
+    }
+
+    /**
+     * MMDC writes a block as runs: a byte below the halfway mark counts the bytes that follow it verbatim, and
+     * one above counts how many zeroes to leave in their place.
+     */
+    private static byte[] unpack(MedBytes bytes, int size) throws IOException {
+        final byte[] block = new byte[size];
+        int written = 0;
+        while (written < size) {
+            final int run = bytes.u8();
+            if ((run & PACKED_RUN) != 0) {
+                written += PACKED_WRAP - run;
+                continue;
+            }
+            final int length = Math.min(run + 1, size - written);
+            System.arraycopy(bytes.bytes(length), 0, block, written, length);
+            written += length;
+        }
+        return block;
+    }
+
+    private static MedEntry mmd0Entry(byte[] block, int at, Song song) {
+        final int first = block[at] & 0xFF;
+        final int second = block[at + 1] & 0xFF;
+        final int instrument = second >> 4 | (first & MMD0_INSTRUMENT_HIGH) >> 3
+                | (first & MMD0_INSTRUMENT_MIDDLE) >> 1;
+        return new MedEntry(note(first & MMD0_NOTE_MASK, song), instrument & MMD0_INSTRUMENT_MASK,
+                second & MMD0_COMMAND_MASK, block[at + 2] & 0xFF);
+    }
+
+    private static MedEntry mmd1Entry(byte[] block, int at, Song song) {
+        return new MedEntry(note(block[at] & MMD1_NOTE_MASK, song), block[at + 1] & MMD0_INSTRUMENT_MASK,
+                block[at + 2] & 0xFF, block[at + 3] & 0xFF);
+    }
+
+    /**
+     * The song's own transpose is folded in as the line is read, so the sequencer never has to know of it.
+     */
+    private static int note(int written, Song song) {
+        if (written == 0) {
+            return 0;
+        }
+        final int transposed = written + song.transpose;
+        return transposed > 0 ? transposed : 0;
+    }
+
+    private static List<MedInstrument> instruments(MedBytes bytes, int samplesAt, Song song, Settings[] settings,
+                                                   Expansion expansion) throws IOException {
+        bytes.seek(samplesAt);
+        final int[] offsets = new int[song.samples];
+        for (int slot = 0; slot < song.samples; slot++) {
+            offsets[slot] = bytes.u32();
+        }
+        final List<MedInstrument> instruments = new ArrayList<>(song.samples);
+        for (int slot = 0; slot < song.samples; slot++) {
+            instruments.add(instrument(bytes, offsets[slot], settings[slot], expansion, slot));
+        }
+        return instruments;
+    }
+
+    private static MedInstrument instrument(MedBytes bytes, int at, Settings settings, Expansion expansion,
+                                            int slot) throws IOException {
+        final String name = expansion.nameOf(slot);
+        final Hold hold = expansion.holdOf(slot);
+        if (at == 0 || settings.midiChannel != 0) {
+            return silent(name, settings, hold);
+        }
+        bytes.seek(at);
+        final int length = bytes.u32();
+        final int type = bytes.s16();
+        if (type == SYNTHETIC || type == HYBRID || MedTables.octavesOfType(type) > 0) {
+            return silent(name, settings, hold);
+        }
+        final int kind = type & TYPE_MASK;
+        if (kind != SAMPLE && kind != MIX_MODE_SAMPLE) {
+            return silent(name, settings, hold);
+        }
+        final boolean wide = (type & SIXTEEN_BIT) != 0;
+        final int frames = wide ? length / 2 : length;
+        if (!bytes.has(wide ? frames * 2 : frames)) {
+            throw new IOException("OctaMED instrument longer than the module");
+        }
+        return new MedInstrument(name, sample(bytes, frames, wide), settings.loopStart, settings.loopLength,
+                settings.volume, settings.transpose, hold.finetune, hold.hold, hold.decay, 1, 0, null);
+    }
+
+    private static MedInstrument silent(String name, Settings settings, Hold hold) {
+        return new MedInstrument(name, null, 0, 0, settings.volume, settings.transpose, hold.finetune,
+                hold.hold, hold.decay, 1, settings.midiChannel, null);
+    }
+
+    /**
+     * Samples are kept as signed sixteen-bit frames whatever width the file wrote them in, so that everything
+     * past the reader mixes the same way.
+     */
+    private static short[] sample(MedBytes bytes, int frames, boolean wide) throws IOException {
+        final short[] sample = new short[frames];
+        for (int frame = 0; frame < frames; frame++) {
+            sample[frame] = wide ? (short) bytes.u16() : (short) (bytes.s8() << Byte.SIZE);
+        }
+        return sample;
+    }
+
+    private record Settings(int loopStart, int loopLength, int midiChannel, int volume, int transpose) {
+    }
+
+    private record Hold(int hold, int decay, int finetune) {
+
+        static final Hold NONE = new Hold(0, 0, 0);
+    }
+
+    private record Song(int blocks, int[] playSeq, int tempo, int speed, int transpose, int flags, int flags2,
+                        int masterVolume, int[] trackVolumes, int samples) {
+
+        MedSong toSong() {
+            return new MedSong(playSeq, tempo == 0 ? DEFAULT_TEMPO : tempo, speed == 0 ? DEFAULT_SPEED : speed,
+                    transpose, flags, flags2, masterVolume == 0 ? FULL_VOLUME : masterVolume, trackVolumes,
+                    new int[0]);
+        }
+    }
+
+    private record Expansion(String name, String annotation, Hold[] holds, String[] names, int holdSize) {
+
+        static final Expansion NONE = new Expansion("", "", new Hold[0], new String[0], 0);
+
+        Hold holdOf(int slot) {
+            return slot < holds.length ? holds[slot] : Hold.NONE;
+        }
+
+        String nameOf(int slot) {
+            return slot < names.length ? names[slot] : "";
+        }
+    }
+}
