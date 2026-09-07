@@ -46,8 +46,8 @@ final class MedEngine {
     private static final int MIDDLE_PANNING = 128;
     private static final int TICKS_PER_MINUTE = 24;
     private static final int SECONDS_PER_MINUTE = 60;
-    private static final int LOWEST_PERIOD = 113;
-    private static final int HIGHEST_PERIOD = 6848;
+    private static final int LOWEST_PERIOD = 20;
+    private static final int HIGHEST_PERIOD = 3424;
     private static final int VIBRATO_SHIFT = 10;
     private static final int VIBRATO_STEP_SHIFT = 5;
     private static final int NIBBLE = 0x0F;

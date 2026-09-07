@@ -208,9 +208,10 @@ BSD 2-Clause License. The OctaMED replayer follows the MED loaders and player
 of [libxmp](https://github.com/libxmp/libxmp), copyright Claudio Matsuoka and
 Hipolito Carraro Jr, distributed under the MIT licence reproduced in
 [XMP-LICENSE.txt](XMP-LICENSE.txt). The PowerPacker decruncher follows the
-one in libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and Dag Lem,
-distributed under the GNU General Public License. The AHX and HivelyTracker
-replayer follows HivelyTracker's, copyright Pete Gordon, under the BSD 3-Clause
+one in libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and
+Dag Lem, distributed under the GNU General Public License. The AHX and
+HivelyTracker replayer follows HivelyTracker's, copyright Pete Gordon, under
+the BSD 3-Clause
 License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
 are read with Apache Commons Compress over the XZ for Java library, both under
 the Apache License 2.0. RAR archives are read with

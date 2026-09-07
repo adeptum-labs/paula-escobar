@@ -37,7 +37,7 @@ final class MedTables {
      * one higher every time they are halved, as the Amiga hardware was driven.
      */
     private static final int[] OCTAVE_PERIODS = {
-        3424, 3232, 3048, 2880, 2712, 2560, 2416, 2280, 2152, 2032, 1920, 1812};
+        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453};
 
     /**
      * Tempos one to ten in tempo mode stand for the speeds of Soundtracker rather than for themselves.
