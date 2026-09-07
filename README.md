@@ -142,11 +142,12 @@ played by replayers written for Paula that follow
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
 and [HivelyTracker](https://github.com/pete-gordon/hivelytracker)'s
 `hvl_replay.c` and render sample for sample as those do, with a scope and
-muting per voice. OctaMED modules are played by a third, following the MED
-loaders and player of [libxmp](https://github.com/libxmp/libxmp): it plays
-the same notes, commands and instruments, with a scope and muting per track,
-though its mixdown is Paula's own rather than libxmp's. Nothing under
-`net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
+muting per voice. OctaMED modules of every kind, MMD0 through MMD3, are
+played by a third that follows the MED loaders and player of
+[libxmp](https://github.com/libxmp/libxmp), sounding the sampled,
+multi-octave, synthetic and hybrid instruments alike, with a scope and
+muting per track; its mixdown is Paula's own rather than libxmp's. Nothing
+under `net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
 `tools/patch-javamod` rebuilds the vendored JavaMod jar with its fixes.
 
 ### Audio output
