@@ -32,8 +32,9 @@ package com.adeptum.paula.module.med;
  */
 final class MedVoice {
 
-    private static final int FULL_VOLUME = 64;
+    static final int FULL_VOLUME = 64;
     static final int INACTIVE = -1;
+    static final int NO_ENVELOPE = -1;
     static final int MIDDLE_PANNING = 128;
     static final int HARD_RIGHT = 255;
 
@@ -67,6 +68,28 @@ final class MedVoice {
     int decayValue = INACTIVE;
     boolean holdActive;
     boolean holdSustained;
+
+    MedSynthInstrument synth;
+    int synthVolume = FULL_VOLUME;
+    int basePeriod;
+    int volumePointer;
+    int volumeSlide;
+    int volumeSpeed;
+    int volumeCounter;
+    int volumeWait;
+    int wavePointer;
+    int waveSlide;
+    int waveSpeed;
+    int waveCounter;
+    int waveWait;
+    int arpeggioStart;
+    int arpeggioIndex;
+    int synthVibratoDepth;
+    int synthVibratoSpeed;
+    int synthVibratoStep;
+    int envelopeWave = NO_ENVELOPE;
+    int envelopeIndex;
+    boolean envelopeLoops;
 
     int retriggerEvery;
     int delayTicks;

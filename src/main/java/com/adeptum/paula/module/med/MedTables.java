@@ -60,6 +60,12 @@ final class MedTables {
         255, 253, 250, 244, 235, 224, 212, 197,
         180, 161, 141, 120, 97, 74, 49, 24};
 
+    private static final int[] SIGNED_SINE = {
+        0, 49, 97, 141, 180, 212, 235, 250,
+        255, 250, 235, 212, 180, 141, 97, 49,
+        0, -49, -97, -141, -180, -212, -235, -250,
+        -255, -250, -235, -212, -180, -141, -97, -49};
+
     /**
      * How many octaves of samples each of the six multi-octave instrument types carries.
      */
@@ -70,17 +76,21 @@ final class MedTables {
     static final int HIGHEST_COMPATIBILITY_TEMPO = 10;
     static final int VIBRATO_STEPS = 32;
 
+    private static final int OCTAVES_BELOW = 3;
+
     private MedTables() {
     }
 
     /**
-     * The period of a note counted from one, halving with every octave above the first; a note past the range
-     * the hardware could sound stays at the end of it.
+     * The period of a note counted from one, halving with every octave above the first and doubling with
+     * every octave below it. Notes below the first are reached by the transposes an instrument carries, so
+     * the table has to run both ways rather than stop at its own end.
      */
     static int period(int note) {
-        final int index = Math.max(0, note - 1);
-        final int octave = index / NOTES_PER_OCTAVE;
-        return OCTAVE_PERIODS[index % NOTES_PER_OCTAVE] >> octave;
+        final int index = note - 1;
+        final int octave = Math.floorDiv(index, NOTES_PER_OCTAVE);
+        final int within = OCTAVE_PERIODS[Math.floorMod(index, NOTES_PER_OCTAVE)];
+        return octave >= 0 ? within >> octave : within << Math.min(-octave, OCTAVES_BELOW);
     }
 
     static int notes(int octaves) {
@@ -97,6 +107,13 @@ final class MedTables {
 
     static int sine(int step) {
         return SINE[step & VIBRATO_STEPS - 1];
+    }
+
+    /**
+     * The whole sine, signed, which the sequence of a synthetic instrument swings its own vibrato along.
+     */
+    static int signedSine(int step) {
+        return SIGNED_SINE[step & VIBRATO_STEPS - 1];
     }
 
     static int octavesOfType(int type) {

@@ -47,7 +47,7 @@ final class MedEngine {
     private static final int TICKS_PER_MINUTE = 24;
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int LOWEST_PERIOD = 20;
-    private static final int HIGHEST_PERIOD = 3424;
+    private static final int HIGHEST_PERIOD = 6848;
     private static final int VIBRATO_SHIFT = 7;
     private static final int SWING_PER_SPEED = 4;
     private static final int SWING_SUB_STEPS = 2;
@@ -375,7 +375,12 @@ final class MedEngine {
         voice.note = command.note();
         voice.finetune = playing.finetune();
         setHoldAndDecay(voice, playing.hold(), playing.decay());
-        voice.start(layer, periodOf(command.note(), playing, voice.finetune), playing.volume());
+        final int period = periodOf(command.note(), playing, voice.finetune);
+        voice.start(layer, period, playing.volume());
+        voice.synth = playing.synth();
+        if (voice.synth != null) {
+            MedSynth.start(voice, playing.synth(), period);
+        }
     }
 
     private MedInstrument instrumentFor(MedVoice voice, MedCommand command) {
@@ -390,7 +395,7 @@ final class MedEngine {
      * finetune, which the format writes as eighths of a semitone either way.
      */
     private int periodOf(int note, MedInstrument playing, int tuning) {
-        final int sounded = Math.max(1, note + playing.transpose() + playing.transposeAt(note));
+        final int sounded = note + playing.transpose() + playing.transposeAt(note);
         final int period = MedTables.period(sounded);
         final int tuned = period - period * tuning / (MedTables.NOTES_PER_OCTAVE * FINETUNES * FINETUNE_EIGHTHS);
         return clampPeriod(tuned);
@@ -527,6 +532,7 @@ final class MedEngine {
             }
             slide(voice);
             decay(voice);
+            MedSynth.tick(voice);
             if (tick > 0) {
                 swingOn(voice);
             }
@@ -594,6 +600,13 @@ final class MedEngine {
                 period = MedTables.period(voice.note + step);
             }
         }
+        if (voice.synth != null) {
+            final int step = MedSynth.arpeggio(voice);
+            if (step > 0) {
+                period = MedTables.period(voice.note + step);
+            }
+            period += MedSynth.vibrato(voice);
+        }
         return clampPeriod(period);
     }
 
@@ -606,8 +619,13 @@ final class MedEngine {
         return step < 0 ? -amount : amount;
     }
 
+    /**
+     * A synthetic instrument carries its own volume, which its sequence steps, and the line's own volume is
+     * then no more than a ceiling on it.
+     */
     int soundingVolume(MedVoice voice) {
-        int volume = voice.volume;
+        int volume = voice.synth == null ? voice.volume
+                : voice.volume * voice.synthVolume / FULL_VOLUME;
         if (voice.tremoloDepth > 0) {
             volume += swing(voice.tremoloStep, voice.tremoloDepth);
         }
