@@ -65,6 +65,19 @@ public final class TestModules {
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int DBM_LENGTH = 1024;
+    public static final int MED_PLAY_SEQUENCE_AT = 52 + 63 * 8 + 4;
+    public static final int MED_TRACKS = 2;
+    public static final int MED_LINES = 4;
+    public static final int MED_NOTE = 13;
+    public static final int MED_VOLUME = 64;
+    public static final int MED_TEMPO = 33;
+    public static final int MED_SPEED = 6;
+    public static final int MED_MASTER_VOLUME = 64;
+
+    private static final int MED_HEADER_LENGTH = 52;
+    private static final int MED_EXPANSION_LENGTH = 52;
+    private static final int MED_SAMPLE_LENGTH = 64;
+
     private static final int AHX_HEADER_LENGTH = 14;
     private static final int HVL_HEADER_LENGTH = 16;
     private static final int BLANK_FIRST_TRACK = 0x80;
@@ -238,6 +251,99 @@ public final class TestModules {
      */
     private static byte[] hivelyInstrument() {
         return bytes(64, 3, 1, 64, 1, 64, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x3f, 1, 0, 1, 1);
+    }
+
+
+    public static Path writeMed(Path directory) throws IOException {
+        return Files.write(directory.resolve("paula.med"), medMmd0());
+    }
+
+    /**
+     * A minimal OctaMED module in the three-byte-a-line form: two tracks of four lines, the first sounding a
+     * C-2 on a looping square wave, played through a play sequence of one block.
+     */
+    public static byte[] medMmd0() {
+        return med(false, medMmd0Block());
+    }
+
+    /**
+     * The same song written the four-byte way, where the note and the instrument each have a byte of their
+     * own instead of sharing bits.
+     */
+    public static byte[] medMmd1() {
+        return med(true, medMmd1Block());
+    }
+
+    /**
+     * The three-byte form again, with its block run through the counted packing MMDC writes: the lines
+     * verbatim, then the silence of the remaining tracks left as a count.
+     */
+    public static byte[] medCompressed() {
+        final byte[] block = medMmd0Block();
+        final int header = 2;
+        final byte[] lines = Arrays.copyOfRange(block, header, block.length);
+        final byte[] packed = concat(Arrays.copyOf(block, header),
+                bytes(lines.length - 1), lines);
+        return med(false, packed, 'C');
+    }
+
+    private static byte[] medMmd0Block() {
+        final byte[] rows = new byte[MED_TRACKS * MED_LINES * 3];
+        rows[0] = MED_NOTE;
+        rows[1] = 1 << 4;
+        return concat(bytes(MED_TRACKS, MED_LINES - 1), rows);
+    }
+
+    private static byte[] medMmd1Block() {
+        final byte[] rows = new byte[MED_TRACKS * MED_LINES * 4];
+        rows[0] = MED_NOTE;
+        rows[1] = 1;
+        return concat(words(MED_TRACKS, MED_LINES - 1), new byte[4], rows);
+    }
+
+    private static byte[] med(boolean wide, byte[] block) {
+        return med(wide, block, wide ? '1' : '0');
+    }
+
+    private static byte[] med(boolean wide, byte[] block, char kind) {
+        final byte[] sample = new byte[MED_SAMPLE_LENGTH];
+        for (int frame = 0; frame < sample.length; frame++) {
+            sample[frame] = (byte) (frame < sample.length / 2 ? 100 : -100);
+        }
+        final byte[] instrument = concat(words(0, sample.length, 0), sample);
+        final byte[] song = medSong();
+
+        final int songAt = MED_HEADER_LENGTH;
+        final int blockTableAt = songAt + song.length;
+        final int sampleTableAt = blockTableAt + 4;
+        final int expansionAt = sampleTableAt + 4;
+        final int blockAt = expansionAt + MED_EXPANSION_LENGTH;
+        final int instrumentAt = blockAt + block.length;
+        final int nameAt = instrumentAt + instrument.length;
+        final byte[] name = names(SONG_NAME);
+
+        return concat(
+                bytes('M', 'M', 'D', kind), words(0, 0), words(0, songAt),
+                words(0, 0), words(0, blockTableAt), words(0, 0), words(0, sampleTableAt),
+                words(0, 0), words(0, expansionAt), new byte[16],
+                song,
+                words(0, blockAt), words(0, instrumentAt),
+                medExpansion(nameAt, name.length),
+                block, instrument, name);
+    }
+
+    private static byte[] medSong() {
+        final byte[] settings = new byte[63 * 8];
+        settings[2] = (byte) (MED_SAMPLE_LENGTH >> 9);
+        settings[3] = (byte) (MED_SAMPLE_LENGTH >> 1);
+        settings[6] = MED_VOLUME;
+        final byte[] playSeq = new byte[256];
+        return concat(settings, words(1, 1), playSeq, words(MED_TEMPO),
+                bytes(0, 0, 0, MED_SPEED), new byte[16], bytes(MED_MASTER_VOLUME, 1));
+    }
+
+    private static byte[] medExpansion(int nameAt, int nameLength) {
+        return concat(new byte[28], new byte[16], words(0, nameAt), words(0, nameLength));
     }
 
     private static byte[] names(String... names) {
