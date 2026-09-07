@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Reads the modules of MED and OctaMED. A file is a header of offsets into itself: one to the song, one to the
@@ -40,6 +41,7 @@ import java.util.List;
  * <p>MMD0 packs a line into three bytes and MMD1 into four; MMDC packs the same lines as MMD0 does and then
  * runs the whole block through a simple counted compression.
  */
+@Slf4j
 final class MedReader {
 
     private static final String MMD = "MMD";
@@ -76,6 +78,10 @@ final class MedReader {
 
     private static final int HOLD_AND_DECAY_SIZE = 2;
     private static final int FINETUNE_SIZE = 4;
+    private static final int FLAGS_SIZE = 6;
+    private static final int LONG_LOOP_SIZE = 18;
+    private static final int LONG_LOOP_AT = 10;
+    private static final int DISABLED = 0x04;
     private static final int INSTRUMENT_NAME_LENGTH = 40;
     private static final int LONGEST_ANNOTATION = 0x10000;
 
@@ -91,6 +97,7 @@ final class MedReader {
 
     private static final int MIX_SETTINGS_LENGTH = 5;
     private static final int SECTIONED_RESERVED = 223;
+    private static final int NO_LOOP = 1;
     private static final int MIX_MODE_OCTAVES = 24;
     private static final int SYNTH_OCTAVES = 24;
     private static final int SYNTH_RESERVED = 3;
@@ -150,16 +157,19 @@ final class MedReader {
 
     /**
      * What the song says about each of its sixty-three instrument slots, which is where the loop, the volume
-     * and the transpose live rather than with the sample itself.
+     * and the transpose live rather than with the sample itself. A loop is counted in words, and one word of
+     * it is how the format writes a sample that does not loop at all; taken as a loop it would leave the
+     * voice playing two frames of silence for ever.
      */
     private static Settings[] settings(MedBytes bytes) throws IOException {
         final Settings[] settings = new Settings[SAMPLE_SETTINGS];
         for (int slot = 0; slot < SAMPLE_SETTINGS; slot++) {
-            final int loopStart = bytes.u16() << 1;
-            final int loopLength = bytes.u16() << 1;
+            final int loopStart = bytes.u16();
+            final int loopLength = bytes.u16();
             final int midiChannel = bytes.u8();
             bytes.skip(1);
-            settings[slot] = new Settings(loopStart, loopLength, midiChannel, bytes.u8(), bytes.s8());
+            settings[slot] = new Settings(loopStart << 1, loopLength > NO_LOOP ? loopLength << 1 : 0,
+                    midiChannel, bytes.u8(), bytes.s8());
         }
         return settings;
     }
@@ -309,11 +319,23 @@ final class MedReader {
             final int hold = bytes.u8();
             final int decay = bytes.u8();
             int finetune = 0;
+            int flags = 0;
+            int longStart = 0;
+            int longLength = 0;
             if (size >= FINETUNE_SIZE) {
                 bytes.skip(1);
                 finetune = bytes.s8();
             }
-            holds[slot] = new Hold(hold, decay, finetune);
+            if (size >= FLAGS_SIZE) {
+                bytes.skip(1);
+                flags = bytes.u8();
+            }
+            if (size >= LONG_LOOP_SIZE) {
+                bytes.seek(row + LONG_LOOP_AT);
+                longStart = bytes.u32();
+                longLength = bytes.u32();
+            }
+            holds[slot] = new Hold(hold, decay, finetune, flags, longStart, longLength);
             bytes.seek(row + size);
         }
         return holds;
@@ -441,21 +463,48 @@ final class MedReader {
         }
         final List<MedInstrument> instruments = new ArrayList<>(song.samples);
         for (int slot = 0; slot < song.samples; slot++) {
-            instruments.add(instrument(bytes, offsets[slot], settings[slot], expansion, slot, version));
+            instruments.add(readable(bytes, offsets[slot], settings[slot], expansion, slot, version));
         }
         return instruments;
+    }
+
+    /**
+     * One instrument that cannot be read costs that instrument and not the song, which is the difference
+     * between a module of the party archives playing with a voice missing and not playing at all.
+     */
+    private static MedInstrument readable(MedBytes bytes, int at, Settings settings, Expansion expansion,
+                                          int slot, int version) throws IOException {
+        try {
+            return instrument(bytes, at, settings, expansion, slot, version);
+        } catch (IOException e) {
+            log.debug("Instrument {} of the OctaMED module is unreadable: {}", slot + 1, e.getMessage());
+            return silent(expansion.nameOf(slot), settings, expansion.holdOf(slot));
+        }
     }
 
     /**
      * A song mixed in software sounds its samples two octaves lower than one played by the hardware, which
      * the later versions write into every plain instrument and any version writes into a mix-mode one.
      */
+    /**
+     * The Soundstudio versions write a loop too long for a word into the instrument's own row instead, which
+     * is where it has to be read from once a module carries rows that big.
+     */
+    private static int loopStart(Settings settings, Hold hold, int version, int size) {
+        return version >= MMD3 && size >= LONG_LOOP_SIZE ? hold.longStart : settings.loopStart;
+    }
+
+    private static int loopLength(Settings settings, Hold hold, int version, int size) {
+        return version >= MMD3 && size >= LONG_LOOP_SIZE ? hold.longLength : settings.loopLength;
+    }
+
     private static int mixModeTranspose(int kind, int version) {
         return version >= MMD3 && kind == SAMPLE || kind == MIX_MODE_SAMPLE ? -MIX_MODE_OCTAVES : 0;
     }
 
     private static MedInstrument instrument(MedBytes bytes, int at, Settings settings, Expansion expansion,
                                             int slot, int version) throws IOException {
+        final int size = expansion.holdSize();
         final String name = expansion.nameOf(slot);
         final Hold hold = expansion.holdOf(slot);
         if (at == 0 || settings.midiChannel != 0) {
@@ -483,8 +532,9 @@ final class MedReader {
         if (!bytes.has(wide ? frames * 2 : frames)) {
             throw new IOException("OctaMED instrument longer than the module");
         }
-        final MedLayer layer = new MedLayer(sample(bytes, frames, wide), settings.loopStart, settings.loopLength);
-        return new MedInstrument(name, List.of(layer), 1, settings.volume,
+        final MedLayer layer = new MedLayer(sample(bytes, frames, wide), loopStart(settings, hold, version, size),
+                loopLength(settings, hold, version, size));
+        return new MedInstrument(name, List.of(layer), 1, hold.isDisabled() ? 0 : settings.volume,
                 settings.transpose + mixModeTranspose(kind, version), hold.finetune, hold.hold, hold.decay,
                 0, null);
     }
@@ -627,9 +677,13 @@ final class MedReader {
     private record Settings(int loopStart, int loopLength, int midiChannel, int volume, int transpose) {
     }
 
-    private record Hold(int hold, int decay, int finetune) {
+    private record Hold(int hold, int decay, int finetune, int flags, int longStart, int longLength) {
 
-        static final Hold NONE = new Hold(0, 0, 0);
+        static final Hold NONE = new Hold(0, 0, 0, 0, 0, 0);
+
+        boolean isDisabled() {
+            return (flags & DISABLED) != 0;
+        }
     }
 
     private record Song(int blocks, int[] playSeq, int tempo, int speed, int transpose, int flags, int flags2,

@@ -54,7 +54,11 @@ final class MedEngine {
     private static final int NIBBLE = 0x0F;
     private static final int NIBBLE_BITS = 4;
     private static final int FINETUNES = 8;
-    private static final int FINETUNE_EIGHTHS = 3;
+
+    /**
+     * A finetune is written in eighths of a semitone, so a whole octave of them is ninety-six.
+     */
+    private static final int FINETUNES_PER_OCTAVE = 96;
     private static final int ARPEGGIO_STEPS = 3;
     private static final int SAMPLE_OFFSET_BITS = 8;
     private static final int PAN_CENTRE = 16;
@@ -397,8 +401,7 @@ final class MedEngine {
     private int periodOf(int note, MedInstrument playing, int tuning) {
         final int sounded = note + playing.transpose() + playing.transposeAt(note);
         final int period = MedTables.period(sounded);
-        final int tuned = period - period * tuning / (MedTables.NOTES_PER_OCTAVE * FINETUNES * FINETUNE_EIGHTHS);
-        return clampPeriod(tuned);
+        return clampPeriod((int) Math.round(period * Math.pow(2, -tuning / (double) FINETUNES_PER_OCTAVE)));
     }
 
     private static int clampPeriod(int period) {
