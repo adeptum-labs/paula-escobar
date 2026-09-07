@@ -79,6 +79,13 @@ class PaulaTest {
     }
 
     @Test
+    void formatsListsOctaMed() {
+        assertEquals(0, cli.execute("formats"));
+        assertTrue(out.toString().contains("OctaMED modules"));
+        assertTrue(out.toString().contains(".med"));
+    }
+
+    @Test
     void formatsListsMonkeysAudio() {
         assertEquals(0, cli.execute("formats"));
         assertTrue(out.toString().contains("Monkey's Audio"));

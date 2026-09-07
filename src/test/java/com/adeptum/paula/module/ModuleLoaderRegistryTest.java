@@ -30,6 +30,7 @@ import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.hively.HivelyLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
+import com.adeptum.paula.module.med.MedLoader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sap.SapLoader;
@@ -47,7 +48,7 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
-                HivelyLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
+                HivelyLoader.FORMAT, MedLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
                 ApeLoader.FORMAT),
                 registry.formats());
     }
@@ -59,6 +60,8 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.dbm")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.ahx")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.hvl")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.med")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.mmd1")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.mp3")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.flac")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.wav")).isPresent());
@@ -78,6 +81,7 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("MOD.crystal hammer")).isPresent(), "as Modland names its files");
         assertTrue(registry.loaderFor(Path.of("XM.survival")).isPresent(), "and as AMP does");
         assertTrue(registry.loaderFor(Path.of("S3M.illan viimeinen hidas")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("MED.crystal hammer")).isPresent());
         assertTrue(registry.loaderFor(Path.of("readme.first")).isEmpty(), "but an ordinary name is not a format");
     }
 

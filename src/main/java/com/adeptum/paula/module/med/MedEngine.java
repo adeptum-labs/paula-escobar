@@ -169,9 +169,14 @@ final class MedEngine {
         voice.peak = peak;
     }
 
+    /**
+     * Every voice can reach full scale on its own, so the sum is given room for as many as the song has before
+     * it is handed out; the Amiga divided its four channels into one output the same way.
+     */
     private void flush(short[] out, int frames) {
         for (int slot = 0; slot < frames * STEREO; slot++) {
-            out[slot] = (short) Math.max(CLIP_LOW, Math.min(CLIP_HIGH, accumulator[slot]));
+            final int level = accumulator[slot] / voices.length;
+            out[slot] = (short) Math.max(CLIP_LOW, Math.min(CLIP_HIGH, level));
         }
     }
 

@@ -142,9 +142,12 @@ played by replayers written for Paula that follow
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
 and [HivelyTracker](https://github.com/pete-gordon/hivelytracker)'s
 `hvl_replay.c` and render sample for sample as those do, with a scope and
-muting per voice. Nothing under `net.sf.asap` is edited by hand;
-`tools/generate-asap` regenerates it, as `tools/patch-javamod` rebuilds the
-vendored JavaMod jar with its fixes.
+muting per voice. OctaMED modules are played by a third, following the MED
+loaders and player of [libxmp](https://github.com/libxmp/libxmp): it plays
+the same notes, commands and instruments, with a scope and muting per track,
+though its mixdown is Paula's own rather than libxmp's. Nothing under
+`net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
+`tools/patch-javamod` rebuilds the vendored JavaMod jar with its fixes.
 
 ### Audio output
 
@@ -201,8 +204,11 @@ in [XADMaster](https://github.com/MacPaw/XADMaster), copyright MacPaw Inc.,
 licensed under the GNU Lesser General Public License version 2.1 or later and
 used under the GPL as that licence permits. The XPK unpacker follows Teemu
 Suutari's [ancient](https://github.com/temisu/ancient), distributed under the
-BSD 2-Clause License. The PowerPacker decruncher follows the one in
-libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and Dag Lem,
+BSD 2-Clause License. The OctaMED replayer follows the MED loaders and player
+of [libxmp](https://github.com/libxmp/libxmp), copyright Claudio Matsuoka and
+Hipolito Carraro Jr, distributed under the MIT licence reproduced in
+[XMP-LICENSE.txt](XMP-LICENSE.txt). The PowerPacker decruncher follows the
+one in libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and Dag Lem,
 distributed under the GNU General Public License. The AHX and HivelyTracker
 replayer follows HivelyTracker's, copyright Pete Gordon, under the BSD 3-Clause
 License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
