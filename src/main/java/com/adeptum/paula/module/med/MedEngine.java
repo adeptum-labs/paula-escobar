@@ -56,6 +56,8 @@ final class MedEngine {
     private static final int FINETUNE_EIGHTHS = 3;
     private static final int ARPEGGIO_STEPS = 3;
     private static final int SAMPLE_OFFSET_BITS = 8;
+    private static final int PAN_CENTRE = 16;
+    private static final int PAN_SCALE = 3;
 
     private final MedFile module;
     private final MedSong song;
@@ -86,7 +88,7 @@ final class MedEngine {
         for (int voice = 0; voice < voices.length; voice++) {
             voices[voice] = new MedVoice();
             voices[voice].trackVolume = trackVolume(voice);
-            voices[voice].panning = MIDDLE_PANNING;
+            voices[voice].panning = trackPanning(voice);
         }
         this.speed = Math.max(1, song.tempo2());
         this.tempo = MedEffects.convertTempo(song.tempo(), song);
@@ -218,6 +220,19 @@ final class MedEngine {
     }
 
     /**
+     * Where a track sits in the stereo field, which the song writes as a signed step either side of the
+     * middle and only MMD2 and MMD3 carry at all.
+     */
+    private int trackPanning(int voice) {
+        final int[] pans = song.trackPans();
+        if (voice >= pans.length) {
+            return MIDDLE_PANNING;
+        }
+        final int placed = ((byte) pans[voice] + PAN_CENTRE) << PAN_SCALE;
+        return Math.clamp(placed, 0, MedVoice.HARD_RIGHT);
+    }
+
+    /**
      * How many frames one tick lasts. A tempo counts beats a minute, each of which the tracker divides into
      * twenty-four ticks, so the beat length the song sets moves every line with it.
      */
@@ -299,12 +314,16 @@ final class MedEngine {
         }
     }
 
+    /**
+     * A note is started first and the command on its line applied after, so that a line setting a volume or a
+     * panning is heard rather than overwritten by the instrument's own.
+     */
     private void apply(MedVoice voice, MedCommand command) {
         clearPerLine(voice);
-        onLine(voice, command);
         if (command.hasNote() && startsNote(command.effect())) {
             trigger(voice, command);
         }
+        onLine(voice, command);
     }
 
     /**

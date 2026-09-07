@@ -55,6 +55,8 @@ class MedEffectsTest {
 
         assertEquals(40, MedEffects.translate(line, decimal).parameter(), "forty reads as forty");
         assertEquals(0x40, MedEffects.translate(line, hex).parameter(), "unless the song counts in hex");
+        assertEquals(64, MedEffects.translate(new MedEntry(NOTE, INSTRUMENT, 0x0C, 0x64), decimal).parameter(),
+                "the largest a decimal song writes is the loudest there is");
     }
 
     @Test

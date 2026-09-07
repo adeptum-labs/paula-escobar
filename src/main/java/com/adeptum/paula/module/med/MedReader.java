@@ -48,6 +48,8 @@ final class MedReader {
     private static final char COMPRESSED = 'C';
     private static final int MMD0 = 0;
     private static final int MMD1 = 1;
+    private static final int MMD2 = 2;
+    private static final int MMD3 = 3;
 
     private static final int SONG_OFFSET_AT = 8;
     private static final int BLOCKS_OFFSET_AT = 16;
@@ -60,6 +62,8 @@ final class MedReader {
     private static final int MOST_BLOCKS = 255;
     private static final int MOST_LINES = 3200;
     private static final int MOST_TRACKS = 16;
+    private static final int MOST_MIXED_TRACKS = 64;
+    private static final int PLAY_SEQUENCE_NAME_LENGTH = 32;
 
     private static final int SYNTHETIC = -1;
     private static final int HYBRID = -2;
@@ -85,6 +89,9 @@ final class MedReader {
     private static final int PACKED_RUN = 0x80;
     private static final int PACKED_WRAP = 256;
 
+    private static final int MIX_SETTINGS_LENGTH = 5;
+    private static final int SECTIONED_RESERVED = 223;
+    private static final int MIX_MODE_OCTAVES = 24;
     private static final int DEFAULT_TEMPO = 33;
     private static final int DEFAULT_SPEED = 6;
     private static final int FULL_VOLUME = 64;
@@ -109,7 +116,7 @@ final class MedReader {
         final char kind = identifier.charAt(VERSION_AT);
         final boolean compressed = kind == COMPRESSED;
         final int version = compressed ? MMD0 : version((byte) kind);
-        if (version < MMD0 || version > MMD1) {
+        if (version < MMD0 || version > MMD3) {
             throw new IOException("OctaMED module of a kind this cannot read: " + identifier);
         }
 
@@ -124,11 +131,11 @@ final class MedReader {
 
         bytes.seek(songAt);
         final Settings[] settings = settings(bytes);
-        final Song song = song(bytes);
+        final Song song = version >= MMD2 ? sectionedSong(bytes) : song(bytes);
         final Expansion expansion = expansionAt == 0 ? Expansion.NONE : expansion(bytes, expansionAt, song.samples);
 
         final List<MedBlock> blocks = blocks(bytes, blocksAt, song, version, compressed);
-        final List<MedInstrument> instruments = instruments(bytes, samplesAt, song, settings, expansion);
+        final List<MedInstrument> instruments = instruments(bytes, samplesAt, song, settings, expansion, version);
         return new MedFile(expansion.name, expansion.annotation, version, song.toSong(), blocks, instruments);
     }
 
@@ -180,7 +187,83 @@ final class MedReader {
             throw new IOException("OctaMED song of " + samples + " instruments");
         }
         return new Song(blocks, playSeq, tempo, speed, transpose, flags, flags2, masterVolume, trackVolumes,
-                samples);
+                new int[0], samples);
+    }
+
+
+    /**
+     * MMD2 and MMD3 keep their song differently: the positions are sections, each naming one of a table of
+     * play sequences, and the play sequences hold block numbers as words rather than bytes. Only the first
+     * sequence is played, which is what libxmp does and what all but a handful of modules mean.
+     */
+    private static Song sectionedSong(MedBytes bytes) throws IOException {
+        final int blocks = bytes.u16();
+        final int sections = bytes.u16();
+        final int sequenceTableAt = bytes.u32();
+        bytes.skip(Integer.BYTES);
+        final int trackVolumesAt = bytes.u32();
+        final int tracks = bytes.u16();
+        final int sequences = bytes.u16();
+        final int trackPansAt = bytes.u32();
+        bytes.skip(Integer.BYTES);
+        bytes.skip(Short.BYTES);
+        final int channels = bytes.u16();
+        bytes.skip(MIX_SETTINGS_LENGTH);
+        bytes.skip(SECTIONED_RESERVED);
+        final int tempo = bytes.u16();
+        final int transpose = bytes.s8();
+        final int flags = bytes.u8();
+        final int flags2 = bytes.u8();
+        final int speed = bytes.u8();
+        bytes.skip(TRACK_VOLUMES);
+        final int masterVolume = bytes.u8();
+        final int samples = bytes.u8();
+        if (blocks > MOST_BLOCKS || sections > PLAY_SEQUENCE_LENGTH || samples > SAMPLE_SETTINGS) {
+            throw new IOException("OctaMED song of " + blocks + " blocks and " + samples + " instruments");
+        }
+        final int width = Math.max(tracks, channels);
+        return new Song(blocks, playSequence(bytes, sequenceTableAt, sequences), tempo, speed, transpose, flags,
+                flags2, masterVolume, volumes(bytes, trackVolumesAt, width, FULL_VOLUME),
+                volumes(bytes, trackPansAt, width, 0), samples);
+    }
+
+    private static int[] playSequence(MedBytes bytes, int tableAt, int sequences) throws IOException {
+        if (tableAt == 0 || sequences == 0) {
+            return new int[0];
+        }
+        bytes.seek(tableAt);
+        final int sequenceAt = bytes.u32();
+        if (sequenceAt == 0) {
+            return new int[0];
+        }
+        bytes.seek(sequenceAt);
+        bytes.skip(PLAY_SEQUENCE_NAME_LENGTH);
+        bytes.skip(Integer.BYTES * 2);
+        final int length = bytes.u16();
+        if (length > MOST_BLOCKS) {
+            throw new IOException("OctaMED play sequence of " + length + " positions");
+        }
+        final int[] playSeq = new int[length];
+        for (int position = 0; position < length; position++) {
+            playSeq[position] = bytes.u16();
+        }
+        return playSeq;
+    }
+
+    /**
+     * A table of a byte per track, which a song is free not to carry at all.
+     */
+    private static int[] volumes(MedBytes bytes, int at, int tracks, int fallback) throws IOException {
+        final int[] volumes = new int[tracks];
+        Arrays.fill(volumes, fallback);
+        if (at == 0 || tracks == 0 || !bytes.has(0)) {
+            return volumes;
+        }
+        bytes.seek(at);
+        for (int track = 0; track < tracks && bytes.has(1); track++) {
+            volumes[track] = bytes.u8();
+        }
+        return volumes;
     }
 
     /**
@@ -285,7 +368,8 @@ final class MedReader {
             tracks = bytes.u8();
             lines = bytes.u8() + 1;
         }
-        if (lines > MOST_LINES || tracks > MOST_TRACKS || tracks == 0) {
+        final int mostTracks = version >= MMD2 ? MOST_MIXED_TRACKS : MOST_TRACKS;
+        if (lines > MOST_LINES || tracks > mostTracks || tracks == 0) {
             throw new IOException("OctaMED block of " + tracks + " tracks and " + lines + " lines");
         }
         final int width = version >= MMD1 ? 4 : 3;
@@ -344,7 +428,7 @@ final class MedReader {
     }
 
     private static List<MedInstrument> instruments(MedBytes bytes, int samplesAt, Song song, Settings[] settings,
-                                                   Expansion expansion) throws IOException {
+                                                   Expansion expansion, int version) throws IOException {
         bytes.seek(samplesAt);
         final int[] offsets = new int[song.samples];
         for (int slot = 0; slot < song.samples; slot++) {
@@ -352,13 +436,21 @@ final class MedReader {
         }
         final List<MedInstrument> instruments = new ArrayList<>(song.samples);
         for (int slot = 0; slot < song.samples; slot++) {
-            instruments.add(instrument(bytes, offsets[slot], settings[slot], expansion, slot));
+            instruments.add(instrument(bytes, offsets[slot], settings[slot], expansion, slot, version));
         }
         return instruments;
     }
 
+    /**
+     * A song mixed in software sounds its samples two octaves lower than one played by the hardware, which
+     * the later versions write into every plain instrument and any version writes into a mix-mode one.
+     */
+    private static int mixModeTranspose(int kind, int version) {
+        return version >= MMD3 && kind == SAMPLE || kind == MIX_MODE_SAMPLE ? -MIX_MODE_OCTAVES : 0;
+    }
+
     private static MedInstrument instrument(MedBytes bytes, int at, Settings settings, Expansion expansion,
-                                            int slot) throws IOException {
+                                            int slot, int version) throws IOException {
         final String name = expansion.nameOf(slot);
         final Hold hold = expansion.holdOf(slot);
         if (at == 0 || settings.midiChannel != 0) {
@@ -384,8 +476,9 @@ final class MedReader {
             throw new IOException("OctaMED instrument longer than the module");
         }
         final MedLayer layer = new MedLayer(sample(bytes, frames, wide), settings.loopStart, settings.loopLength);
-        return new MedInstrument(name, List.of(layer), 1, settings.volume, settings.transpose, hold.finetune,
-                hold.hold, hold.decay, 0, null);
+        return new MedInstrument(name, List.of(layer), 1, settings.volume,
+                settings.transpose + mixModeTranspose(kind, version), hold.finetune, hold.hold, hold.decay,
+                0, null);
     }
 
     private static MedInstrument silent(String name, Settings settings, Hold hold) {
@@ -437,12 +530,12 @@ final class MedReader {
     }
 
     private record Song(int blocks, int[] playSeq, int tempo, int speed, int transpose, int flags, int flags2,
-                        int masterVolume, int[] trackVolumes, int samples) {
+                        int masterVolume, int[] trackVolumes, int[] trackPans, int samples) {
 
         MedSong toSong() {
             return new MedSong(playSeq, tempo == 0 ? DEFAULT_TEMPO : tempo, speed == 0 ? DEFAULT_SPEED : speed,
                     transpose, flags, flags2, masterVolume == 0 ? FULL_VOLUME : masterVolume, trackVolumes,
-                    new int[0]);
+                    trackPans);
         }
     }
 

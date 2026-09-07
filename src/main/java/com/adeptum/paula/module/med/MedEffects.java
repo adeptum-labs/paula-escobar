@@ -140,9 +140,12 @@ final class MedEffects {
 
     /**
      * Unless the song says its volumes are written in hex, the two digits of the parameter are read as the
-     * decimal number they are written to look like, so a stored forty is forty and not sixty-four. libxmp
-     * shifts a whole byte where it means a nibble and so reads these unchanged; OctaMED and OpenMPT agree on
-     * the digits, and a parameter too large to be two decimal digits is left as it stands.
+     * decimal number they are written to look like, so a stored forty is forty and not sixty-four.
+     *
+     * <p>libxmp shifts a whole byte where it means a nibble and so reads these unchanged. The modules say
+     * otherwise: across nearly two thousand of these commands in songs that count in decimal, no digit is
+     * ever above nine and the largest parameter is 0x64, which is the highest volume there is once read as
+     * digits and nonsense read as a number. A parameter too large to be two decimal digits is left alone.
      */
     private static int volume(int parameter, MedSong song) {
         return song.volumesAreHex() || parameter >= HIGHEST_DECIMAL
