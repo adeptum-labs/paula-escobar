@@ -125,10 +125,10 @@ Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
 reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
 `lib/` with the fixes in `tools/javamod-*.patch` compiled in by
-`tools/patch-javamod`. MPEG audio, FLAC, Ogg Vorbis, wave, AIFF and AU files,
-the formats a streaming competition is handed in as, are decoded by JLayer,
-jFLAC and jOrbis and resampled to the rate the engine mixes at; `--rate 44100`
-hands a CD-rate file through untouched.
+`tools/patch-javamod`. MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave,
+AIFF and AU files, the formats a streaming competition is handed in as, are
+decoded by JLayer, jFLAC, jOrbis and jMAC and resampled to the rate the
+engine mixes at; `--rate 44100` hands a CD-rate file through untouched.
 
 A SID tune plays for the length in the High Voltage SID Collection's song
 length database, fetched into the cache on first use and refreshed monthly,

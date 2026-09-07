@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.module.ape.ApeLoader;
 import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.hively.HivelyLoader;
@@ -46,7 +47,8 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
-                HivelyLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT),
+                HivelyLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
+                ApeLoader.FORMAT),
                 registry.formats());
     }
 
@@ -67,6 +69,7 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.p00")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.ogg")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.oga")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.ape")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.xyz")).isEmpty());
     }
 

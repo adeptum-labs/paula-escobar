@@ -79,6 +79,13 @@ class PaulaTest {
     }
 
     @Test
+    void formatsListsMonkeysAudio() {
+        assertEquals(0, cli.execute("formats"));
+        assertTrue(out.toString().contains("Monkey's Audio"));
+        assertTrue(out.toString().contains(".ape"));
+    }
+
+    @Test
     void infoPrintsSidCredits(@TempDir Path dir) throws Exception {
         assertEquals(0, cli.execute("info", TestSids.writePsid(dir).toString()));
         assertTrue(out.toString().startsWith(TestSids.NAME));
