@@ -53,11 +53,15 @@ class MedTablesTest {
         assertEquals(0, MedTables.octavesOfType(0));
     }
 
+    /**
+     * The table holds only how far the swing has gone, never which way; the sign of the position decides
+     * that, which is how ProTracker wrote it and how a vibrato and a tremolo both read it.
+     */
     @Test
-    void swingsTheVibratoBothWaysAndBackToNothing() {
-        assertEquals(0, MedTables.vibrato(0));
-        assertEquals(255, MedTables.vibrato(8), "furthest one way");
-        assertEquals(-255, MedTables.vibrato(24), "and the other");
-        assertEquals(MedTables.vibrato(1), MedTables.vibrato(1 + MedTables.VIBRATO_STEPS), "then round again");
+    void risesAndFallsAcrossTheSwing() {
+        assertEquals(0, MedTables.sine(0), "the middle");
+        assertEquals(255, MedTables.sine(16), "furthest out");
+        assertEquals(24, MedTables.sine(31), "and nearly back");
+        assertEquals(MedTables.sine(1), MedTables.sine(1 + MedTables.VIBRATO_STEPS), "then round again");
     }
 }

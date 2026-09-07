@@ -59,7 +59,7 @@ class MedInstrumentTest {
         final MedInstrument instrument = multiOctave();
 
         assertSame(instrument.layers().get(4), instrument.layerAt(LOWEST_OCTAVE), "the lowest plays the longest");
-        assertSame(instrument.layers().get(3), instrument.layerAt(FOURTH_OCTAVE));
+        assertSame(instrument.layers().get(2), instrument.layerAt(FOURTH_OCTAVE));
         assertSame(instrument.layers().get(1), instrument.layerAt(SEVENTH_OCTAVE));
     }
 
@@ -67,9 +67,9 @@ class MedInstrumentTest {
     void transposesWhateverSampleItLandedOn() {
         final MedInstrument instrument = multiOctave();
 
-        assertEquals(24, instrument.transposeAt(LOWEST_OCTAVE));
-        assertEquals(12, instrument.transposeAt(FOURTH_OCTAVE));
-        assertEquals(-12, instrument.transposeAt(SEVENTH_OCTAVE));
+        assertEquals(12, instrument.transposeAt(LOWEST_OCTAVE));
+        assertEquals(-12, instrument.transposeAt(FOURTH_OCTAVE));
+        assertEquals(-36, instrument.transposeAt(SEVENTH_OCTAVE));
     }
 
     @Test

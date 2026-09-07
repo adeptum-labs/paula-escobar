@@ -33,6 +33,7 @@ package com.adeptum.paula.module.med;
 final class MedVoice {
 
     private static final int FULL_VOLUME = 64;
+    static final int INACTIVE = -1;
     static final int MIDDLE_PANNING = 128;
     static final int HARD_RIGHT = 255;
 
@@ -62,10 +63,10 @@ final class MedVoice {
     int tremoloStep;
     int arpeggio;
 
-    int hold;
-    int decay;
-    int holdLeft;
-    boolean held;
+    int holdCount = INACTIVE;
+    int decayValue = INACTIVE;
+    boolean holdActive;
+    boolean holdSustained;
 
     int retriggerEvery;
     int delayTicks;

@@ -84,15 +84,25 @@ record MedInstrument(String name, List<MedLayer> layers, int octaves, int volume
         return isMultiOctave() ? layers.get(SAMPLE_OF_OCTAVE[row()][keyboardOctave(note)]) : layers.getFirst();
     }
 
+    /**
+     * A multi-octave instrument sits an octave below a plain one before its own table moves it, which is how
+     * libxmp tunes the two apart.
+     */
     int transposeAt(int note) {
-        return isMultiOctave() ? TRANSPOSE_OF_OCTAVE[row()][keyboardOctave(note)] : 0;
+        return isMultiOctave()
+                ? TRANSPOSE_OF_OCTAVE[row()][keyboardOctave(note)] - MedTables.NOTES_PER_OCTAVE : 0;
     }
 
     private int row() {
         return Math.min(octaves, SAMPLE_OF_OCTAVE.length + 1) - FEWEST_OCTAVES;
     }
 
+    /**
+     * The table is written against the note an octave above the one OctaMED stores, which is where libxmp
+     * puts a MED note before it looks anything up.
+     */
     private static int keyboardOctave(int note) {
-        return Math.clamp((note - 1) / MedTables.NOTES_PER_OCTAVE, 0, KEYBOARD_OCTAVES - 1);
+        return Math.clamp((note + MedTables.NOTES_PER_OCTAVE) / MedTables.NOTES_PER_OCTAVE, 0,
+                KEYBOARD_OCTAVES - 1);
     }
 }

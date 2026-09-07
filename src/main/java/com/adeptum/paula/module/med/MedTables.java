@@ -50,11 +50,15 @@ final class MedTables {
      */
     private static final int[] EIGHT_CHANNEL_TEMPOS = {179, 164, 152, 141, 131, 123, 116, 110, 104, 99};
 
-    private static final int[] VIBRATO_SINE = {
-        0, 49, 97, 141, 180, 212, 235, 250,
-        255, 250, 235, 212, 180, 141, 97, 49,
-        0, -49, -97, -141, -180, -212, -235, -250,
-        -255, -250, -235, -212, -180, -141, -97, -49};
+    /**
+     * The quarter of a sine the trackers swing a vibrato and a tremolo along, in the thirty-two steps
+     * ProTracker wrote it in; which way the swing goes is read from the sign of the position, not the table.
+     */
+    private static final int[] SINE = {
+        0, 24, 49, 74, 97, 120, 141, 161,
+        180, 197, 212, 224, 235, 244, 250, 253,
+        255, 253, 250, 244, 235, 224, 212, 197,
+        180, 161, 141, 120, 97, 74, 49, 24};
 
     /**
      * How many octaves of samples each of the six multi-octave instrument types carries.
@@ -91,8 +95,8 @@ final class MedTables {
         return EIGHT_CHANNEL_TEMPOS[Math.min(tempo, HIGHEST_COMPATIBILITY_TEMPO) - 1];
     }
 
-    static int vibrato(int step) {
-        return VIBRATO_SINE[step & VIBRATO_STEPS - 1];
+    static int sine(int step) {
+        return SINE[step & VIBRATO_STEPS - 1];
     }
 
     static int octavesOfType(int type) {

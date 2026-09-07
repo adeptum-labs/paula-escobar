@@ -48,8 +48,9 @@ final class MedEngine {
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int LOWEST_PERIOD = 20;
     private static final int HIGHEST_PERIOD = 3424;
-    private static final int VIBRATO_SHIFT = 10;
-    private static final int VIBRATO_STEP_SHIFT = 5;
+    private static final int VIBRATO_SHIFT = 7;
+    private static final int SWING_PER_SPEED = 4;
+    private static final int SWING_SUB_STEPS = 2;
     private static final int NIBBLE = 0x0F;
     private static final int NIBBLE_BITS = 4;
     private static final int FINETUNES = 8;
@@ -312,6 +313,27 @@ final class MedEngine {
             }
             apply(voice, command);
         }
+        sustainHolds(block);
+    }
+
+    /**
+     * A note is held on where the line ahead carries the symbol that sustains it: an instrument with no note,
+     * or a note slid into rather than struck. Reading the line ahead is what OctaMED's own player does, since
+     * a note lasts exactly until the sustaining stops.
+     */
+    private void sustainHolds(MedBlock block) {
+        final MedBlock ahead = line + 1 < block.lines() ? block : blockAt(order + 1);
+        final int aheadLine = line + 1 < block.lines() ? line + 1 : 0;
+        for (int number = 0; number < voices.length; number++) {
+            final MedVoice voice = voices[number];
+            voice.holdSustained = false;
+            if (ahead == null || voice.holdCount <= 0) {
+                continue;
+            }
+            final MedCommand next = MedEffects.translate(ahead.entry(aheadLine, number), song);
+            voice.holdSustained = next.holds()
+                    || next.hasNote() && next.effect() == MedEffect.PORTAMENTO;
+        }
     }
 
     /**
@@ -352,10 +374,7 @@ final class MedEngine {
         }
         voice.note = command.note();
         voice.finetune = playing.finetune();
-        voice.hold = playing.hold();
-        voice.decay = playing.decay();
-        voice.holdLeft = playing.hold();
-        voice.held = false;
+        setHoldAndDecay(voice, playing.hold(), playing.decay());
         voice.start(layer, periodOf(command.note(), playing, voice.finetune), playing.volume());
     }
 
@@ -446,13 +465,21 @@ final class MedEngine {
     }
 
     /**
-     * The command that holds a note past its line and then fades it: the high nibble counts the lines it is
-     * held for and the low one how fast it falls once let go.
+     * The command that holds a note past its line and then fades it: the high nibble counts the ticks it is
+     * held for and the low one how far its volume falls on each tick afterwards.
      */
     private void holdAndDecay(MedVoice voice, int parameter) {
-        voice.hold = parameter >> NIBBLE_BITS;
-        voice.decay = parameter & NIBBLE;
-        voice.holdLeft = voice.hold;
+        setHoldAndDecay(voice, parameter >> NIBBLE_BITS, parameter & NIBBLE);
+    }
+
+    /**
+     * A hold of nothing at all leaves the note to sound as long as anything else says, rather than fading it.
+     */
+    private static void setHoldAndDecay(MedVoice voice, int hold, int decay) {
+        voice.holdActive = hold > 0;
+        voice.holdCount = hold > 0 ? hold : MedVoice.INACTIVE;
+        voice.decayValue = hold > 0 ? decay : MedVoice.INACTIVE;
+        voice.holdSustained = false;
     }
 
     private void setTempo(int parameter) {
@@ -500,6 +527,23 @@ final class MedEngine {
             }
             slide(voice);
             decay(voice);
+            if (tick > 0) {
+                swingOn(voice);
+            }
+        }
+    }
+
+    /**
+     * A vibrato and a tremolo move once for every tick of the song, never for every buffer the mixer asks
+     * for, so where a buffer happens to end does not change what is heard. They stand still on the first tick
+     * of a line, which is the tick a note is struck on.
+     */
+    private static void swingOn(MedVoice voice) {
+        if (voice.vibratoDepth > 0) {
+            voice.vibratoStep = (byte) (voice.vibratoStep + voice.vibratoSpeed * SWING_PER_SPEED);
+        }
+        if (voice.tremoloDepth > 0) {
+            voice.tremoloStep = (byte) (voice.tremoloStep + voice.tremoloSpeed * SWING_PER_SPEED);
         }
     }
 
@@ -515,18 +559,22 @@ final class MedEngine {
     }
 
     /**
-     * A note that was held counts its lines down and then falls by its decay every line until it is silent.
+     * A held note counts its ticks down and then falls by its decay on every one after, a decay of nothing
+     * silencing it at once. The count stands still while the line ahead sustains it, which is how OctaMED
+     * writes a note that lasts.
      */
     private void decay(MedVoice voice) {
-        if (tick != 0 || voice.hold == 0) {
-            return;
+        if (voice.holdCount == 0) {
+            voice.volume = Math.max(0, voice.volume
+                    - (voice.decayValue > 0 ? voice.decayValue : voice.volume));
+            if (voice.volume == 0) {
+                voice.holdCount = MedVoice.INACTIVE;
+                voice.decayValue = MedVoice.INACTIVE;
+            }
+            voice.holdActive = false;
         }
-        if (voice.holdLeft > 0) {
-            voice.holdLeft--;
-            return;
-        }
-        if (voice.decay > 0) {
-            voice.volume = Math.max(0, voice.volume - voice.decay);
+        if (voice.holdCount > 0 && !voice.holdSustained) {
+            voice.holdCount--;
         }
     }
 
@@ -537,10 +585,7 @@ final class MedEngine {
     int soundingPeriod(MedVoice voice) {
         int period = voice.period;
         if (voice.vibratoDepth > 0) {
-            period += MedTables.vibrato(voice.vibratoStep >> VIBRATO_STEP_SHIFT) * voice.vibratoDepth
-                    >> VIBRATO_SHIFT;
-            voice.vibratoStep = voice.vibratoStep + voice.vibratoSpeed
-                    & (MedTables.VIBRATO_STEPS << VIBRATO_STEP_SHIFT) - 1;
+            period += swing(voice.vibratoStep, voice.vibratoDepth);
         }
         if (voice.arpeggio > 0) {
             final int step = arpeggioStep == 1 ? voice.arpeggio >> NIBBLE_BITS
@@ -552,13 +597,19 @@ final class MedEngine {
         return clampPeriod(period);
     }
 
+    /**
+     * How far a vibrato or a tremolo is off the middle at this step, the position counting round as a signed
+     * byte so its top half swings the other way.
+     */
+    private static int swing(int step, int depth) {
+        final int amount = MedTables.sine(step >> SWING_SUB_STEPS) * depth >> VIBRATO_SHIFT;
+        return step < 0 ? -amount : amount;
+    }
+
     int soundingVolume(MedVoice voice) {
         int volume = voice.volume;
         if (voice.tremoloDepth > 0) {
-            volume += MedTables.vibrato(voice.tremoloStep >> VIBRATO_STEP_SHIFT) * voice.tremoloDepth
-                    >> VIBRATO_SHIFT;
-            voice.tremoloStep = voice.tremoloStep + voice.tremoloSpeed
-                    & (MedTables.VIBRATO_STEPS << VIBRATO_STEP_SHIFT) - 1;
+            volume += swing(voice.tremoloStep, voice.tremoloDepth);
         }
         return Math.max(0, Math.min(FULL_VOLUME, volume));
     }
