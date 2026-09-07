@@ -472,7 +472,7 @@ final class MedReader {
             return synthetic(bytes, at, name, settings, hold);
         }
         if (type == HYBRID) {
-            return silent(name, settings, hold);
+            return hybrid(bytes, at, name, settings, hold);
         }
         final int kind = type & TYPE_MASK;
         if (kind != SAMPLE && kind != MIX_MODE_SAMPLE) {
@@ -501,6 +501,62 @@ final class MedReader {
      */
     private static MedInstrument synthetic(MedBytes bytes, int at, String name, Settings settings, Hold hold)
             throws IOException {
+        final SynthHeader header = synthHeader(bytes);
+        if (header == null) {
+            return silent(name, settings, hold);
+        }
+        final short[][] waveforms = new short[header.count][];
+        final List<MedLayer> layers = new ArrayList<>(header.count);
+        for (int waveform = 0; waveform < header.count; waveform++) {
+            bytes.seek(at + header.offsets[waveform]);
+            waveforms[waveform] = waveform(bytes);
+            layers.add(new MedLayer(waveforms[waveform], 0, waveforms[waveform].length));
+        }
+        return new MedInstrument(name, layers, 1, settings.volume, settings.transpose - SYNTH_OCTAVES,
+                hold.finetune, hold.hold, hold.decay, 0, header.toSynth(waveforms));
+    }
+
+    /**
+     * A hybrid is a synthetic instrument whose first waveform is a whole sample rather than a short shape, so
+     * the sequence steps the volume of a sampled sound and can still swap the waveforms behind it.
+     */
+    private static MedInstrument hybrid(MedBytes bytes, int at, String name, Settings settings, Hold hold)
+            throws IOException {
+        final SynthHeader header = synthHeader(bytes);
+        if (header == null || header.count < 1) {
+            return silent(name, settings, hold);
+        }
+        bytes.seek(at + header.offsets[0]);
+        final int length = bytes.u32();
+        if (bytes.s16() != SAMPLE || !bytes.has(length)) {
+            return silent(name, settings, hold);
+        }
+        final short[][] waveforms = new short[header.count][];
+        waveforms[0] = sample(bytes, length, false);
+        final List<MedLayer> layers = new ArrayList<>(header.count);
+        layers.add(new MedLayer(waveforms[0], settings.loopStart, settings.loopLength));
+        for (int waveform = 1; waveform < header.count; waveform++) {
+            bytes.seek(at + header.offsets[waveform]);
+            waveforms[waveform] = waveform(bytes);
+            layers.add(new MedLayer(waveforms[waveform], 0, waveforms[waveform].length));
+        }
+        return new MedInstrument(name, layers, 1, settings.volume, settings.transpose, hold.finetune,
+                hold.hold, hold.decay, 0, header.toSynth(waveforms));
+    }
+
+    private static short[] waveform(MedBytes bytes) throws IOException {
+        final int frames = bytes.u16() * 2;
+        if (!bytes.has(frames)) {
+            throw new IOException("OctaMED waveform longer than the module");
+        }
+        return sample(bytes, frames, false);
+    }
+
+    /**
+     * What a synthetic and a hybrid instrument have in common: the two sequences, their speeds, and where the
+     * waveforms lie relative to the head of the instrument.
+     */
+    private static SynthHeader synthHeader(MedBytes bytes) throws IOException {
         final int defaultDecay = bytes.u8();
         bytes.skip(SYNTH_RESERVED);
         bytes.skip(Short.BYTES * 2);
@@ -511,30 +567,26 @@ final class MedReader {
         final int count = bytes.u16();
         final byte[] volumeTable = bytes.bytes(SYNTH_TABLE_LENGTH);
         final byte[] waveformTable = bytes.bytes(SYNTH_TABLE_LENGTH);
-        if (count == NO_WAVEFORMS || count > MOST_WAVEFORMS || volumeTableLength > SYNTH_TABLE_LENGTH
-                || waveformTableLength > SYNTH_TABLE_LENGTH) {
-            return silent(name, settings, hold);
+        if (count == NO_WAVEFORMS || count < 1 || count > MOST_WAVEFORMS
+                || volumeTableLength > SYNTH_TABLE_LENGTH || waveformTableLength > SYNTH_TABLE_LENGTH) {
+            return null;
         }
         final int[] offsets = new int[count];
         for (int waveform = 0; waveform < count; waveform++) {
             offsets[waveform] = bytes.u32();
         }
-        final short[][] waveforms = new short[count][];
-        final List<MedLayer> layers = new ArrayList<>(count);
-        for (int waveform = 0; waveform < count; waveform++) {
-            bytes.seek(at + offsets[waveform]);
-            final int frames = bytes.u16() * 2;
-            if (!bytes.has(frames)) {
-                throw new IOException("OctaMED waveform longer than the module");
-            }
-            waveforms[waveform] = sample(bytes, frames, false);
-            layers.add(new MedLayer(waveforms[waveform], 0, frames));
+        return new SynthHeader(count, offsets, volumeSpeed, waveformSpeed, defaultDecay,
+                Arrays.copyOf(volumeTable, volumeTableLength),
+                Arrays.copyOf(waveformTable, waveformTableLength));
+    }
+
+    private record SynthHeader(int count, int[] offsets, int volumeSpeed, int waveformSpeed, int defaultDecay,
+                               byte[] volumeTable, byte[] waveformTable) {
+
+        MedSynthInstrument toSynth(short[][] waveforms) {
+            return new MedSynthInstrument(volumeSpeed, waveformSpeed, defaultDecay, volumeTable, waveformTable,
+                    waveforms);
         }
-        final MedSynthInstrument synth = new MedSynthInstrument(volumeSpeed, waveformSpeed, defaultDecay,
-                Arrays.copyOf(volumeTable, volumeTableLength), Arrays.copyOf(waveformTable, waveformTableLength),
-                waveforms);
-        return new MedInstrument(name, layers, 1, settings.volume,
-                settings.transpose - SYNTH_OCTAVES, hold.finetune, hold.hold, hold.decay, 0, synth);
     }
 
     /**

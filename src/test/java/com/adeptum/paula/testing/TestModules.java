@@ -65,6 +65,7 @@ public final class TestModules {
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int DBM_LENGTH = 1024;
+    public static final int MED_PLAY_SEQUENCE_AT = 52 + 63 * 8 + 4;
     public static final int MED_TRACKS = 2;
     public static final int MED_LINES = 4;
     public static final int MED_NOTE = 13;
