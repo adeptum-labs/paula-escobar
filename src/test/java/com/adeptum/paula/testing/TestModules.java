@@ -114,7 +114,7 @@ public final class TestModules {
 
     private static final int MO3_VERSION = 5;
     private static final int MO3_HEADER_LENGTH = 422;
-    private static final int MO3_MUSIC_LENGTH = 640;
+    private static final int MO3_MUSIC_LENGTH = 2048;
     private static final int MO3_LITERALS_PER_CONTROL_BYTE = 8;
     private static final int MO3_IS_MOD = 0x80;
 
@@ -125,6 +125,19 @@ public final class TestModules {
     private static final int MO3_SAMPLE_LOOPS = 0x10;
     private static final int MO3_PANNING_UNSET = 0xFFFF;
     private static final int MO3_MIDDLE_FINETUNE = 128;
+    public static final int MO3_INSTRUMENT_MODE_FLAG = 0x0200;
+    private static final int MO3_KEYS = 120;
+    private static final int MO3_LONGEST_ENVELOPE = 25;
+    private static final int MO3_ENVELOPE_POINTS = 2;
+    private static final int MO3_ENVELOPE_ON = 0x01;
+    private static final int MO3_INSTRUMENT_VOLUME = 128;
+
+    public static final int MO3_ENVELOPE_END = 40;
+    public static final int MO3_LOUDEST = 64;
+    public static final int MO3_FADE_OUT = 512;
+    public static final int MO3_INSTRUMENTS = 1;
+    public static final String INSTRUMENT_NAME = "reed";
+
     public static final int MO3_LEFT = 64;
     public static final int MO3_RIGHT = 192;
 
@@ -443,14 +456,15 @@ public final class TestModules {
         music.putShort((short) MO3_ROWS);
         music.putInt(MO3_TRACK.length).put(MO3_TRACK);
         music.putInt(1).put((byte) 0);
+        mo3Instrument(music);
         mo3Sample(music);
         return Arrays.copyOf(music.array(), music.position());
     }
 
     private static void mo3Header(ByteBuffer music) {
         music.put((byte) MO3_CHANNELS).putShort((short) MO3_ORDERS).putShort((short) 0).putShort((short) 1);
-        music.putShort((short) 2).putShort((short) 0).putShort((short) MO3_SAMPLES);
-        music.put((byte) MO3_SPEED).put((byte) MO3_TEMPO).putInt(MO3_IS_MOD | MO3_ALWAYS_SET);
+        music.putShort((short) 2).putShort((short) MO3_INSTRUMENTS).putShort((short) MO3_SAMPLES);
+        music.put((byte) MO3_SPEED).put((byte) MO3_TEMPO).putInt(MO3_IS_MOD | MO3_ALWAYS_SET | MO3_INSTRUMENT_MODE_FLAG);
         music.put((byte) 64).put((byte) 0).put((byte) 0);
         for (int channel = 0; channel < 64; channel++) {
             music.put((byte) 0);
@@ -459,6 +473,37 @@ public final class TestModules {
             music.put((byte) (channel % 4 == 1 || channel % 4 == 2 ? MO3_RIGHT : MO3_LEFT));
         }
         music.put(new byte[MO3_HEADER_LENGTH - 150]);
+    }
+
+    /**
+     * One instrument sounding the one sample on every key, with a volume envelope of two points falling from
+     * the loudest to nothing.
+     */
+    private static void mo3Instrument(ByteBuffer music) {
+        music.put(INSTRUMENT_NAME.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        music.putInt(0);
+        for (int key = 0; key < MO3_KEYS; key++) {
+            music.putShort((short) key).putShort((short) 0);
+        }
+        mo3Envelope(music, MO3_ENVELOPE_ON);
+        mo3Envelope(music, 0);
+        mo3Envelope(music, 0);
+        music.putInt(0);
+        music.putShort((short) MO3_FADE_OUT);
+        music.putInt(0);
+        music.put((byte) MO3_INSTRUMENT_VOLUME).putShort((short) MO3_PANNING_UNSET);
+        music.put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+        music.putShort((short) 0).putShort((short) 0);
+        music.put((byte) 0).put((byte) 0);
+    }
+
+    private static void mo3Envelope(ByteBuffer music, int flags) {
+        music.put((byte) flags).put((byte) MO3_ENVELOPE_POINTS).put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+        music.putShort((short) 0).putShort((short) MO3_LOUDEST);
+        music.putShort((short) MO3_ENVELOPE_END).putShort((short) 0);
+        for (int point = 2; point < MO3_LONGEST_ENVELOPE; point++) {
+            music.putShort((short) 0).putShort((short) 0);
+        }
     }
 
     private static void mo3Sample(ByteBuffer music) {

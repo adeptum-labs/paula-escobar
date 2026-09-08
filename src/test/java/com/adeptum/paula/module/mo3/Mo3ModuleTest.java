@@ -155,7 +155,7 @@ class Mo3ModuleTest {
 
     private static Mo3Module ofKind(int flag) throws IOException {
         final byte[] music = TestModules.mo3Music();
-        final int flags = flag | TestModules.MO3_ALWAYS_SET;
+        final int flags = flag | TestModules.MO3_ALWAYS_SET | TestModules.MO3_INSTRUMENT_MODE_FLAG;
         for (int at = 0; at < Integer.BYTES; at++) {
             music[TestModules.MO3_FLAGS_AT + at] = (byte) (flags >> (at * Byte.SIZE));
         }

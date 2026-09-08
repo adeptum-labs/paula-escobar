@@ -124,8 +124,10 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         if (isAmigaLike()) {
             setSongFlags(getSongFlags() | ModConstants.SONG_AMIGALIMITS);
         }
-        setInstrumentContainer(new InstrumentsContainer(this,
-                file.hasInstruments() ? song.instruments() : 0, song.samples()));
+        final InstrumentsContainer instruments = new InstrumentsContainer(this,
+                file.hasInstruments() ? song.instruments() : 0, song.samples());
+        Mo3Instruments.read(instruments, file, isAmigaLike());
+        setInstrumentContainer(instruments);
     }
 
     /**
