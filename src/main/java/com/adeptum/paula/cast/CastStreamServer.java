@@ -157,6 +157,7 @@ public final class CastStreamServer implements AutoCloseable {
             if (request.head) {
                 return;
             }
+            stream.fetching();
             out.write(waveHeader(stream.sampleRate()));
             out.flush();
             pump(stream, out, stream.sampleRate() * CHANNELS * BITS / Byte.SIZE);

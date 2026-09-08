@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,6 +59,8 @@ final class FakeCastDevice implements AutoCloseable {
     private volatile DataOutputStream out;
     private volatile double currentTime;
     private volatile String playerState = "PLAYING";
+    private volatile String idleReason;
+    private volatile boolean fetches;
 
     FakeCastDevice() throws IOException {
         answers.put("GET_STATUS", request -> receiverStatus());
@@ -86,6 +90,22 @@ final class FakeCastDevice implements AutoCloseable {
     void playingAt(double seconds, String state) {
         currentTime = seconds;
         playerState = state;
+    }
+
+    /**
+     * A device that reaches for the stream it is handed and reads it away, as a real one does the moment it
+     * is told an address.
+     */
+    void fetchesWhatItIsGiven() {
+        fetches = true;
+    }
+
+    /**
+     * A device that will not play what it was given, as one that cannot reach the address answers.
+     */
+    void refusing(String reason) {
+        playerState = "IDLE";
+        idleReason = reason;
     }
 
     void answer(String type, Function<JsonObject, JsonObjectBuilder> reply) {
@@ -124,9 +144,12 @@ final class FakeCastDevice implements AutoCloseable {
     }
 
     JsonObjectBuilder mediaStatus() {
-        return CastChannel.object("MEDIA_STATUS").add("status", Json.createArrayBuilder()
-                .add(Json.createObjectBuilder().add("mediaSessionId", 1).add("playerState", playerState)
-                        .add("currentTime", currentTime).add("playbackRate", 1)));
+        final JsonObjectBuilder status = Json.createObjectBuilder().add("mediaSessionId", 1)
+                .add("playerState", playerState).add("currentTime", currentTime).add("playbackRate", 1);
+        if (idleReason != null) {
+            status.add("idleReason", idleReason);
+        }
+        return CastChannel.object("MEDIA_STATUS").add("status", Json.createArrayBuilder().add(status));
     }
 
     @Override
@@ -164,6 +187,9 @@ final class FakeCastDevice implements AutoCloseable {
             }
             return;
         }
+        if (fetches && payload.containsKey("media")) {
+            fetch(payload.getJsonObject("media").getString("contentId"));
+        }
         final Function<JsonObject, JsonObjectBuilder> reply = answers.get(type);
         if (reply != null && payload.containsKey("requestId")) {
             final JsonObjectBuilder answer = reply.apply(payload);
@@ -172,6 +198,21 @@ final class FakeCastDevice implements AutoCloseable {
                         answer.add("requestId", payload.getInt("requestId")).build().toString()));
             }
         }
+    }
+
+    private void fetch(String url) {
+        final URI address = URI.create(url);
+        final Thread reader = new Thread(() -> {
+            try (Socket stream = new Socket(address.getHost(), address.getPort())) {
+                stream.getOutputStream().write(("GET " + address.getPath() + " HTTP/1.1\r\nHost: x\r\n\r\n")
+                        .getBytes(StandardCharsets.US_ASCII));
+                stream.getInputStream().readAllBytes();
+            } catch (IOException ended) {
+                // The stream ends with the test.
+            }
+        }, "fake-cast-fetch");
+        reader.setDaemon(true);
+        reader.start();
     }
 
     private void write(CastMessage message) throws IOException {

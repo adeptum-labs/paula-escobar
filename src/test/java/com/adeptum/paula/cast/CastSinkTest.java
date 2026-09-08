@@ -22,13 +22,12 @@
 package com.adeptum.paula.cast;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.audio.AudioException;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.Socket;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
@@ -41,10 +40,48 @@ class CastSinkTest {
     private static final CastDevice KITCHEN = new CastDevice("id", "Kök", "Nest Audio",
             InetAddress.getLoopbackAddress(), CastDevice.CAST_PORT);
 
+    private CastSession session;
+
+    /**
+     * A device that cannot reach the address answers this way within moments. Handing the player to it
+     * anyway leaves it writing into a stream nothing fetches, which holds the whole screen still.
+     */
+    @Test
+    void willNotHandThePlayerToADeviceThatWillNotFetchTheSound() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.refusing("ERROR");
+            sink.open(SAMPLE_RATE);
+
+            final AudioException refused = assertThrows(AudioException.class, () -> sink.begin("Paula Test", ""));
+            assertTrue(refused.getMessage().contains("Kök"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("could not fetch"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("ERROR"), refused.getMessage());
+        }
+    }
+
+    @Test
+    void stopsWritingToADeviceSomeoneElseHasTakenOver() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            sink.open(SAMPLE_RATE);
+            sink.begin("Paula Test", "");
+            sink.write(tone(), FRAMES);
+
+            fake.refusing("CANCELLED");
+            fake.sendMediaStatus();
+            assertTrue(waitFor(() -> session.refusal().isPresent()), "the device said it had given up");
+
+            assertThrows(IllegalStateException.class, () -> sink.write(tone(), FRAMES),
+                    "which is said rather than written into");
+        }
+    }
+
     @Test
     void measuresADeviceFillingItsBufferAsFallingFurtherBehind() throws Exception {
         try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
             fake.playingAt(0, "BUFFERING");
+            fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
             sink.begin("Paula Test", "");
             sink.write(tone(), FRAMES);
@@ -63,9 +100,9 @@ class CastSinkTest {
     void holdsThePlayerBackWhenAPlayingDeviceGetsNowhere() throws Exception {
         try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
             fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
             sink.begin("Paula Test", "");
-            fetch(loadedUrl(fake));
 
             final Thread stuck = sayItIsPlayingButNeverGetOn(fake);
             final Thread player = play(sink);
@@ -120,34 +157,11 @@ class CastSinkTest {
         return player;
     }
 
-    /**
-     * The address the device was told to play, which a test fetches the way the device would.
-     */
-    private static URI loadedUrl(FakeCastDevice fake) {
-        return fake.received().stream()
-                .map(message -> CastChannel.parse(message.payload()))
-                .filter(payload -> payload != null && payload.containsKey("media"))
-                .map(payload -> URI.create(payload.getJsonObject("media").getString("contentId")))
-                .findFirst().orElseThrow();
-    }
-
-    private static void fetch(URI url) throws IOException {
-        final Socket socket = new Socket(url.getHost(), url.getPort());
-        final Thread reader = new Thread(() -> {
-            try (socket) {
-                socket.getOutputStream().write(
-                        ("GET " + url.getPath() + " HTTP/1.1\r\nHost: x\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
-                socket.getInputStream().readAllBytes();
-            } catch (IOException e) {
-                // The stream ends with the test.
-            }
-        }, "fetching-device");
-        reader.setDaemon(true);
-        reader.start();
-    }
-
     private CastSink sink(FakeCastDevice fake) {
-        return new CastSink(KITCHEN, 0, device -> new CastSession(CastChannel.over(fake.connect()), device));
+        return new CastSink(KITCHEN, 0, device -> {
+            session = new CastSession(CastChannel.over(fake.connect()), device);
+            return session;
+        });
     }
 
     private static short[] tone() {

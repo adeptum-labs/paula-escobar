@@ -44,6 +44,7 @@ public final class PcmStream {
     private final Deque<byte[]> chunks = new ArrayDeque<>();
     private int heldBytes;
     private long writtenFrames;
+    private boolean fetched;
     private boolean ended;
     private boolean abandoned;
 
@@ -54,6 +55,18 @@ public final class PcmStream {
 
     public int sampleRate() {
         return sampleRate;
+    }
+
+    /**
+     * Marks the stream as being read, which is the device taking the sound up. A device says where it is
+     * only when it feels like it; fetching is what it does the moment it has the address and means to play.
+     */
+    synchronized void fetching() {
+        fetched = true;
+    }
+
+    public synchronized boolean isFetched() {
+        return fetched;
     }
 
     /**

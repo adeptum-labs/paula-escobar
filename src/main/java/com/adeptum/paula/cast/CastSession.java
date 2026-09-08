@@ -53,6 +53,7 @@ public final class CastSession implements AutoCloseable {
     private static final String PLAYING = "PLAYING";
     private static final String BUFFERING = "BUFFERING";
     private static final String IDLE = "IDLE";
+    private static final String FINISHED = "FINISHED";
     private static final int MUSIC_TRACK = 3;
 
     private final CastChannel channel;
@@ -62,6 +63,7 @@ public final class CastSession implements AutoCloseable {
     private volatile int mediaSession;
     private volatile Position position;
     private volatile boolean played;
+    private volatile String refusal;
 
     CastSession(CastChannel channel, CastDevice device) {
         this.channel = channel;
@@ -93,6 +95,14 @@ public final class CastSession implements AutoCloseable {
     }
 
     /**
+     * Why the device gave up on what it was given, once it has said so: it could not reach the address, or
+     * someone else took the device. Playing it all the way through is not one of these.
+     */
+    public Optional<String> refusal() {
+        return Optional.ofNullable(refusal);
+    }
+
+    /**
      * True once the device has played what it was given and has run out, which is when the next can be given.
      */
     public boolean isFinished() {
@@ -110,6 +120,7 @@ public final class CastSession implements AutoCloseable {
         }
         played = false;
         position = null;
+        refusal = null;
         final JsonObject answer = channel.request(transport, CastMessages.MEDIA, CastChannel.object("LOAD")
                 .add("media", Json.createObjectBuilder()
                         .add("contentId", url)
@@ -206,6 +217,10 @@ public final class CastSession implements AutoCloseable {
         log.debug("{} is {} at {}s{}", device.name(), state, status.get("currentTime"),
                 status.containsKey("idleReason") ? " because " + status.getString("idleReason") : "");
         played |= PLAYING.equals(state) || BUFFERING.equals(state);
+        final String reason = status.getString("idleReason", "");
+        if (IDLE.equals(state) && !reason.isEmpty() && !FINISHED.equals(reason)) {
+            refusal = reason;
+        }
         position = new Position(status.getJsonNumber("currentTime") == null ? 0
                 : status.getJsonNumber("currentTime").doubleValue(), System.nanoTime(), state);
     }

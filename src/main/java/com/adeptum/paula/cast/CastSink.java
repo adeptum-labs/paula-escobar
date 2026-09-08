@@ -62,6 +62,11 @@ public final class CastSink implements AudioSink {
      */
     private static final Duration LONGEST_WAIT = Duration.ofSeconds(30);
 
+    /**
+     * How long a device is given to take the sound up before it is taken not to be playing it at all.
+     */
+    private static final Duration TO_START = Duration.ofSeconds(5);
+
     private final CastDevice device;
     private final int port;
     private final Connection connection;
@@ -128,6 +133,27 @@ public final class CastSink implements AudioSink {
             throw new AudioException(device.name() + " would not play: " + e.getMessage(), e);
         }
         served = next;
+        awaitFetch(next);
+    }
+
+    /**
+     * Waits for the device to take the sound up before the player is handed to it. A device that cannot
+     * reach the address says so within moments, and waiting on one that never fetches is what would
+     * otherwise hold the player still with nothing to show for it. What is waited for is the device
+     * reaching for the stream, since that is what it does at once, while saying where it is can wait.
+     */
+    private void awaitFetch(Served next) throws AudioException {
+        final long until = System.currentTimeMillis() + TO_START.toMillis();
+        while (!next.stream().isFetched() && session.refusal().isEmpty() && System.currentTimeMillis() < until) {
+            if (!pause()) {
+                return;
+            }
+        }
+        if (!next.stream().isFetched()) {
+            forgetStream();
+            throw new AudioException(device.name() + " could not fetch the sound from " + next.url()
+                    + session.refusal().map(reason -> " (" + reason + ")").orElse(""), null);
+        }
     }
 
     @Override
@@ -135,6 +161,7 @@ public final class CastSink implements AudioSink {
         if (served == null) {
             beginUntitled();
         }
+        failIfTheDeviceGaveUp();
         waitForDeviceToCatchUp();
         final Served current = served;
         if (current != null) {
@@ -173,6 +200,17 @@ public final class CastSink implements AudioSink {
             if (!pause()) {
                 return;
             }
+        }
+    }
+
+    /**
+     * A device taken over by someone else, or one that lost the stream, stops fetching; saying so beats
+     * holding the player against a device that will never take another frame.
+     */
+    private void failIfTheDeviceGaveUp() {
+        final Optional<String> refusal = session.refusal();
+        if (refusal.isPresent()) {
+            throw new IllegalStateException(device.name() + " stopped playing the sound (" + refusal.get() + ")");
         }
     }
 
