@@ -96,7 +96,6 @@ public final class PlayerSession {
     private final Outputs outputs;
     private final CastPopup castPopup = new CastPopup();
     private final PlaybackDelay delay;
-    private CastDevice castingTo;
     private PlaybackDelay.Moment heard;
 
     /**
@@ -277,7 +276,7 @@ public final class PlayerSession {
     private List<AttributedString> player(short[] audio) {
         final List<AttributedString> screen = Screen.render(view(audio), ui.width(), ui.height());
         return castPopup.isOpen()
-                ? castPopup.draw(screen, discovery.devices(), discovery.isScanning(), castingTo, ui.width(), ui.height())
+                ? castPopup.draw(screen, discovery.devices(), discovery.isScanning(), castingTo(), ui.width(), ui.height())
                 : screen;
     }
 
@@ -291,7 +290,7 @@ public final class PlayerSession {
             delay.record(written, renderer.channels(), engine.position());
         }
         final long heardAt = written - lagFrames();
-        heard = castingTo == null ? null : delay.at(heardAt);
+        heard = castingTo() == null ? null : delay.at(heardAt);
         return engine.tap().snapshot(ANALYSIS_FRAMES, heardAt);
     }
 
@@ -314,19 +313,25 @@ public final class PlayerSession {
         }
     }
 
+    /**
+     * The device the sound is going to, which is the output itself rather than anything remembered beside
+     * it, so casting asked for on the command line counts the same as casting chosen from the popup.
+     */
+    private CastDevice castingTo() {
+        return engine.output() instanceof CastSink cast ? cast.device() : null;
+    }
+
     private void playHere() throws AudioException {
-        if (castingTo != null) {
+        if (castingTo() != null) {
             engine.switchOutput(outputs.local().open());
-            castingTo = null;
             delay.clear();
         }
         castPopup.close();
     }
 
     private void playOn(CastDevice device) throws AudioException {
-        if (!device.equals(castingTo)) {
+        if (!device.equals(castingTo())) {
             engine.switchOutput(outputs.cast().open(device));
-            castingTo = device;
             delay.clear();
             status = null;
         }
@@ -393,7 +398,7 @@ public final class PlayerSession {
                 .progress(loader.loading() ? loader.progress().step().orElse(null) : null)
                 .visual(visual)
                 .waterfall(waterfall)
-                .canCast(castingTo != null || !discovery.devices().isEmpty())
+                .canCast(castingTo() != null || !discovery.devices().isEmpty())
                 .build();
     }
 
@@ -428,9 +433,9 @@ public final class PlayerSession {
         if (status != null) {
             return status;
         }
-        if (castingTo != null) {
-            return CASTING + castingTo.name() + (engine.output() instanceof CastSink cast
-                    ? cast.lag().map(lag -> String.format(", %.1f s behind", lag.toMillis() / 1000.0)).orElse("") : "");
+        if (engine.output() instanceof CastSink cast) {
+            return CASTING + cast.device().name()
+                    + cast.lag().map(lag -> String.format(", %.1f s behind", lag.toMillis() / 1000.0)).orElse("");
         }
         if (!loader.loading() || loader.progress().step().isPresent()) {
             return null;
