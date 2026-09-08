@@ -33,6 +33,11 @@ public final class PcmStream {
 
     private static final int CHANNELS = 2;
 
+    /**
+     * How long a writer waits for the device to fetch before the device is taken to have stopped listening.
+     */
+    private static final long STALL_MILLIS = 15_000;
+
     private final int sampleRate;
     private final int capacityBytes;
     private final Deque<byte[]> chunks = new ArrayDeque<>();
@@ -60,7 +65,7 @@ public final class PcmStream {
 
     /**
      * Takes the frames, waiting while the stream is full until the device has fetched some; returns false once
-     * nothing will read them any more.
+     * nothing will read them any more, and gives up on a device that has stopped fetching altogether.
      */
     public synchronized boolean write(short[] interleaved, int frames) {
         final byte[] chunk = new byte[frames * CHANNELS * Short.BYTES];
@@ -68,9 +73,14 @@ public final class PcmStream {
             chunk[sample * Short.BYTES] = (byte) interleaved[sample];
             chunk[sample * Short.BYTES + 1] = (byte) (interleaved[sample] >> Byte.SIZE);
         }
+        final long stalled = System.currentTimeMillis() + STALL_MILLIS;
         while (heldBytes + chunk.length > capacityBytes && !abandoned && !ended) {
+            final long left = stalled - System.currentTimeMillis();
+            if (left <= 0) {
+                throw new IllegalStateException("The device stopped fetching the sound");
+            }
             try {
-                wait();
+                wait(left);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
