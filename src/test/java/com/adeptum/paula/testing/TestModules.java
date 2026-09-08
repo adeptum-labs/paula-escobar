@@ -138,6 +138,13 @@ public final class TestModules {
     public static final int MO3_INSTRUMENTS = 1;
     public static final String INSTRUMENT_NAME = "reed";
 
+    public static final int CHIRP_LENGTH = 6000;
+
+    private static final double CHIRP_FROM = 20;
+    private static final double CHIRP_RISE = 0.004;
+    private static final double CHIRP_SCALE = 200;
+    private static final double CHIRP_PEAK = 100;
+
     public static final int MO3_LEFT = 64;
     public static final int MO3_RIGHT = 192;
 
@@ -413,6 +420,43 @@ public final class TestModules {
             text.write(0);
         }
         return text.toByteArray();
+    }
+
+    /**
+     * A module whose one sample sweeps in pitch. It is tonal enough for a lossy encoder to keep it well and,
+     * unlike a steady tone, not so predictable that packing it losslessly wins, which is what makes an MO3
+     * compressor reach for MPEG audio or Ogg Vorbis on it.
+     */
+    public static byte[] proTrackerChirp() {
+        final byte[] sample = chirpSample();
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + sample.length);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded("tone", 22))
+                .putShort((short) (sample.length / 2))
+                .put((byte) 0)
+                .put((byte) 64)
+                .putShort((short) 0)
+                .putShort((short) (sample.length / 2));
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        buffer.put((byte) (PERIOD_C2 >> 8)).put((byte) PERIOD_C2).put((byte) 0x10).put((byte) 0);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        buffer.put(sample);
+        return buffer.array();
+    }
+
+    /**
+     * The sweep itself, which is what a waveform read back out of a lossy MO3 is measured against.
+     */
+    public static byte[] chirpSample() {
+        final byte[] sample = new byte[CHIRP_LENGTH];
+        for (int at = 0; at < sample.length; at++) {
+            final double turns = (CHIRP_FROM + at * CHIRP_RISE) * at / CHIRP_SCALE;
+            sample[at] = (byte) (int) (CHIRP_PEAK * Math.sin(2 * Math.PI * turns));
+        }
+        return sample;
     }
 
     public static Path writeMo3(Path directory) throws IOException {
