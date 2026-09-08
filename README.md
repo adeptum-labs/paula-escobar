@@ -146,7 +146,13 @@ muting per voice. OctaMED modules of every kind, MMD0 through MMD3, are
 played by a third that follows the MED loaders and player of
 [libxmp](https://github.com/libxmp/libxmp), sounding the sampled,
 multi-octave, synthetic and hybrid instruments alike, with a scope and
-muting per track; its mixdown is Paula's own rather than libxmp's. Nothing
+muting per track; its mixdown is Paula's own rather than libxmp's. MO3
+files, the compressed form the demoscene passes those trackers' modules
+around in, are unpacked back into the module the tracker wrote and played
+by its own player: the song, the effects and the instruments as Impulse
+Tracker, Scream Tracker, ProTracker, Fast Tracker or MultiTracker meant
+them, and the samples whether they were kept whole, delta packed, or
+squeezed into MPEG audio or Ogg Vorbis. Nothing
 under `net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
 `tools/patch-javamod` rebuilds the vendored JavaMod jar with its fixes.
 
@@ -213,7 +219,13 @@ one in libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and
 Dag Lem, distributed under the GNU General Public License. The AHX and
 HivelyTracker replayer follows HivelyTracker's, copyright Pete Gordon, under
 the BSD 3-Clause
-License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
+License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). The MO3 reader
+follows `Load_mo3.cpp` of [OpenMPT](https://github.com/OpenMPT/openmpt),
+copyright the OpenMPT project developers and Olivier Lapicque, distributed
+under the BSD 3-Clause License reproduced in
+[OPENMPT-LICENSE.txt](OPENMPT-LICENSE.txt); its decompression routines come
+from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
+relicensed with his permission. 7z archives
 are read with Apache Commons Compress over the XZ for Java library, both under
 the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR

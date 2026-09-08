@@ -24,6 +24,7 @@ package com.adeptum.paula.testing;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,8 @@ import java.util.Arrays;
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
  * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note, and an
- * AHX and a HivelyTracker module playing one synthesised square instead.
+ * AHX and a HivelyTracker module playing one synthesised square instead, and the ProTracker one again
+ * as an MO3.
  */
 public final class TestModules {
 
@@ -85,6 +87,71 @@ public final class TestModules {
     private static final int HIVELY_INSTRUMENTS = 1;
     private static final int HIVELY_SUBSONGS = 0;
     private static final int HVL_EMPTY_STEP = 0x3f;
+
+    public static final int MO3_CHANNELS = 4;
+    public static final int MO3_ORDERS = 2;
+    public static final int MO3_ROWS = 64;
+    public static final int MO3_SAMPLES = 1;
+    public static final int MO3_SPEED = 6;
+    public static final int MO3_TEMPO = 125;
+
+    /**
+     * Where the channel count sits in the music chunk: after the song name and the empty message, each of
+     * which ends in a zero. The order count is the word after it and the restart position the word after that.
+     */
+    public static final int MO3_CHANNELS_AT = TITLE.length() + 2;
+    public static final int MO3_ORDERS_AT = MO3_CHANNELS_AT + 1;
+    public static final int MO3_RESTART_AT = MO3_ORDERS_AT + Short.BYTES;
+
+    /**
+     * Where the flags sit, past the seven counts, the speed and the tempo; they say which tracker wrote the
+     * module and which of its habits the module wants back.
+     */
+    public static final int MO3_FLAGS_AT = MO3_CHANNELS_AT + 15;
+
+    public static final int MO3_IS_IMPULSE_TRACKER = 0x0100;
+    public static final int MO3_IS_FAST_TRACKER = 0;
+
+    private static final int MO3_VERSION = 5;
+    private static final int MO3_HEADER_LENGTH = 422;
+    private static final int MO3_MUSIC_LENGTH = 2048;
+    private static final int MO3_LITERALS_PER_CONTROL_BYTE = 8;
+    private static final int MO3_IS_MOD = 0x80;
+
+    /**
+     * A flag every MO3 carries, whatever it was packed from.
+     */
+    public static final int MO3_ALWAYS_SET = 0x20000;
+    private static final int MO3_SAMPLE_LOOPS = 0x10;
+    private static final int MO3_PANNING_UNSET = 0xFFFF;
+    private static final int MO3_MIDDLE_FINETUNE = 128;
+    public static final int MO3_INSTRUMENT_MODE_FLAG = 0x0200;
+    private static final int MO3_KEYS = 120;
+    private static final int MO3_LONGEST_ENVELOPE = 25;
+    private static final int MO3_ENVELOPE_POINTS = 2;
+    private static final int MO3_ENVELOPE_ON = 0x01;
+    private static final int MO3_INSTRUMENT_VOLUME = 128;
+
+    public static final int MO3_ENVELOPE_END = 40;
+    public static final int MO3_LOUDEST = 64;
+    public static final int MO3_FADE_OUT = 512;
+    public static final int MO3_INSTRUMENTS = 1;
+    public static final String INSTRUMENT_NAME = "reed";
+
+    public static final int CHIRP_LENGTH = 6000;
+
+    private static final double CHIRP_FROM = 20;
+    private static final double CHIRP_RISE = 0.004;
+    private static final double CHIRP_SCALE = 200;
+    private static final double CHIRP_PEAK = 100;
+
+    public static final int MO3_LEFT = 64;
+    public static final int MO3_RIGHT = 192;
+
+    /**
+     * Two commands on one row, a note and the instrument to sound it with, then the byte that ends the track.
+     */
+    private static final byte[] MO3_TRACK = {0x12, 0x01, 0x30, 0x02, 0x00, 0x00};
 
     private TestModules() {
     }
@@ -353,6 +420,156 @@ public final class TestModules {
             text.write(0);
         }
         return text.toByteArray();
+    }
+
+    /**
+     * A module whose one sample sweeps in pitch. It is tonal enough for a lossy encoder to keep it well and,
+     * unlike a steady tone, not so predictable that packing it losslessly wins, which is what makes an MO3
+     * compressor reach for MPEG audio or Ogg Vorbis on it.
+     */
+    public static byte[] proTrackerChirp() {
+        final byte[] sample = chirpSample();
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + sample.length);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded("tone", 22))
+                .putShort((short) (sample.length / 2))
+                .put((byte) 0)
+                .put((byte) 64)
+                .putShort((short) 0)
+                .putShort((short) (sample.length / 2));
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        buffer.put((byte) (PERIOD_C2 >> 8)).put((byte) PERIOD_C2).put((byte) 0x10).put((byte) 0);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        buffer.put(sample);
+        return buffer.array();
+    }
+
+    /**
+     * The sweep itself, which is what a waveform read back out of a lossy MO3 is measured against.
+     */
+    public static byte[] chirpSample() {
+        final byte[] sample = new byte[CHIRP_LENGTH];
+        for (int at = 0; at < sample.length; at++) {
+            final double turns = (CHIRP_FROM + at * CHIRP_RISE) * at / CHIRP_SCALE;
+            sample[at] = (byte) (int) (CHIRP_PEAK * Math.sin(2 * Math.PI * turns));
+        }
+        return sample;
+    }
+
+    public static Path writeMo3(Path directory) throws IOException {
+        return Files.write(directory.resolve("test.mo3"), mo3());
+    }
+
+    /**
+     * Builds a minimal MO3: a four-channel ProTracker module of one pattern, one note on the first channel and
+     * one looping square-wave sample kept uncompressed, packed into a control stream that only ever copies.
+     */
+    public static byte[] mo3() {
+        return mo3(mo3Music());
+    }
+
+    /**
+     * The same file around a music chunk of the caller's own, so a test can say what the module claims about
+     * itself and see it refused.
+     */
+    public static byte[] mo3(byte[] music) {
+        final byte[] packed = mo3Packed(music);
+        final ByteBuffer file = ByteBuffer.allocate(12 + packed.length + SAMPLE_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        file.put("MO3".getBytes(StandardCharsets.US_ASCII)).put((byte) MO3_VERSION);
+        file.putInt(music.length).putInt(packed.length).put(packed);
+        for (int at = 0; at < SAMPLE_LENGTH; at++) {
+            file.put((byte) (at < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return file.array();
+    }
+
+    /**
+     * The music chunk as the reader sees it once unpacked.
+     */
+    public static byte[] mo3Music() {
+        final ByteBuffer music = ByteBuffer.allocate(MO3_MUSIC_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        music.put(TITLE.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        mo3Header(music);
+        music.put((byte) 0).put((byte) 0);
+        for (int channel = 0; channel < MO3_CHANNELS; channel++) {
+            music.putShort((short) (channel == 0 ? 0 : 1));
+        }
+        music.putShort((short) MO3_ROWS);
+        music.putInt(MO3_TRACK.length).put(MO3_TRACK);
+        music.putInt(1).put((byte) 0);
+        mo3Instrument(music);
+        mo3Sample(music);
+        return Arrays.copyOf(music.array(), music.position());
+    }
+
+    private static void mo3Header(ByteBuffer music) {
+        music.put((byte) MO3_CHANNELS).putShort((short) MO3_ORDERS).putShort((short) 0).putShort((short) 1);
+        music.putShort((short) 2).putShort((short) MO3_INSTRUMENTS).putShort((short) MO3_SAMPLES);
+        music.put((byte) MO3_SPEED).put((byte) MO3_TEMPO).putInt(MO3_IS_MOD | MO3_ALWAYS_SET | MO3_INSTRUMENT_MODE_FLAG);
+        music.put((byte) 64).put((byte) 0).put((byte) 0);
+        for (int channel = 0; channel < 64; channel++) {
+            music.put((byte) 0);
+        }
+        for (int channel = 0; channel < 64; channel++) {
+            music.put((byte) (channel % 4 == 1 || channel % 4 == 2 ? MO3_RIGHT : MO3_LEFT));
+        }
+        music.put(new byte[MO3_HEADER_LENGTH - 150]);
+    }
+
+    /**
+     * One instrument sounding the one sample on every key, with a volume envelope of two points falling from
+     * the loudest to nothing.
+     */
+    private static void mo3Instrument(ByteBuffer music) {
+        music.put(INSTRUMENT_NAME.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        music.putInt(0);
+        for (int key = 0; key < MO3_KEYS; key++) {
+            music.putShort((short) key).putShort((short) 0);
+        }
+        mo3Envelope(music, MO3_ENVELOPE_ON);
+        mo3Envelope(music, 0);
+        mo3Envelope(music, 0);
+        music.putInt(0);
+        music.putShort((short) MO3_FADE_OUT);
+        music.putInt(0);
+        music.put((byte) MO3_INSTRUMENT_VOLUME).putShort((short) MO3_PANNING_UNSET);
+        music.put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+        music.putShort((short) 0).putShort((short) 0);
+        music.put((byte) 0).put((byte) 0);
+    }
+
+    private static void mo3Envelope(ByteBuffer music, int flags) {
+        music.put((byte) flags).put((byte) MO3_ENVELOPE_POINTS).put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+        music.putShort((short) 0).putShort((short) MO3_LOUDEST);
+        music.putShort((short) MO3_ENVELOPE_END).putShort((short) 0);
+        for (int point = 2; point < MO3_LONGEST_ENVELOPE; point++) {
+            music.putShort((short) 0).putShort((short) 0);
+        }
+    }
+
+    private static void mo3Sample(ByteBuffer music) {
+        music.put(SAMPLE_NAME.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        music.putInt(MO3_MIDDLE_FINETUNE).put((byte) 0).put((byte) 64).putShort((short) MO3_PANNING_UNSET);
+        music.putInt(SAMPLE_LENGTH).putInt(0).putInt(SAMPLE_LENGTH).putShort((short) MO3_SAMPLE_LOOPS);
+        music.putInt(0).put((byte) 64);
+        music.putInt(0).putInt(0).putInt(0).putShort((short) 0);
+    }
+
+    /**
+     * A control stream that says nothing but "copy the next byte": the first byte goes through untouched, and
+     * a control byte of zero bits announces every eight literals after it.
+     */
+    private static byte[] mo3Packed(byte[] music) {
+        final ByteArrayOutputStream packed = new ByteArrayOutputStream();
+        packed.write(music[0]);
+        for (int at = 1; at < music.length; at += MO3_LITERALS_PER_CONTROL_BYTE) {
+            packed.write(0);
+            packed.write(music, at, Math.min(MO3_LITERALS_PER_CONTROL_BYTE, music.length - at));
+        }
+        return packed.toByteArray();
     }
 
     private static byte[] bytes(int... values) {

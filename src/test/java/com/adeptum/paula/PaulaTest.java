@@ -86,6 +86,13 @@ class PaulaTest {
     }
 
     @Test
+    void formatsListsMo3() {
+        assertEquals(0, cli.execute("formats"));
+        assertTrue(out.toString().contains("MO3 compressed modules"));
+        assertTrue(out.toString().contains(".mo3"));
+    }
+
+    @Test
     void formatsListsMonkeysAudio() {
         assertEquals(0, cli.execute("formats"));
         assertTrue(out.toString().contains("Monkey's Audio"));

@@ -39,7 +39,7 @@ public record JavaModModule(
         ModuleMetadata metadata,
         de.quippy.javamod.multimedia.mod.loader.Module tracker) implements Module {
 
-    static JavaModModule of(Path source, de.quippy.javamod.multimedia.mod.loader.Module tracker) {
+    public static JavaModModule of(Path source, de.quippy.javamod.multimedia.mod.loader.Module tracker) {
         final ModuleMetadata metadata = ModuleMetadata.builder()
                 .title(tracker.getSongName().strip())
                 .format(format(source, tracker))
