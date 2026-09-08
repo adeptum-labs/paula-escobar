@@ -26,7 +26,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Where sound goes: Java Sound on a JVM, one of miniaudio's backends in the native executable.
+ * Where sound goes: Java Sound on a JVM, one of miniaudio's backends in the native executable, or a Cast
+ * device on the network, which is made elsewhere since it needs to be found first.
  */
 public enum AudioBackend {
 
@@ -37,7 +38,8 @@ public enum AudioBackend {
     JACK(3),
     COREAUDIO(4),
     WASAPI(5),
-    NULL(6);
+    NULL(6),
+    CAST(-1);
 
     private final int number;
 
@@ -46,6 +48,9 @@ public enum AudioBackend {
     }
 
     public AudioSink createSink(int bufferFrames) throws AudioException {
+        if (this == CAST) {
+            throw new AudioException("Casting needs a device to cast to", null);
+        }
         if (runningOnJvm()) {
             if (this == AUTO || this == JAVASOUND) {
                 return new JavaSoundSink();

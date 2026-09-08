@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.adeptum.paula.audio.AudioException;
 import com.adeptum.paula.audio.AudioSink;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PlaybackEngineTest {
@@ -102,6 +103,43 @@ class PlaybackEngineTest {
     }
 
     @Test
+    void copiesEveryFrameToTheSinksThatKeepACopy() throws AudioException {
+        final RecordingSink copy = new RecordingSink();
+        try (PlaybackEngine engine = new PlaybackEngine(sink, List.of(copy), SAMPLE_RATE, 256)) {
+            engine.play(new SilenceRenderer(Duration.ofMillis(100), SAMPLE_RATE));
+            engine.awaitEnd();
+
+            assertEquals(sink.frames, copy.frames);
+            assertEquals(SAMPLE_RATE, copy.openedAt);
+        }
+    }
+
+    @Test
+    void movesTheSoundToAnotherSinkWithoutStoppingTheSong() throws AudioException {
+        final RecordingSink next = new RecordingSink();
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(new SeekRecordingRenderer(Duration.ZERO), "Song", "Tracker");
+            engine.switchOutput(next);
+            next.awaitFrames();
+
+            assertTrue(sink.closed, "the old output is closed");
+            assertEquals("Song", next.title, "and the new one told what plays");
+            assertEquals(PlaybackState.PLAYING, engine.state());
+        }
+    }
+
+    @Test
+    void letsTheOutputDrainOnceTheSongIsRendered() throws AudioException {
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(new SilenceRenderer(Duration.ofMillis(50), SAMPLE_RATE));
+            engine.awaitEnd();
+
+            assertTrue(sink.drained);
+            assertEquals(PlaybackState.FINISHED, engine.state());
+        }
+    }
+
+    @Test
     void seekingWithoutASongIsIgnored() throws AudioException {
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
             engine.seek(Duration.ofSeconds(5));
@@ -140,12 +178,21 @@ class PlaybackEngineTest {
 
     private static final class RecordingSink implements AudioSink {
 
-        private int frames;
-        private boolean closed;
+        private volatile int frames;
+        private volatile int openedAt;
+        private volatile String title;
+        private volatile boolean drained;
+        private volatile boolean closed;
 
         @Override
         public void open(int sampleRate) {
             assertEquals(SAMPLE_RATE, sampleRate);
+            openedAt = sampleRate;
+        }
+
+        @Override
+        public void begin(String newTitle, String subtitle) {
+            title = newTitle;
         }
 
         @Override
@@ -154,8 +201,24 @@ class PlaybackEngineTest {
         }
 
         @Override
+        public void drain() {
+            drained = true;
+        }
+
+        @Override
         public void close() {
             closed = true;
+        }
+
+        void awaitFrames() throws AudioException {
+            for (int tries = 0; tries < 200 && frames == 0; tries++) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            assertTrue(frames > 0, "the sink was written to");
         }
     }
 }
