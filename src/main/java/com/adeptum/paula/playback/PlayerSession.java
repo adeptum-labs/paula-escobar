@@ -26,6 +26,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.cast.CastDiscovery;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.Playlist;
@@ -85,13 +87,15 @@ public final class PlayerSession {
     private Renderer renderer;
     private String status;
     private boolean playedAnything;
+    private final CastDiscovery discovery;
 
     /**
      * A session started without a playlist opens on the browser; one started with files behaves like a plain
      * player and exits when the last file ends, unless the browser was opened along the way.
      */
     public PlayerSession(Optional<Playlist> playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui,
-            TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, Deadline deadline) {
+            TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, CastDiscovery discovery,
+            Deadline deadline) {
         this.playlist = playlist.orElse(null);
         this.exitWhenDone = playlist.isPresent();
         this.browsing = playlist.isEmpty();
@@ -101,6 +105,7 @@ public final class PlayerSession {
         this.loader = loader;
         this.resolver = resolver;
         this.browser = browser;
+        this.discovery = discovery;
         this.deadline = deadline;
         this.spectrum = new Spectrum(SPECTRUM_BANDS, engine.sampleRate());
     }
@@ -219,13 +224,24 @@ public final class PlayerSession {
         };
     }
 
+    /**
+     * What a screen beside the sound says the song is: the tracker or format it is in and how many channels.
+     */
+    private static String describe(Module module) {
+        final String format = module.metadata().format().name();
+        return module.metadata().channels() > 0 ? format + ", " + module.metadata().channels() + " channels" : format;
+    }
+
     private boolean play(TrackLoader.Loaded loaded) throws IOException {
         try {
             module = loaders.load(loaded.path());
             renderer = module.createRenderer(engine.sampleRate());
-            engine.play(renderer);
+            engine.play(renderer, module.metadata().title(), describe(module));
         } catch (IOException e) {
             return skip(loaded.track(), e);
+        } catch (AudioException e) {
+            log.error("The output would not take the song", e);
+            return skip(loaded.track(), new IOException(e.getMessage(), e));
         } catch (RuntimeException e) {
             log.error("The decoder failed to start", e);
             return skip(loaded.track(), new IOException("Decoder failed: " + e, e));
