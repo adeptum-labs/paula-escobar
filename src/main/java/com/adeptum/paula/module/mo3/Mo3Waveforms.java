@@ -70,18 +70,23 @@ final class Mo3Waveforms {
             return at;
         }
 
+        final boolean wide = mo3.has(Mo3Sample.SIXTEEN_BIT);
         final int[][] waveform = new int[mo3.channels()][mo3.length()];
         switch (mo3.compression()) {
-            case 0 -> plain(file.file(), at, waveform, mo3.has(Mo3Sample.SIXTEEN_BIT));
-            case Mo3Sample.DELTA -> Mo3Delta.unpack(new Mo3Bits(file.file(), at, length), waveform,
-                    mo3.has(Mo3Sample.SIXTEEN_BIT), false);
-            case Mo3Sample.DELTA_PREDICTION -> Mo3Delta.unpack(new Mo3Bits(file.file(), at, length), waveform,
-                    mo3.has(Mo3Sample.SIXTEEN_BIT), true);
+            case 0 -> plain(file.file(), at, waveform, wide);
+            case Mo3Sample.DELTA -> Mo3Delta.unpack(new Mo3Bits(file.file(), at, length), waveform, wide, false);
+            case Mo3Sample.DELTA_PREDICTION ->
+                    Mo3Delta.unpack(new Mo3Bits(file.file(), at, length), waveform, wide, true);
+            case Mo3Sample.MPEG -> {
+                Mo3Mpeg.unpack(file.file(), at, length, waveform, mo3.encoderDelay());
+                keep(sample, waveform, true, modType);
+                return at + length;
+            }
             default -> {
                 return at + length;
             }
         }
-        keep(sample, waveform, mo3.has(Mo3Sample.SIXTEEN_BIT), modType);
+        keep(sample, waveform, wide, modType);
         return at + length;
     }
 
