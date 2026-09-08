@@ -110,6 +110,25 @@ public final class Frame {
         return padded.toAttributedString();
     }
 
+    /**
+     * Lays a panel over the screen at the given place, the lines beneath showing on either side of it.
+     */
+    public static List<AttributedString> overlay(List<AttributedString> screen, List<AttributedString> panel,
+            int left, int top, int width) {
+        final List<AttributedString> laid = new ArrayList<>(screen);
+        for (int row = 0; row < panel.size() && top + row < laid.size(); row++) {
+            final AttributedString beneath = pad(laid.get(top + row), width, AttributedStyle.DEFAULT);
+            final AttributedString over = panel.get(row);
+            final int right = Math.min(width, left + over.columnLength());
+            laid.set(top + row, new AttributedStringBuilder()
+                    .style(AttributedStyle.DEFAULT).append(beneath.columnSubSequence(0, left))
+                    .style(AttributedStyle.DEFAULT).append(over.columnSubSequence(0, right - left))
+                    .style(AttributedStyle.DEFAULT).append(beneath.columnSubSequence(right, width))
+                    .toAttributedString());
+        }
+        return laid;
+    }
+
     public static AttributedString centered(String text, int width, AttributedStyle style) {
         final int left = Math.max(0, (width - text.length()) / 2);
         return pad(new AttributedStringBuilder().style(style).append(" ".repeat(left)).append(text).toAttributedString(), width, style);

@@ -53,7 +53,8 @@ public record PlayerView(
         double[] stereo,
         Progress.Step progress,
         Visual visual,
-        Waterfall waterfall) {
+        Waterfall waterfall,
+        boolean canCast) {
 
     public PlayerView {
         channels = channels == null ? List.of() : channels;

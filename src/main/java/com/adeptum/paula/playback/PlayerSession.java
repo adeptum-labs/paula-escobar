@@ -27,13 +27,16 @@ import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.cast.CastDevice;
 import com.adeptum.paula.cast.CastDiscovery;
+import com.adeptum.paula.cast.CastSink;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.Action;
 import com.adeptum.paula.ui.Browser;
+import com.adeptum.paula.ui.CastPopup;
 import com.adeptum.paula.ui.Key;
 import com.adeptum.paula.ui.Mouse;
 import com.adeptum.paula.ui.PlayerView;
@@ -63,6 +66,8 @@ public final class PlayerSession {
     private static final int WATERFALL_DEPTH = 64;
     private static final Duration SEEK_STEP = Duration.ofSeconds(5);
     private static final String LOADING = "Loading ";
+    private static final int DELAY_SECONDS = 32;
+    private static final String CASTING = "Casting to ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
     private static final short[] NO_AUDIO = new short[0];
 
@@ -88,6 +93,11 @@ public final class PlayerSession {
     private String status;
     private boolean playedAnything;
     private final CastDiscovery discovery;
+    private final Outputs outputs;
+    private final CastPopup castPopup = new CastPopup();
+    private final PlaybackDelay delay;
+    private CastDevice castingTo;
+    private PlaybackDelay.Moment heard;
 
     /**
      * A session started without a playlist opens on the browser; one started with files behaves like a plain
@@ -95,7 +105,7 @@ public final class PlayerSession {
      */
     public PlayerSession(Optional<Playlist> playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui,
             TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, CastDiscovery discovery,
-            Deadline deadline) {
+            Outputs outputs, Deadline deadline) {
         this.playlist = playlist.orElse(null);
         this.exitWhenDone = playlist.isPresent();
         this.browsing = playlist.isEmpty();
@@ -106,7 +116,9 @@ public final class PlayerSession {
         this.resolver = resolver;
         this.browser = browser;
         this.discovery = discovery;
+        this.outputs = outputs;
         this.deadline = deadline;
+        this.delay = new PlaybackDelay((long) engine.sampleRate() * DELAY_SECONDS);
         this.spectrum = new Spectrum(SPECTRUM_BANDS, engine.sampleRate());
     }
 
@@ -117,7 +129,9 @@ public final class PlayerSession {
         while (!deadline.passed()) {
             Key key = ui.poll(REDRAW_INTERVAL_MILLIS);
             while (!key.is(Key.Special.TIMEOUT)) {
-                if (showingKeys) {
+                if (castPopup.isOpen() && !browsing) {
+                    castPopup.handle(key).ifPresent(this::chose);
+                } else if (showingKeys) {
                     showingKeys = false;
                 } else if (key.mouse() != null) {
                     click(key.mouse());
@@ -139,12 +153,12 @@ public final class PlayerSession {
             if (finished() && !advance(true) && !returnToBrowser()) {
                 return;
             }
-            final short[] audio = engine.state() == PlaybackState.PLAYING ? engine.tap().snapshot(ANALYSIS_FRAMES) : new short[ANALYSIS_FRAMES * 2];
+            final short[] audio = engine.state() == PlaybackState.PLAYING ? heardAudio() : new short[ANALYSIS_FRAMES * 2];
             spectrum.feed(audio);
             vu.feed(audio);
             waterfall.feed(spectrum.levels());
             browser.nowPlaying(module == null || playlist == null ? null : playlist.current(), spectrum.levels());
-            ui.draw(withKeys(browsing ? browser.render(ui.width(), ui.height()) : Screen.render(view(audio), ui.width(), ui.height())));
+            ui.draw(withKeys(browsing ? browser.render(ui.width(), ui.height()) : player(audio)));
         }
     }
 
@@ -162,6 +176,12 @@ public final class PlayerSession {
             case BROWSE -> {
                 browsing = !browsing;
                 everBrowsed = true;
+            }
+            case CAST -> {
+                castPopup.open();
+                if (discovery.devices().isEmpty() && !discovery.isScanning()) {
+                    discovery.scan();
+                }
             }
             case NONE -> {
             }
@@ -252,6 +272,68 @@ public final class PlayerSession {
     }
 
     /**
+     * The player screen, with the cast panel over it while that is up.
+     */
+    private List<AttributedString> player(short[] audio) {
+        final List<AttributedString> screen = Screen.render(view(audio), ui.width(), ui.height());
+        return castPopup.isOpen()
+                ? castPopup.draw(screen, discovery.devices(), discovery.isScanning(), castingTo, ui.width(), ui.height())
+                : screen;
+    }
+
+    /**
+     * The sound being heard, which on a device that plays late is what was written some seconds ago; the
+     * scopes and the position are looked up for the same moment.
+     */
+    private short[] heardAudio() {
+        final long written = engine.tap().written();
+        if (module != null && renderer != null) {
+            delay.record(written, renderer.channels(), engine.position());
+        }
+        final long heardAt = written - lagFrames();
+        heard = castingTo == null ? null : delay.at(heardAt);
+        return engine.tap().snapshot(ANALYSIS_FRAMES, heardAt);
+    }
+
+    private long lagFrames() {
+        return engine.output() instanceof CastSink cast
+                ? cast.lag().map(lag -> lag.toMillis() * engine.sampleRate() / 1000).orElse(0L) : 0;
+    }
+
+    private void chose(CastPopup.Choice choice) {
+        try {
+            switch (choice) {
+                case CastPopup.Local local -> playHere();
+                case CastPopup.Device device -> playOn(device.device());
+                case CastPopup.Rescan rescan -> discovery.scan();
+            }
+        } catch (AudioException e) {
+            log.warn("Moving the sound failed", e);
+            status = e.getMessage();
+            castPopup.close();
+        }
+    }
+
+    private void playHere() throws AudioException {
+        if (castingTo != null) {
+            engine.switchOutput(outputs.local().open());
+            castingTo = null;
+            delay.clear();
+        }
+        castPopup.close();
+    }
+
+    private void playOn(CastDevice device) throws AudioException {
+        if (!device.equals(castingTo)) {
+            engine.switchOutput(outputs.cast().open(device));
+            castingTo = device;
+            delay.clear();
+            status = null;
+        }
+        castPopup.close();
+    }
+
+    /**
      * The failure stays on the status line while the next track loads, and follows the user into the browser.
      */
     private boolean skip(Track track, IOException error) throws IOException {
@@ -296,7 +378,7 @@ public final class PlayerSession {
                 .module(module)
                 .trackLabel(playlist == null ? null : playlist.current().label())
                 .state(engine.state())
-                .position(engine.position())
+                .position(heard == null ? engine.position() : heard.position())
                 .length(sounding ? renderer.length().orElse(null) : null)
                 .track(playlist == null ? 0 : playlist.position())
                 .trackCount(playlist == null ? 0 : playlist.size())
@@ -305,12 +387,13 @@ public final class PlayerSession {
                 .peaks(spectrum.peaks())
                 .vuLeft(vu.left())
                 .vuRight(vu.right())
-                .channels(sounding ? renderer.channels() : List.of())
+                .channels(sounding ? heard == null ? renderer.channels() : heard.channels() : List.of())
                 .mixed(mono(audio, SCOPE_FRAMES))
                 .stereo(stereo(audio, VECTOR_FRAMES))
                 .progress(loader.loading() ? loader.progress().step().orElse(null) : null)
                 .visual(visual)
                 .waterfall(waterfall)
+                .canCast(castingTo != null || !discovery.devices().isEmpty())
                 .build();
     }
 
@@ -344,6 +427,10 @@ public final class PlayerSession {
     private String statusLine() {
         if (status != null) {
             return status;
+        }
+        if (castingTo != null) {
+            return CASTING + castingTo.name() + (engine.output() instanceof CastSink cast
+                    ? cast.lag().map(lag -> String.format(", %.1f s behind", lag.toMillis() / 1000.0)).orElse("") : "");
         }
         if (!loader.loading() || loader.progress().step().isPresent()) {
             return null;

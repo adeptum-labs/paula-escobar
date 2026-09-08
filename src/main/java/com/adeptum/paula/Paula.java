@@ -61,6 +61,7 @@ import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.playback.DaemonExecutors;
 import com.adeptum.paula.playback.Deadline;
+import com.adeptum.paula.playback.Outputs;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
 import com.adeptum.paula.playback.TrackLoader;
@@ -164,13 +165,22 @@ public final class Paula implements Runnable {
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
                     new FetchingReleaseArt(new CachedReleaseArt(cache), artResolver, fetchingArt),
                     new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
-            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, discovery, deadline()).run();
+            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, discovery, outputs(), deadline()).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
             browsing.shutdownNow();
             fetchingArt.shutdownNow();
         }
+    }
+
+    /**
+     * What the sound can be moved to from the player: this machine, on the backend asked for or the usual one
+     * when casting was, and any device the popup offers.
+     */
+    private Outputs outputs() {
+        final AudioBackend here = output == AudioBackend.CAST ? AudioBackend.AUTO : output;
+        return new Outputs(() -> here.createSink(bufferFrames), device -> new CastSink(device, castPort));
     }
 
     private AudioSink outputSink(CastDiscovery discovery) throws AudioException {

@@ -63,6 +63,7 @@ public final class Screen {
             new Frame.Key("space", "pause"), new Frame.Key("←/→", "seek"), new Frame.Key("n", "next"),
             new Frame.Key("p", "previous"), new Frame.Key("b", "browse"), new Frame.Key("?", "keys"),
             new Frame.Key("q", "quit"));
+    private static final Frame.Key CAST_KEY = new Frame.Key("c", "cast");
     private static final List<Frame.Key> ALL_KEYS = List.of(
             new Frame.Key("space", "pause or resume"),
             new Frame.Key("← →", "seek five seconds"),
@@ -70,6 +71,7 @@ public final class Screen {
             new Frame.Key("p", "previous track"),
             new Frame.Key("b", "switch to the browser"),
             new Frame.Key("v", "next visualiser: spectrum, waterfall, vectorscope"),
+            new Frame.Key("c", "cast to a device on the network"),
             new Frame.Key("?", "close these keys"),
             new Frame.Key("click", "next visualiser, or mute the channel clicked"),
             new Frame.Key("shift/double click", "solo a channel"),
@@ -108,8 +110,18 @@ public final class Screen {
         final List<AttributedString> lines = new ArrayList<>(height);
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
         lines.addAll(view.module() == null ? idle(view, width, body) : playing(view, scopes(view, width, height), width, body));
-        lines.add(Frame.footer(KEYS, width));
+        lines.add(Frame.footer(view.canCast() ? withCast(KEYS) : KEYS, width));
         return fit(lines, width, height);
+    }
+
+    /**
+     * The cast key sits before the quit key, once a device has been seen to cast to.
+     */
+    private static List<Frame.Key> withCast(List<Frame.Key> keys) {
+        final List<Frame.Key> all = new ArrayList<>(keys.subList(0, keys.size() - 1));
+        all.add(CAST_KEY);
+        all.add(keys.getLast());
+        return all;
     }
 
     /**
