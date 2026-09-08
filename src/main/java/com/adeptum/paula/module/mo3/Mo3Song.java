@@ -44,7 +44,6 @@ record Mo3Song(int channels, int orders, int restart, int patterns, int tracks, 
     static final int INSTRUMENT_MODE = 0x0200;
     static final int IT_COMPATIBLE_GXX = 0x0400;
     static final int IT_OLD_EFFECTS = 0x0800;
-    static final int MODPLUG_MODE = 0x10000;
     static final int MOD_VBLANK = 0x80000;
     static final int EXTENDED_FILTER_RANGE = 0x200000;
 

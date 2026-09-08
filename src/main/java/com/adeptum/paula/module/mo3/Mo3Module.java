@@ -366,9 +366,13 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         return false;
     }
 
+    /**
+     * A ProTracker module written for the video beam counts its speed in ticks rather than beats, which is
+     * what the flag the format keeps for it says.
+     */
     @Override
     public boolean getModSpeedIsTicks() {
-        return false;
+        return file.song().has(Mo3Song.MOD_VBLANK);
     }
 
     @Override

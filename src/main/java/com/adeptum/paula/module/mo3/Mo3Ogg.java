@@ -58,7 +58,6 @@ final class Mo3Ogg {
     private static final int HEADER_PACKETS = 3;
     private static final int PAGE_READY = 1;
     private static final int PAGE_HUNGRY = 0;
-    private static final int PACKET_READY = 1;
     private static final int PACKET_HUNGRY = 0;
 
     private static final float PEAK = 32767.0f;

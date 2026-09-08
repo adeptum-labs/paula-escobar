@@ -52,9 +52,7 @@ record Mo3Sample(String name, String fileName, int frequency, int transpose, int
     static final int SHARED_OGG = 0x7000;
     static final int DELTA = 0x2000;
     static final int DELTA_PREDICTION = 0x4000;
-    static final int OPL_PATCH = 0x8000;
 
-    static final int PANNING_UNSET = 0xFFFF;
     static final int LARGEST_PANNING = 256;
 
     static Mo3Sample read(Mo3Bytes bytes, int version, String name, String fileName) throws IOException {

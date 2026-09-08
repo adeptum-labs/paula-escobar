@@ -32,8 +32,8 @@ import java.io.IOException;
  * An instrument of an MO3: which sample every key plays and at what note, three envelopes, and the settings
  * that decide what happens when a note is cut short or another lands on top of it.
  *
- * <p>Fast Tracker keeps no note map and reaches its samples an octave up, so there the map is read for its
- * samples alone.</p>
+ * <p>Fast Tracker gives every key the note of its own name, so there only the samples of the map are read,
+ * and only over the eight octaves it has keys for.</p>
  */
 record Mo3Instrument(String name, String fileName, int flags, int[] sampleFor, int[] noteFor,
                      Mo3Envelope volume, Mo3Envelope panning, Mo3Envelope pitch, Mo3Vibrato vibrato,
@@ -45,20 +45,15 @@ record Mo3Instrument(String name, String fileName, int flags, int[] sampleFor, i
     static final int MUTE = 0x02;
 
     /**
-     * A key map covers ten octaves; Fast Tracker uses the eight from the first octave up.
+     * A key map covers ten octaves, of which Fast Tracker has keys for eight.
      */
     static final int KEYS = 120;
     static final int FAST_TRACKER_KEYS = 96;
-    static final int FAST_TRACKER_FIRST_KEY = 12;
 
     /**
-     * Panning, a filter cutoff and a filter resonance are only meant when the format says so, and say so by
-     * exceeding what they otherwise hold.
+     * A panning is only meant when the format says so, and says so by exceeding what it otherwise holds.
      */
-    static final int PANNING_UNSET = 0xFFFF;
     static final int LARGEST_PANNING = 256;
-    static final int FILTER_ENABLED = 0x80;
-    static final int FILTER_VALUE = 0x7F;
 
     static Mo3Instrument read(Mo3Bytes bytes, String name, String fileName) throws IOException {
         final int flags = bytes.s32();
