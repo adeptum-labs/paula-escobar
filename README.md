@@ -213,7 +213,13 @@ one in libsidplay2 as vendored in JavaMod, copyright Michael Schwendt and
 Dag Lem, distributed under the GNU General Public License. The AHX and
 HivelyTracker replayer follows HivelyTracker's, copyright Pete Gordon, under
 the BSD 3-Clause
-License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). 7z archives
+License reproduced in [HIVELY-LICENSE.txt](HIVELY-LICENSE.txt). The MO3 reader
+follows `Load_mo3.cpp` of [OpenMPT](https://github.com/OpenMPT/openmpt),
+copyright the OpenMPT project developers and Olivier Lapicque, distributed
+under the BSD 3-Clause License reproduced in
+[OPENMPT-LICENSE.txt](OPENMPT-LICENSE.txt); its decompression routines come
+from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
+relicensed with his permission. 7z archives
 are read with Apache Commons Compress over the XZ for Java library, both under
 the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
