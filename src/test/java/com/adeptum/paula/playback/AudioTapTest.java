@@ -55,6 +55,20 @@ class AudioTapTest {
     }
 
     @Test
+    void aMomentInThePastReadsBackTheFramesThatEndedThere() {
+        tap.write(frames(1, 2, 3, 4, 5, 6), 6);
+
+        assertArrayEquals(frames(4, 5), tap.snapshot(2, 5));
+    }
+
+    @Test
+    void aMomentOlderThanTheRingReadsBackTheOldestKeptRatherThanSilence() {
+        tap.write(frames(1, 2, 3, 4, 5, 6), 6);
+
+        assertArrayEquals(frames(3, 4), tap.snapshot(2, 2));
+    }
+
+    @Test
     void writesLongerThanTheRingKeepTheTail() {
         tap.write(frames(1, 2, 3, 4, 5, 6), 6);
 
