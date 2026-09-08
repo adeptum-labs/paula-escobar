@@ -48,6 +48,12 @@ record Mo3Container(int version, byte[] music, int sampleData) {
      */
     private static final int LARGEST_MUSIC = 0x2000_0000;
 
+    /**
+     * The best ratio found in a real module is around twenty to one, so a file claiming to unpack to more than
+     * this much of what it has left is asking for room it will never fill.
+     */
+    private static final int LARGEST_EXPANSION = 64;
+
     static Mo3Container read(byte[] file) throws IOException {
         final Mo3Bytes bytes = new Mo3Bytes(file);
         if (!Arrays.equals(bytes.bytes(MAGIC.length), MAGIC)) {
@@ -58,7 +64,8 @@ record Mo3Container(int version, byte[] music, int sampleData) {
             throw new IOException("MO3 version " + version + " is newer than this reads");
         }
         final int musicSize = bytes.u32();
-        if (musicSize == 0 || musicSize >= LARGEST_MUSIC) {
+        if (musicSize == 0 || musicSize >= LARGEST_MUSIC
+                || musicSize > (long) LARGEST_EXPANSION * bytes.remaining()) {
             throw new IOException("The MO3 states " + musicSize + " bytes of music, which is no module");
         }
 

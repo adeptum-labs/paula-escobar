@@ -24,6 +24,7 @@ package com.adeptum.paula.testing;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,8 @@ import java.util.Arrays;
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
  * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note, and an
- * AHX and a HivelyTracker module playing one synthesised square instead.
+ * AHX and a HivelyTracker module playing one synthesised square instead, and the ProTracker one again
+ * as an MO3.
  */
 public final class TestModules {
 
@@ -85,6 +87,38 @@ public final class TestModules {
     private static final int HIVELY_INSTRUMENTS = 1;
     private static final int HIVELY_SUBSONGS = 0;
     private static final int HVL_EMPTY_STEP = 0x3f;
+
+    public static final int MO3_CHANNELS = 4;
+    public static final int MO3_ORDERS = 2;
+    public static final int MO3_ROWS = 64;
+    public static final int MO3_SAMPLES = 1;
+    public static final int MO3_SPEED = 6;
+    public static final int MO3_TEMPO = 125;
+
+    /**
+     * Where the channel count sits in the music chunk: after the song name and the empty message, each of
+     * which ends in a zero. The order count is the word after it and the restart position the word after that.
+     */
+    public static final int MO3_CHANNELS_AT = TITLE.length() + 2;
+    public static final int MO3_ORDERS_AT = MO3_CHANNELS_AT + 1;
+    public static final int MO3_RESTART_AT = MO3_ORDERS_AT + Short.BYTES;
+
+    private static final int MO3_VERSION = 5;
+    private static final int MO3_HEADER_LENGTH = 422;
+    private static final int MO3_MUSIC_LENGTH = 640;
+    private static final int MO3_LITERALS_PER_CONTROL_BYTE = 8;
+    private static final int MO3_IS_MOD = 0x80;
+    private static final int MO3_ALWAYS_SET = 0x20000;
+    private static final int MO3_SAMPLE_LOOPS = 0x10;
+    private static final int MO3_PANNING_UNSET = 0xFFFF;
+    private static final int MO3_MIDDLE_FINETUNE = 128;
+    private static final int MO3_LEFT = 64;
+    private static final int MO3_RIGHT = 192;
+
+    /**
+     * Two commands on one row, a note and the instrument to sound it with, then the byte that ends the track.
+     */
+    private static final byte[] MO3_TRACK = {0x12, 0x01, 0x30, 0x02, 0x00, 0x00};
 
     private TestModules() {
     }
@@ -353,6 +387,87 @@ public final class TestModules {
             text.write(0);
         }
         return text.toByteArray();
+    }
+
+    public static Path writeMo3(Path directory) throws IOException {
+        return Files.write(directory.resolve("test.mo3"), mo3());
+    }
+
+    /**
+     * Builds a minimal MO3: a four-channel ProTracker module of one pattern, one note on the first channel and
+     * one looping square-wave sample kept uncompressed, packed into a control stream that only ever copies.
+     */
+    public static byte[] mo3() {
+        return mo3(mo3Music());
+    }
+
+    /**
+     * The same file around a music chunk of the caller's own, so a test can say what the module claims about
+     * itself and see it refused.
+     */
+    public static byte[] mo3(byte[] music) {
+        final byte[] packed = mo3Packed(music);
+        final ByteBuffer file = ByteBuffer.allocate(12 + packed.length + SAMPLE_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        file.put("MO3".getBytes(StandardCharsets.US_ASCII)).put((byte) MO3_VERSION);
+        file.putInt(music.length).putInt(packed.length).put(packed);
+        for (int at = 0; at < SAMPLE_LENGTH; at++) {
+            file.put((byte) (at < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return file.array();
+    }
+
+    /**
+     * The music chunk as the reader sees it once unpacked.
+     */
+    public static byte[] mo3Music() {
+        final ByteBuffer music = ByteBuffer.allocate(MO3_MUSIC_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        music.put(TITLE.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        mo3Header(music);
+        music.put((byte) 0).put((byte) 0);
+        for (int channel = 0; channel < MO3_CHANNELS; channel++) {
+            music.putShort((short) (channel == 0 ? 0 : 1));
+        }
+        music.putShort((short) MO3_ROWS);
+        music.putInt(MO3_TRACK.length).put(MO3_TRACK);
+        music.putInt(1).put((byte) 0);
+        mo3Sample(music);
+        return Arrays.copyOf(music.array(), music.position());
+    }
+
+    private static void mo3Header(ByteBuffer music) {
+        music.put((byte) MO3_CHANNELS).putShort((short) MO3_ORDERS).putShort((short) 0).putShort((short) 1);
+        music.putShort((short) 2).putShort((short) 0).putShort((short) MO3_SAMPLES);
+        music.put((byte) MO3_SPEED).put((byte) MO3_TEMPO).putInt(MO3_IS_MOD | MO3_ALWAYS_SET);
+        music.put((byte) 64).put((byte) 0).put((byte) 0);
+        for (int channel = 0; channel < 64; channel++) {
+            music.put((byte) 0);
+        }
+        for (int channel = 0; channel < 64; channel++) {
+            music.put((byte) (channel % 4 == 1 || channel % 4 == 2 ? MO3_RIGHT : MO3_LEFT));
+        }
+        music.put(new byte[MO3_HEADER_LENGTH - 150]);
+    }
+
+    private static void mo3Sample(ByteBuffer music) {
+        music.put(SAMPLE_NAME.getBytes(StandardCharsets.US_ASCII)).put((byte) 0).put((byte) 0);
+        music.putInt(MO3_MIDDLE_FINETUNE).put((byte) 0).put((byte) 64).putShort((short) MO3_PANNING_UNSET);
+        music.putInt(SAMPLE_LENGTH).putInt(0).putInt(SAMPLE_LENGTH).putShort((short) MO3_SAMPLE_LOOPS);
+        music.putInt(0).put((byte) 64);
+        music.putInt(0).putInt(0).putInt(0).putShort((short) 0);
+    }
+
+    /**
+     * A control stream that says nothing but "copy the next byte": the first byte goes through untouched, and
+     * a control byte of zero bits announces every eight literals after it.
+     */
+    private static byte[] mo3Packed(byte[] music) {
+        final ByteArrayOutputStream packed = new ByteArrayOutputStream();
+        packed.write(music[0]);
+        for (int at = 1; at < music.length; at += MO3_LITERALS_PER_CONTROL_BYTE) {
+            packed.write(0);
+            packed.write(music, at, Math.min(MO3_LITERALS_PER_CONTROL_BYTE, music.length - at));
+        }
+        return packed.toByteArray();
     }
 
     private static byte[] bytes(int... values) {
