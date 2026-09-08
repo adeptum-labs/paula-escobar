@@ -56,10 +56,19 @@ public final class AudioTap {
      * The newest frames, newest last; history older than the ring or before the first write reads as silence.
      */
     public synchronized short[] snapshot(int frames) {
+        return snapshot(frames, written);
+    }
+
+    /**
+     * The frames up to a moment in the past, which is what the screen shows while the sound it goes with is
+     * still on its way to a device that plays late.
+     */
+    public synchronized short[] snapshot(int frames, long endingAt) {
         final short[] out = new short[frames * CHANNELS];
-        final int available = (int) Math.min(Math.min(frames, capacityFrames), written);
+        final long end = Math.max(Math.min(endingAt, written), written - capacityFrames);
+        final int available = (int) Math.min(frames, Math.min(end, end - written + capacityFrames));
         for (int i = 0; i < available; i++) {
-            final long frame = written - available + i;
+            final long frame = end - available + i;
             final int slot = (int) (frame % capacityFrames) * CHANNELS;
             final int target = (frames - available + i) * CHANNELS;
             out[target] = ring[slot];

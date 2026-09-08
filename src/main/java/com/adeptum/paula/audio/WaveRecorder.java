@@ -30,7 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 /**
- * Hands the sound on to another sink and keeps a copy of it in a wave file. The header carries the sizes, which
+ * Keeps a copy of everything played in a wave file. The header carries the sizes, which
  * are only known at the end, so it is written last, over the room left for it at the start.
  */
 public final class WaveRecorder implements AudioSink {
@@ -40,15 +40,13 @@ public final class WaveRecorder implements AudioSink {
     private static final int PCM_FORMAT = 1;
     private static final int FORMAT_CHUNK_BYTES = 16;
 
-    private final AudioSink sink;
     private final Path file;
     private FileChannel channel;
     private int sampleRate;
     private long dataBytes;
     private byte[] bytes = new byte[0];
 
-    public WaveRecorder(AudioSink sink, Path file) {
-        this.sink = sink;
+    public WaveRecorder(Path file) {
         this.file = file;
     }
 
@@ -61,12 +59,10 @@ public final class WaveRecorder implements AudioSink {
             throw new AudioException("Cannot record to " + file + ": " + e.getMessage(), e);
         }
         sampleRate = rate;
-        sink.open(rate);
     }
 
     @Override
     public void write(short[] interleavedStereo, int frames) {
-        sink.write(interleavedStereo, frames);
         bytes = Pcm.toLittleEndian(interleavedStereo, frames, bytes);
         try {
             writeFully(ByteBuffer.wrap(bytes, 0, frames * Pcm.BYTES_PER_FRAME));
@@ -78,11 +74,7 @@ public final class WaveRecorder implements AudioSink {
 
     @Override
     public void close() {
-        try {
-            sink.close();
-        } finally {
-            finishFile();
-        }
+        finishFile();
     }
 
     private void finishFile() {

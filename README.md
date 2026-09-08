@@ -69,6 +69,7 @@ Keys while playing:
 | `p`     | previous track          |
 | `b`     | switch to the browser   |
 | `v`     | next visualiser         |
+| `c`     | cast to a device        |
 | `?`     | show the keys           |
 | `q`     | quit                    |
 
@@ -155,6 +156,34 @@ them, and the samples whether they were kept whole, delta packed, or
 squeezed into MPEG audio or Ogg Vorbis. Nothing
 under `net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
 `tools/patch-javamod` rebuilds the vendored JavaMod jar with its fixes.
+
+### Casting
+
+Press `c` in the player, or click `cast` in the footer, and Paula lists this
+machine and every Google Cast device on the network: Nest speakers and
+displays, Chromecasts and televisions with Chromecast built in. Choose one and
+the song moves there without stopping; choose this machine to bring it back.
+The footer only offers it once a device has answered, and the popup shows the
+network being scanned while it is. `--output cast` plays there from the start,
+`--cast NAME` says which device when there is more than one, by the name it
+was given or its address.
+
+A Cast device fetches the sound rather than being sent it, so Paula serves it
+an endless wave file and tells it where to look. Left to itself a device
+fetches near a minute ahead and plays that far behind; Paula gives it three
+seconds to start on and then only as fast as it plays, which holds the lag at
+some five seconds. That lag is measured rather than assumed, from where the
+device says it is against what it has been given, and everything on the
+screen follows the sound being heard rather than the sound being sent: the
+spectrum and the scopes read back by that much, the position with them, and
+the status line saying how far behind the device runs. Screens show a card
+with the song's name and format through Google's own media receiver; the
+scopes themselves stay in the terminal, since drawing them on the device
+needs a receiver of Paula's own, registered and hosted with Google.
+
+The sound is served on port 7373, or the one `--cast-port` names, from the
+address the device was reached through; a firewall between the two must let
+the device fetch from that port.
 
 ### Audio output
 

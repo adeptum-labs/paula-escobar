@@ -19,31 +19,22 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.ui;
+package com.adeptum.paula.playback;
 
-public enum Action {
-    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD, BROWSE, CYCLE_VISUAL, CAST;
+import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.audio.AudioSink;
+import com.adeptum.paula.cast.CastDevice;
 
-    public static Action of(Key key) {
-        return switch (key.special()) {
-            case ESCAPE, EOF -> QUIT;
-            case RIGHT -> SEEK_FORWARD;
-            case LEFT -> SEEK_BACKWARD;
-            case NONE -> forCharacter(key.character());
-            default -> NONE;
-        };
+/**
+ * Where the sound can be sent while playing: this machine, or a device on the network.
+ */
+public record Outputs(Local local, Cast cast) {
+
+    public interface Local {
+        AudioSink open() throws AudioException;
     }
 
-    private static Action forCharacter(char character) {
-        return switch (Character.toLowerCase(character)) {
-            case 'q' -> QUIT;
-            case ' ' -> TOGGLE_PAUSE;
-            case 'n' -> NEXT;
-            case 'p' -> PREVIOUS;
-            case 'b' -> BROWSE;
-            case 'v' -> CYCLE_VISUAL;
-            case 'c' -> CAST;
-            default -> NONE;
-        };
+    public interface Cast {
+        AudioSink open(CastDevice device);
     }
 }

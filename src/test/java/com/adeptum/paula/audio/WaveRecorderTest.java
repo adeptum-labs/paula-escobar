@@ -40,12 +40,10 @@ class WaveRecorderTest {
 
     private static final int SAMPLE_RATE = 8000;
 
-    private final CountingSink played = new CountingSink();
-
     @Test
     void writesWhatPassesThroughAsAWaveFile(@TempDir Path dir) throws Exception {
         final Path wave = dir.resolve("played.wav");
-        try (WaveRecorder recorder = new WaveRecorder(played, wave)) {
+        try (WaveRecorder recorder = new WaveRecorder(wave)) {
             recorder.open(SAMPLE_RATE);
             recorder.write(new short[] {1, -1, 0x0102, (short) 0x8000, 9, 9}, 2);
             recorder.write(new short[] {3, 4}, 1);
@@ -64,30 +62,17 @@ class WaveRecorderTest {
     }
 
     @Test
-    void theSoundStillReachesTheSinkItWraps(@TempDir Path dir) throws Exception {
-        try (WaveRecorder recorder = new WaveRecorder(played, dir.resolve("played.wav"))) {
-            recorder.open(SAMPLE_RATE);
-            recorder.write(new short[4], 2);
-        }
-
-        assertEquals(SAMPLE_RATE, played.openedAt);
-        assertEquals(2, played.frames);
-        assertTrue(played.closed);
-    }
-
-    @Test
     void aFileThatCannotBeMadeRefusesToOpen(@TempDir Path dir) {
-        final WaveRecorder recorder = new WaveRecorder(played, dir.resolve("missing").resolve("played.wav"));
+        final WaveRecorder recorder = new WaveRecorder(dir.resolve("missing").resolve("played.wav"));
 
         final AudioException refusal = assertThrows(AudioException.class, () -> recorder.open(SAMPLE_RATE));
         assertTrue(refusal.getMessage().contains("played.wav"), refusal.getMessage());
-        assertEquals(0, played.openedAt, "the sink is not opened when the recording cannot start");
     }
 
     @Test
     void anEmptyRecordingIsStillAWaveFile(@TempDir Path dir) throws IOException, UnsupportedAudioFileException, AudioException {
         final Path wave = dir.resolve("played.wav");
-        try (WaveRecorder recorder = new WaveRecorder(played, wave)) {
+        try (WaveRecorder recorder = new WaveRecorder(wave)) {
             recorder.open(SAMPLE_RATE);
         }
 
@@ -97,25 +82,4 @@ class WaveRecorderTest {
         }
     }
 
-    private static final class CountingSink implements AudioSink {
-
-        int openedAt;
-        int frames;
-        boolean closed;
-
-        @Override
-        public void open(int sampleRate) {
-            openedAt = sampleRate;
-        }
-
-        @Override
-        public void write(short[] interleavedStereo, int count) {
-            frames += count;
-        }
-
-        @Override
-        public void close() {
-            closed = true;
-        }
-    }
 }

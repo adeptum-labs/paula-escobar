@@ -19,31 +19,18 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.ui;
+package com.adeptum.paula.cast;
 
-public enum Action {
-    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD, BROWSE, CYCLE_VISUAL, CAST;
+import java.net.InetAddress;
 
-    public static Action of(Key key) {
-        return switch (key.special()) {
-            case ESCAPE, EOF -> QUIT;
-            case RIGHT -> SEEK_FORWARD;
-            case LEFT -> SEEK_BACKWARD;
-            case NONE -> forCharacter(key.character());
-            default -> NONE;
-        };
-    }
+/**
+ * A device on the network that takes a cast: the name its owner gave it, what it is, and where to reach it.
+ */
+public record CastDevice(String id, String name, String model, InetAddress address, int port) {
 
-    private static Action forCharacter(char character) {
-        return switch (Character.toLowerCase(character)) {
-            case 'q' -> QUIT;
-            case ' ' -> TOGGLE_PAUSE;
-            case 'n' -> NEXT;
-            case 'p' -> PREVIOUS;
-            case 'b' -> BROWSE;
-            case 'v' -> CYCLE_VISUAL;
-            case 'c' -> CAST;
-            default -> NONE;
-        };
+    public static final int CAST_PORT = 8009;
+
+    public String describe() {
+        return model.isEmpty() ? name : name + " (" + model + ")";
     }
 }
