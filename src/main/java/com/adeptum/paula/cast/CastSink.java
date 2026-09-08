@@ -46,11 +46,25 @@ public final class CastSink implements AudioSink {
 
     private static final Duration POLL = Duration.ofSeconds(1);
     private static final Duration LONGEST_TAIL = Duration.ofSeconds(30);
-    private static final long DRAIN_STEP_MILLIS = 100;
+    private static final long STEP_MILLIS = 100;
     private static final String UNTITLED = "Paula Escobar";
+
+    /**
+     * How far behind the device may fall before the player waits for it. A device that rebuffers, or a
+     * moment of a busy network, otherwise costs seconds the device never makes up, and the sound drifts
+     * further from the screen for the rest of the song.
+     */
+    private static final Duration FURTHEST_BEHIND = Duration.ofSeconds(8);
+
+    /**
+     * How long the player waits for a device to catch up before writing anyway, so a device that has stopped
+     * saying where it is fails on the stream rather than holding the song for ever.
+     */
+    private static final Duration LONGEST_WAIT = Duration.ofSeconds(30);
 
     private final CastDevice device;
     private final int port;
+    private final Connection connection;
     private final ScheduledExecutorService poller;
     private volatile CastSession session;
     private volatile CastStreamServer server;
@@ -62,13 +76,27 @@ public final class CastSink implements AudioSink {
     }
 
     public CastSink(CastDevice device, int port) {
+        this(device, port, CastSession::open);
+    }
+
+    CastSink(CastDevice device, int port, Connection connection) {
         this.device = device;
         this.port = port;
+        this.connection = connection;
         this.poller = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "paula-cast-poll");
             thread.setDaemon(true);
             return thread;
         });
+    }
+
+    /**
+     * How the sink reaches the device, which a test answers itself instead of going out on the network.
+     */
+    @FunctionalInterface
+    interface Connection {
+
+        CastSession to(CastDevice device) throws IOException;
     }
 
     public CastDevice device() {
@@ -79,7 +107,7 @@ public final class CastSink implements AudioSink {
     public void open(int sampleRate) throws AudioException {
         this.sampleRate = sampleRate;
         try {
-            session = CastSession.open(device);
+            session = connection.to(device);
             server = new CastStreamServer(session.localAddress(), port);
         } catch (IOException e) {
             close();
@@ -107,7 +135,11 @@ public final class CastSink implements AudioSink {
         if (served == null) {
             beginUntitled();
         }
-        served.stream().write(interleavedStereo, frames);
+        waitForDeviceToCatchUp();
+        final Served current = served;
+        if (current != null) {
+            current.stream().write(interleavedStereo, frames);
+        }
     }
 
     /**
@@ -123,10 +155,7 @@ public final class CastSink implements AudioSink {
         current.stream().end();
         final long until = System.currentTimeMillis() + lag().orElse(Duration.ZERO).toMillis() + LONGEST_TAIL.toMillis();
         while (System.currentTimeMillis() < until && !session.isFinished()) {
-            try {
-                Thread.sleep(DRAIN_STEP_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            if (!pause()) {
                 break;
             }
         }
@@ -134,8 +163,42 @@ public final class CastSink implements AudioSink {
     }
 
     /**
+     * Holds the player while a playing device is further behind than it should be, so the seconds a
+     * rebuffer costs are given back instead of kept for the rest of the song. A device filling its buffer is
+     * left alone: it is behind because it is not playing yet, and starving it is how it stays that way.
+     */
+    private void waitForDeviceToCatchUp() {
+        final long until = System.currentTimeMillis() + LONGEST_WAIT.toMillis();
+        while (hasFallenBehind() && System.currentTimeMillis() < until) {
+            if (!pause()) {
+                return;
+            }
+        }
+    }
+
+    private boolean hasFallenBehind() {
+        final CastSession open = session;
+        return open != null && open.position().filter(Position::isPlaying).isPresent()
+                && lag().orElse(Duration.ZERO).compareTo(FURTHEST_BEHIND) > 0;
+    }
+
+    /**
+     * Returns false when the wait was cut short, which leaves the thread interrupted for the caller.
+     */
+    private boolean pause() {
+        try {
+            Thread.sleep(STEP_MILLIS);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
      * How far the sound heard runs behind the sound written, or nothing until the device has said where it
-     * is.
+     * is. A device that has stopped playing to fill its buffer falls further behind while it does, which is
+     * what the reading says, rather than nothing at all.
      */
     public Optional<Duration> lag() {
         final Served current = served;
@@ -143,7 +206,7 @@ public final class CastSink implements AudioSink {
         if (current == null || open == null) {
             return Optional.empty();
         }
-        return open.position().filter(Position::isPlaying)
+        return open.position()
                 .map(position -> current.stream().writtenFrames() / (double) sampleRate - position.now())
                 .map(seconds -> Duration.ofMillis(Math.round(Math.max(0, seconds) * 1000)));
     }
