@@ -27,6 +27,7 @@ import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.hively.HivelyLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.med.MedLoader;
+import com.adeptum.paula.module.mo3.Mo3Loader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sap.SapLoader;
@@ -48,7 +49,7 @@ public final class ModuleLoaderRegistry {
 
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new SapLoader(),
-                new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Mp3Loader(), new FlacLoader(),
+                new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Mo3Loader(), new Mp3Loader(), new FlacLoader(),
                 new WavLoader(), new OggLoader(), new ApeLoader()));
     }
 

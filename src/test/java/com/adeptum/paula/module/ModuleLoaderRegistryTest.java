@@ -31,6 +31,7 @@ import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.hively.HivelyLoader;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.module.med.MedLoader;
+import com.adeptum.paula.module.mo3.Mo3Loader;
 import com.adeptum.paula.module.mp3.Mp3Loader;
 import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sap.SapLoader;
@@ -48,7 +49,7 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
-                HivelyLoader.FORMAT, MedLoader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
+                HivelyLoader.FORMAT, MedLoader.FORMAT, Mo3Loader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
                 ApeLoader.FORMAT),
                 registry.formats());
     }
@@ -61,6 +62,7 @@ class ModuleLoaderRegistryTest {
         assertTrue(registry.loaderFor(Path.of("x.ahx")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.hvl")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.med")).isPresent());
+        assertTrue(registry.loaderFor(Path.of("x.mo3")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.mmd1")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.mp3")).isPresent());
         assertTrue(registry.loaderFor(Path.of("x.flac")).isPresent());
