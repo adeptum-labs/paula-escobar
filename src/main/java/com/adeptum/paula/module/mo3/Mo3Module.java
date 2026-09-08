@@ -127,6 +127,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         final InstrumentsContainer instruments = new InstrumentsContainer(this,
                 file.hasInstruments() ? song.instruments() : 0, song.samples());
         Mo3Instruments.read(instruments, file, isAmigaLike());
+        Mo3Waveforms.read(instruments, file, getModType());
         setInstrumentContainer(instruments);
     }
 

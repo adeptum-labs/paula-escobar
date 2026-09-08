@@ -41,17 +41,14 @@ import java.io.IOException;
  */
 final class Mo3Unpacker {
 
-    private final byte[] packed;
+    private final Mo3Bits bits;
     private final byte[] unpacked;
-    private int at;
     private int written;
-    private int data;
     private int stringOffset;
 
     private Mo3Unpacker(byte[] packed, int from, int unpackedLength) {
-        this.packed = packed;
+        this.bits = new Mo3Bits(packed, from, packed.length - from);
         this.unpacked = new byte[unpackedLength];
-        this.at = from;
     }
 
     /**
@@ -61,14 +58,14 @@ final class Mo3Unpacker {
     static Unpacked unpack(byte[] packed, int from, int unpackedLength) throws IOException {
         final Mo3Unpacker unpacker = new Mo3Unpacker(packed, from, unpackedLength);
         unpacker.run();
-        return new Unpacked(unpacker.unpacked, unpacker.at);
+        return new Unpacked(unpacker.unpacked, unpacker.bits.position());
     }
 
     private void run() throws IOException {
-        unpacked[written++] = nextByte();
+        unpacked[written++] = bits.next();
         while (written < unpacked.length) {
-            if (!controlBit()) {
-                unpacked[written++] = nextByte();
+            if (!bits.bit()) {
+                unpacked[written++] = bits.next();
             } else {
                 repeatString();
             }
@@ -81,7 +78,7 @@ final class Mo3Unpacker {
         if (length < 0) {
             length++;
         } else {
-            stringOffset = ~(length << Byte.SIZE | nextByte() & 0xFF);
+            stringOffset = ~(length << Byte.SIZE | bits.next() & 0xFF);
             length = 0;
             if (stringOffset < -1280) {
                 adjust++;
@@ -95,8 +92,8 @@ final class Mo3Unpacker {
             throw new EOFException("The compressed music repeats a string from before the module began");
         }
 
-        length = length << 1 | (controlBit() ? 1 : 0);
-        length = length << 1 | (controlBit() ? 1 : 0);
+        length = length << 1 | bits.digit();
+        length = length << 1 | bits.digit();
         if (length == 0) {
             length = codedLength() + 2;
         }
@@ -118,30 +115,9 @@ final class Mo3Unpacker {
     private int codedLength() throws IOException {
         int length = 1;
         do {
-            length = length << 1 | (controlBit() ? 1 : 0);
-        } while (controlBit());
+            length = length << 1 | bits.digit();
+        } while (bits.bit());
         return length;
-    }
-
-    /**
-     * The next control bit, taken off the top of the byte in hand; an exhausted byte is refilled from the
-     * stream with a marker bit below it, which is what empties it again eight bits later.
-     */
-    private boolean controlBit() throws IOException {
-        data <<= 1;
-        if ((data & 0xFF) == 0) {
-            data = (nextByte() & 0xFF) << 1 | 1;
-        }
-        final boolean bit = data > 0xFF;
-        data &= 0xFF;
-        return bit;
-    }
-
-    private byte nextByte() throws IOException {
-        if (at >= packed.length) {
-            throw new EOFException("The compressed music ends before it unpacks to the length it states");
-        }
-        return packed[at++];
     }
 
     /**
