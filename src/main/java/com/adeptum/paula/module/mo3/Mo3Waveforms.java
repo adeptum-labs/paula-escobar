@@ -28,6 +28,7 @@ package com.adeptum.paula.module.mo3;
 
 import de.quippy.javamod.multimedia.mod.loader.instrument.InstrumentsContainer;
 import de.quippy.javamod.multimedia.mod.loader.instrument.Sample;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -54,7 +55,7 @@ final class Mo3Waveforms {
             if (mo3.isDuplicate()) {
                 copyWaveform(container, samples, index);
             } else if (sample.sampleLength > 0) {
-                at = readWaveform(file, mo3, sample, at, modType);
+                at = readWaveform(file, index, mo3, sample, at, modType);
             }
         }
     }
@@ -63,7 +64,7 @@ final class Mo3Waveforms {
      * A waveform of no compression at all takes the room its samples need; anything packed takes the room its
      * header states, whether or not this reads the packing it was given.
      */
-    private static int readWaveform(Mo3File file, Mo3Sample mo3, Sample sample, int at, int modType) {
+    private static int readWaveform(Mo3File file, int index, Mo3Sample mo3, Sample sample, int at, int modType) {
         final int packed = mo3.compressedSize();
         final int length = packed > 0 ? packed : mo3.length() * bytesPerSample(mo3) * mo3.channels();
         if (at < 0 || length < 0 || at + length > file.file().length) {
@@ -82,12 +83,45 @@ final class Mo3Waveforms {
                 keep(sample, waveform, true, modType);
                 return at + length;
             }
+            case Mo3Sample.OGG, Mo3Sample.SHARED_OGG -> {
+                Mo3Ogg.unpack(vorbis(file, index, mo3, at, length), waveform);
+                keep(sample, waveform, true, modType);
+                return at + length;
+            }
             default -> {
                 return at + length;
             }
         }
         keep(sample, waveform, wide, modType);
         return at + length;
+    }
+
+    /**
+     * The stream to hand a Vorbis decoder: the sample's own pages, with the beginning it borrows from another
+     * sample put in front of them where it has one.
+     */
+    private static byte[] vorbis(Mo3File file, int index, Mo3Sample mo3, int at, int length) {
+        final int shared = index + mo3.sharedOggHeader();
+        if (mo3.compression() != Mo3Sample.SHARED_OGG || shared == index
+                || shared < 0 || shared >= file.samples().size() || mo3.encoderDelay() <= 0) {
+            return Arrays.copyOfRange(file.file(), at, at + length);
+        }
+        return Mo3Ogg.shared(file.file(), waveformAt(file, shared), mo3.encoderDelay(), at, length);
+    }
+
+    /**
+     * Where the waveform of a sample begins, which is only known by stepping over everything before it.
+     */
+    private static int waveformAt(Mo3File file, int index) {
+        int at = file.sampleData();
+        for (int before = 0; before < index; before++) {
+            final Mo3Sample mo3 = file.samples().get(before);
+            if (!mo3.isDuplicate() && mo3.length() > 0) {
+                at += mo3.compressedSize() > 0 ? mo3.compressedSize()
+                        : mo3.length() * bytesPerSample(mo3) * mo3.channels();
+            }
+        }
+        return at;
     }
 
     private static void plain(byte[] file, int at, int[][] waveform, boolean wide) {
