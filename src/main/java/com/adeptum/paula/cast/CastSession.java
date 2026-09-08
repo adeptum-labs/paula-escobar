@@ -203,6 +203,8 @@ public final class CastSession implements AutoCloseable {
         final JsonObject status = statuses.getJsonObject(0);
         mediaSession = status.getInt("mediaSessionId", mediaSession);
         final String state = status.getString("playerState", IDLE);
+        log.debug("{} is {} at {}s{}", device.name(), state, status.get("currentTime"),
+                status.containsKey("idleReason") ? " because " + status.getString("idleReason") : "");
         played |= PLAYING.equals(state) || BUFFERING.equals(state);
         position = new Position(status.getJsonNumber("currentTime") == null ? 0
                 : status.getJsonNumber("currentTime").doubleValue(), System.nanoTime(), state);

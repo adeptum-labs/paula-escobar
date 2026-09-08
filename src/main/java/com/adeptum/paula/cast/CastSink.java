@@ -50,6 +50,7 @@ public final class CastSink implements AudioSink {
     private static final String UNTITLED = "Paula Escobar";
 
     private final CastDevice device;
+    private final int port;
     private final ScheduledExecutorService poller;
     private volatile CastSession session;
     private volatile CastStreamServer server;
@@ -57,7 +58,12 @@ public final class CastSink implements AudioSink {
     private volatile int sampleRate;
 
     public CastSink(CastDevice device) {
+        this(device, CastStreamServer.DEFAULT_PORT);
+    }
+
+    public CastSink(CastDevice device, int port) {
         this.device = device;
+        this.port = port;
         this.poller = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "paula-cast-poll");
             thread.setDaemon(true);
@@ -74,7 +80,7 @@ public final class CastSink implements AudioSink {
         this.sampleRate = sampleRate;
         try {
             session = CastSession.open(device);
-            server = new CastStreamServer(session.localAddress());
+            server = new CastStreamServer(session.localAddress(), port);
         } catch (IOException e) {
             close();
             throw new AudioException("Cannot reach " + device.name() + ": " + e.getMessage(), e);
@@ -86,6 +92,7 @@ public final class CastSink implements AudioSink {
     public void begin(String title, String subtitle) throws AudioException {
         forgetStream();
         final Served next = server.open(sampleRate);
+        log.debug("Serving {} at {}", title, next.url());
         try {
             session.load(next.url(), title.isBlank() ? UNTITLED : title, subtitle);
         } catch (IOException e) {

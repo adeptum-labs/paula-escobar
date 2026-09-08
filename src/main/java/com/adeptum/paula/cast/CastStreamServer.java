@@ -52,6 +52,12 @@ public final class CastStreamServer implements AutoCloseable {
     private static final int WAVE_HEADER_LENGTH = 44;
     private static final int ENDLESS = 0x7FFF_FFF0;
     private static final int BACKLOG = 4;
+
+    /**
+     * The port the sound is served on unless another is asked for, fixed so that a firewall between the
+     * player and the device can be told about it once; taken to be any free port when it is in use.
+     */
+    public static final int DEFAULT_PORT = 7373;
     private static final String CRLF = "\r\n";
 
     /**
@@ -65,8 +71,8 @@ public final class CastStreamServer implements AutoCloseable {
     private final AtomicInteger names = new AtomicInteger();
     private volatile boolean closed;
 
-    public CastStreamServer(InetAddress bind) throws IOException {
-        this.server = new ServerSocket(0, BACKLOG, bind);
+    public CastStreamServer(InetAddress bind, int port) throws IOException {
+        this.server = listen(bind, port);
         final Thread thread = new Thread(this::serve, "paula-cast-stream");
         thread.setDaemon(true);
         thread.start();
@@ -74,6 +80,15 @@ public final class CastStreamServer implements AutoCloseable {
 
     public int port() {
         return server.getLocalPort();
+    }
+
+    private static ServerSocket listen(InetAddress bind, int port) throws IOException {
+        try {
+            return new ServerSocket(port, BACKLOG, bind);
+        } catch (IOException taken) {
+            log.debug("Port {} is taken, serving the sound on any free one", port, taken);
+            return new ServerSocket(0, BACKLOG, bind);
+        }
     }
 
     /**
@@ -123,6 +138,8 @@ public final class CastStreamServer implements AutoCloseable {
     private void answer(Socket client) {
         try (client) {
             final Request request = Request.read(client);
+            log.debug("{} asked for {}{}", client.getInetAddress().getHostAddress(), request == null ? "nothing" : request.path,
+                    request == null || request.range.isEmpty() ? "" : " from " + request.range);
             final PcmStream stream = request == null ? null : streams.get(request.path);
             final OutputStream out = client.getOutputStream();
             if (stream == null) {
@@ -170,7 +187,7 @@ public final class CastStreamServer implements AutoCloseable {
         return header.array();
     }
 
-    private record Request(String path, boolean head) {
+    private record Request(String path, boolean head, String range) {
 
         /**
          * The request line and headers, of which only the method and the path say anything to a stream.
@@ -186,10 +203,13 @@ public final class CastStreamServer implements AutoCloseable {
                 return null;
             }
             String header;
+            String range = "";
             while ((header = in.readLine()) != null && !header.isEmpty()) {
-                continue;
+                if (header.regionMatches(true, 0, "Range:", 0, "Range:".length())) {
+                    range = header.substring("Range:".length()).strip();
+                }
             }
-            return new Request(parts[1], "HEAD".equals(parts[0]));
+            return new Request(parts[1], "HEAD".equals(parts[0]), range);
         }
     }
 }

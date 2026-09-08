@@ -34,9 +34,10 @@ public final class PcmStream {
     private static final int CHANNELS = 2;
 
     /**
-     * How long a writer waits for the device to fetch before the device is taken to have stopped listening.
+     * How long a writer waits for the device to fetch before the device is taken to have stopped listening. A
+     * device fills a buffer of some fifteen seconds at a time and fetches nothing while it plays that out.
      */
-    private static final long STALL_MILLIS = 15_000;
+    private static final long STALL_MILLIS = 60_000;
 
     private final int sampleRate;
     private final int capacityBytes;

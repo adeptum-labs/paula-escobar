@@ -46,7 +46,7 @@ class CastStreamServerTest {
 
     @Test
     void servesAWaveFileThatNeverEndsAtTheAddressItGaveOut() throws Exception {
-        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress())) {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
             final Served served = server.open(SAMPLE_RATE);
             final URI url = URI.create(served.url());
             assertEquals("127.0.0.1", url.getHost());
@@ -66,8 +66,17 @@ class CastStreamServerTest {
     }
 
     @Test
+    void servesOnAnyFreePortWhenTheOneAskedForIsTaken() throws Exception {
+        try (CastStreamServer first = new CastStreamServer(InetAddress.getLoopbackAddress(), 0);
+                CastStreamServer second = new CastStreamServer(InetAddress.getLoopbackAddress(), first.port())) {
+            assertTrue(second.port() > 0);
+            assertTrue(second.port() != first.port());
+        }
+    }
+
+    @Test
     void ignoresTheRangeTheDeviceAsksFor() throws Exception {
-        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress())) {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
             final Served served = server.open(SAMPLE_RATE);
             served.stream().end();
             final URI url = URI.create(served.url());
@@ -80,7 +89,7 @@ class CastStreamServerTest {
 
     @Test
     void answersAHeadRequestWithTheHeadersAlone() throws Exception {
-        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress())) {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
             final Served served = server.open(SAMPLE_RATE);
             final URI url = URI.create(served.url());
             final Response response = get(url, "HEAD " + url.getPath() + " HTTP/1.1\r\n\r\n");
@@ -92,7 +101,7 @@ class CastStreamServerTest {
 
     @Test
     void knowsNothingOfAStreamItWasNotAskedToOpen() throws Exception {
-        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress())) {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
             final URI url = URI.create(server.open(SAMPLE_RATE).url());
             final Response response = get(url, "GET /elsewhere.wav HTTP/1.1\r\n\r\n");
 

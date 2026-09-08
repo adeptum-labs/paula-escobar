@@ -44,7 +44,7 @@ public final class PlaybackEngine implements AutoCloseable {
 
     private static final int CHANNELS = 2;
     private static final long PAUSE_POLL_MILLIS = 20;
-    private static final int TAP_SECONDS = 16;
+    private static final int TAP_SECONDS = 32;
 
     private final List<AudioSink> copies;
     private final int sampleRate;
