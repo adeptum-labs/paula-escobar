@@ -66,6 +66,13 @@ public final class CastStreamServer implements AutoCloseable {
      */
     private static final int HELD_SECONDS = 2;
 
+    /**
+     * A device fetches as much as it is given and plays that far behind, near a minute of it left to itself,
+     * so it is given a few seconds to start on and then only as fast as it plays.
+     */
+    private static final int BURST_SECONDS = 3;
+    private static final long PACE_STEP_MILLIS = 20;
+
     private final ServerSocket server;
     private final Map<String, PcmStream> streams = new ConcurrentHashMap<>();
     private final AtomicInteger names = new AtomicInteger();
@@ -152,18 +159,29 @@ public final class CastStreamServer implements AutoCloseable {
             }
             out.write(waveHeader(stream.sampleRate()));
             out.flush();
-            pump(stream, out);
+            pump(stream, out, stream.sampleRate() * CHANNELS * BITS / Byte.SIZE);
         } catch (IOException | InterruptedException e) {
             log.debug("A stream connection ended", e);
         }
     }
 
-    private static void pump(PcmStream stream, OutputStream out) throws IOException, InterruptedException {
+    private static void pump(PcmStream stream, OutputStream out, int bytesPerSecond) throws IOException, InterruptedException {
+        final long started = System.nanoTime();
+        long sent = 0;
         byte[] chunk;
         while ((chunk = stream.read()) != null) {
+            while (sent > allowed(started, bytesPerSecond)) {
+                Thread.sleep(PACE_STEP_MILLIS);
+            }
             out.write(chunk);
             out.flush();
+            sent += chunk.length;
         }
+    }
+
+    private static long allowed(long started, int bytesPerSecond) {
+        return (long) BURST_SECONDS * bytesPerSecond + (System.nanoTime() - started) / 1_000_000_000L * bytesPerSecond
+                + (System.nanoTime() - started) % 1_000_000_000L * bytesPerSecond / 1_000_000_000L;
     }
 
     private static String headers() {
