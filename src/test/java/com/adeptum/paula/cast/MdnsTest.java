@@ -43,12 +43,12 @@ class MdnsTest {
     private static final String FAKE_ID = "0123456789abcdef0123456789abcdef";
 
     @Test
-    void asksForTheCastServiceAndAnAnswerStraightBack() {
+    void asksForTheCastService() {
         final String query = HexFormat.of().formatHex(Mdns.query());
 
         assertTrue(query.startsWith("000000000001000000000000"), "one question, nothing else");
         assertTrue(query.contains(HexFormat.of().formatHex("_googlecast".getBytes())));
-        assertTrue(query.endsWith("000c8001"), "a pointer record, answered to the asker");
+        assertTrue(query.endsWith("000c0001"), "a pointer record, answered to the whole network");
     }
 
     @Test

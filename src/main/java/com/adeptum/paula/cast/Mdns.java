@@ -53,11 +53,6 @@ final class Mdns {
     private static final int TYPE_SRV = 33;
     private static final int CLASS_IN = 1;
 
-    /**
-     * A question marked to be answered straight back to whoever asked rather than to the whole network.
-     */
-    private static final int UNICAST_REPLY = 0x8000;
-
     private static final int POINTER = 0xC0;
     private static final int POINTER_MASK = 0x3FFF;
     private static final int LONGEST_NAME_HOPS = 64;
@@ -75,7 +70,7 @@ final class Mdns {
             out.writeBytes(label.getBytes(StandardCharsets.US_ASCII));
         }
         out.write(0);
-        out.writeBytes(new byte[] {0, TYPE_PTR, (byte) (UNICAST_REPLY >> Byte.SIZE), CLASS_IN});
+        out.writeBytes(new byte[] {0, TYPE_PTR, 0, CLASS_IN});
         return out.toByteArray();
     }
 
