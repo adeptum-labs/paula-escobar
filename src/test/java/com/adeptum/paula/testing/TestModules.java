@@ -103,17 +103,30 @@ public final class TestModules {
     public static final int MO3_ORDERS_AT = MO3_CHANNELS_AT + 1;
     public static final int MO3_RESTART_AT = MO3_ORDERS_AT + Short.BYTES;
 
+    /**
+     * Where the flags sit, past the seven counts, the speed and the tempo; they say which tracker wrote the
+     * module and which of its habits the module wants back.
+     */
+    public static final int MO3_FLAGS_AT = MO3_CHANNELS_AT + 15;
+
+    public static final int MO3_IS_IMPULSE_TRACKER = 0x0100;
+    public static final int MO3_IS_FAST_TRACKER = 0;
+
     private static final int MO3_VERSION = 5;
     private static final int MO3_HEADER_LENGTH = 422;
     private static final int MO3_MUSIC_LENGTH = 640;
     private static final int MO3_LITERALS_PER_CONTROL_BYTE = 8;
     private static final int MO3_IS_MOD = 0x80;
-    private static final int MO3_ALWAYS_SET = 0x20000;
+
+    /**
+     * A flag every MO3 carries, whatever it was packed from.
+     */
+    public static final int MO3_ALWAYS_SET = 0x20000;
     private static final int MO3_SAMPLE_LOOPS = 0x10;
     private static final int MO3_PANNING_UNSET = 0xFFFF;
     private static final int MO3_MIDDLE_FINETUNE = 128;
-    private static final int MO3_LEFT = 64;
-    private static final int MO3_RIGHT = 192;
+    public static final int MO3_LEFT = 64;
+    public static final int MO3_RIGHT = 192;
 
     /**
      * Two commands on one row, a note and the instrument to sound it with, then the byte that ends the track.

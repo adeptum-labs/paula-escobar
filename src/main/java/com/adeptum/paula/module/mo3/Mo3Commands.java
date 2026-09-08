@@ -45,6 +45,7 @@ final class Mo3Commands {
     private static final int PANNING = 0x0B;
     private static final int VOLUME = 0x0F;
     private static final int PATTERN_BREAK = 0x10;
+    private static final int SPEED_OR_TEMPO = 0x12;
     private static final int VOLUME_SLIDE_COARSE = 0x14;
     private static final int VOLUME_SLIDE_FINE = 0x15;
     private static final int PANNING_SLIDE_COLUMN = 0x1B;
@@ -102,6 +103,11 @@ final class Mo3Commands {
     private static final int IT_PANNING_STEPS = 4;
     private static final int FIRST_COLUMN_OFFSET = 223;
     private static final int LAST_COLUMN_OFFSET = 232;
+    /**
+     * A value below this is a speed in ticks to the row; at or above it, it is a tempo in beats.
+     */
+    private static final int SLOWEST_SPEED = 0x20;
+
     private static final int EXTRA_FINE_UP = 0x10;
     private static final int EXTRA_FINE_DOWN = 0x20;
 
@@ -121,6 +127,7 @@ final class Mo3Commands {
             case PANNING -> panning(event, value, kind);
             case VOLUME -> volume(event, value, kind);
             case PATTERN_BREAK -> patternBreak(event, value, kind);
+            case SPEED_OR_TEMPO -> speedOrTempo(event, value, screamTracker);
             case VOLUME_SLIDE_COARSE, VOLUME_SLIDE_FINE -> columnVolumeSlide(event, command, value);
             case PANNING_SLIDE_COLUMN -> columnPanningSlide(event, value);
             case EXTRA_FINE_PORTAMENTO_UP -> event.effect(effect(command, screamTracker), EXTRA_FINE_UP | value);
@@ -212,6 +219,18 @@ final class Mo3Commands {
     private static void patternBreak(Mo3Event event, int value, Mo3Kind kind) {
         event.effect(effect(PATTERN_BREAK, kind.isScreamTrackerFamily()),
                 kind == Mo3Kind.IMPULSE_TRACKER ? value : (value >> NIBBLE) * TENS + (value & LOW_NIBBLE));
+    }
+
+    /**
+     * One command sets both the speed and the tempo, the value saying which. Fast Tracker has a command that
+     * does the same; Impulse Tracker and Scream Tracker keep the two apart and need to be told which is meant.
+     */
+    private static void speedOrTempo(Mo3Event event, int value, boolean screamTracker) {
+        if (screamTracker) {
+            event.effect(letter(value < SLOWEST_SPEED ? 'A' : 'T'), value);
+        } else {
+            event.effect(effect(SPEED_OR_TEMPO, false), value);
+        }
     }
 
     private static void columnVolumeSlide(Mo3Event event, int command, int value) {

@@ -33,10 +33,11 @@ record Mo3File(int version, String name, String message, Mo3Song song, int[] ord
                byte[] file, int sampleData) {
 
     /**
-     * An order that names no pattern: one to skip over and one to stop at, as Impulse Tracker wrote them.
+     * The two orders that name no pattern, as Impulse Tracker wrote them: one that ends the song and one to
+     * skip over on the way to the next.
      */
-    static final int ORDER_SKIP = 0xFF;
-    static final int ORDER_STOP = 0xFE;
+    static final int ORDER_STOP = 0xFF;
+    static final int ORDER_SKIP = 0xFE;
 
     Mo3Kind kind() {
         return song.kind();
