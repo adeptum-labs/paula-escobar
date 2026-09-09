@@ -28,6 +28,8 @@ import com.adeptum.paula.audio.AudioException;
 import com.adeptum.paula.audio.AudioSink;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class PlaybackEngineTest {
@@ -139,6 +141,26 @@ class PlaybackEngineTest {
         }
     }
 
+    /**
+     * A sink holding the player back, as one waiting for a Cast device to catch up does for seconds at a
+     * time, must not hold the song being changed out with it. Pressing on to the next song sat through the
+     * whole hold, which measured seven seconds on a device that had just started playing.
+     */
+    @Test
+    void changesTheSongWhileTheOutputIsHoldingThePlayerBack() throws AudioException, InterruptedException {
+        final HoldingSink holding = new HoldingSink();
+        try (PlaybackEngine engine = new PlaybackEngine(holding, SAMPLE_RATE, 256)) {
+            engine.play(new SeekRecordingRenderer(Duration.ZERO));
+            assertTrue(holding.awaitHold(), "the output has the player");
+
+            final long before = System.nanoTime();
+            engine.play(new SilenceRenderer(Duration.ofMillis(50), SAMPLE_RATE));
+
+            assertTrue(Duration.ofNanos(System.nanoTime() - before).toMillis() < 1000,
+                    "the next song does not wait the hold out");
+        }
+    }
+
     @Test
     void seekingWithoutASongIsIgnored() throws AudioException {
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
@@ -173,6 +195,46 @@ class PlaybackEngineTest {
         @Override
         public void seek(Duration target) {
             lastTarget = target;
+        }
+    }
+
+    /**
+     * A sink that takes the player and does not give it back, the way one waits for a device that is seconds
+     * behind. Only being interrupted lets go of it.
+     */
+    private static final class HoldingSink implements AudioSink {
+
+        private static final Duration FOREVER = Duration.ofSeconds(30);
+        private final CountDownLatch holding = new CountDownLatch(1);
+
+        @Override
+        public void open(int sampleRate) {
+        }
+
+        @Override
+        public void begin(String title, String subtitle) {
+        }
+
+        @Override
+        public void write(short[] interleavedStereo, int frameCount) {
+            holding.countDown();
+            try {
+                Thread.sleep(FOREVER);
+            } catch (InterruptedException letGo) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public void drain() {
+        }
+
+        @Override
+        public void close() {
+        }
+
+        boolean awaitHold() throws InterruptedException {
+            return holding.await(5, TimeUnit.SECONDS);
         }
     }
 

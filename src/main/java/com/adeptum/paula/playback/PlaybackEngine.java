@@ -232,7 +232,13 @@ public final class PlaybackEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * An output that plays late holds the player back while it catches up, seconds at a time, and the song
+     * being changed out from under it would otherwise wait that hold out with nothing on the screen moving.
+     * The pump is told to let go rather than asked to notice.
+     */
     private void joinPump() {
+        pump.interrupt();
         joinQuietly(pump);
     }
 
