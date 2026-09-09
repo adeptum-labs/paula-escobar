@@ -25,6 +25,8 @@ import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoader;
 import com.adeptum.paula.module.UnsupportedModuleException;
+import com.adeptum.paula.module.flextrax.FlexModule;
+import com.adeptum.paula.module.flextrax.FlexReader;
 import de.quippy.javamod.multimedia.mod.loader.ModuleFactory;
 import de.quippy.javamod.multimedia.mod.loader.tracker.FarandoleTrackerMod;
 import de.quippy.javamod.multimedia.mod.loader.tracker.ImpulseTrackerMod;
@@ -94,10 +96,21 @@ public final class JavaModLoader implements ModuleLoader {
     @Override
     public Module load(Path path) throws IOException {
         try {
-            return JavaModModule.of(path, ModuleFactory.getInstance(path.toFile()));
+            return withTheEffectsFlexTraxKept(path, JavaModModule.of(path, ModuleFactory.getInstance(path.toFile())));
         } catch (IOException e) {
             throw new UnsupportedModuleException(path, rootMessage(e));
         }
+    }
+
+    /**
+     * A FlexTrax module is a tracker module with the settings for the Falcon's reverb and delay kept after
+     * its samples, so where those are there and sound for anything, the module plays with them laid over it.
+     */
+    private static Module withTheEffectsFlexTraxKept(Path path, Module module) throws IOException {
+        return FlexReader.of(path)
+                .filter(effects -> !effects.silent())
+                .<Module>map(effects -> new FlexModule(module, effects))
+                .orElse(module);
     }
 
     private static String rootMessage(Throwable error) {

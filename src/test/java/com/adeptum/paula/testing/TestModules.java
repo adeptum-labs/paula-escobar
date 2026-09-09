@@ -676,6 +676,11 @@ public final class TestModules {
         buffer.put((byte) 1).put((byte) 0);
         buffer.position(1080);
         buffer.put(FLEX_MARK_8CHN.getBytes(StandardCharsets.US_ASCII));
+        buffer.put((byte) (PERIOD_C2 >> 8)).put((byte) PERIOD_C2).put((byte) 0x10).put((byte) 0);
+        buffer.position(HEADER_LENGTH + patternLength);
+        for (int i = 0; i < SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
         buffer.position(HEADER_LENGTH + patternLength + SAMPLE_LENGTH);
         buffer.put(trailer);
         return buffer.array();
