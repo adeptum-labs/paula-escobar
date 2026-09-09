@@ -30,6 +30,7 @@ import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.Track;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +45,7 @@ class TrackLoaderTest {
     void resolvesOnTheExecutorAndReportsOnce() {
         loader.request(A, track -> Path.of("resolved", track.label()));
 
-        assertEquals(Optional.of(new TrackLoader.Loaded(A, Path.of("resolved/a.mod"))), loader.poll());
+        assertEquals(Optional.of(new TrackLoader.Loaded(A, Path.of("resolved/a.mod"), null, List.of())), loader.poll());
         assertEquals(Optional.empty(), loader.poll());
         assertFalse(loader.loading());
     }
@@ -54,7 +55,7 @@ class TrackLoaderTest {
         loader.request(A, track -> Path.of("a"));
         loader.request(B, track -> Path.of("b"));
 
-        assertEquals(Optional.of(new TrackLoader.Loaded(B, Path.of("b"))), loader.poll());
+        assertEquals(Optional.of(new TrackLoader.Loaded(B, Path.of("b"), null, List.of())), loader.poll());
         assertEquals(Optional.empty(), loader.poll());
     }
 

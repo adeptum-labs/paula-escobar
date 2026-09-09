@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.audio.NowPlaying;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Duration;
@@ -53,7 +54,7 @@ class CastSinkTest {
             fake.refusing("ERROR");
             sink.open(SAMPLE_RATE);
 
-            final AudioException refused = assertThrows(AudioException.class, () -> sink.begin("Paula Test", ""));
+            final AudioException refused = assertThrows(AudioException.class, () -> sink.begin(song("Paula Test")));
             assertTrue(refused.getMessage().contains("Kök"), refused.getMessage());
             assertTrue(refused.getMessage().contains("could not fetch"), refused.getMessage());
             assertTrue(refused.getMessage().contains("ERROR"), refused.getMessage());
@@ -73,7 +74,7 @@ class CastSinkTest {
             fake.answer("LOAD", request -> null);
             sink.open(SAMPLE_RATE);
 
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
             sink.write(tone(), FRAMES);
 
             fake.sendMediaStatus();
@@ -91,11 +92,11 @@ class CastSinkTest {
             fake.playingAt(0, "PLAYING");
             fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
-            sink.begin("The song before", "");
+            sink.begin(song("The song before"));
             sink.write(tone(), FRAMES);
 
             fake.answer("LOAD", request -> null);
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
             fake.inSession(1);
             fake.refusing("INTERRUPTED");
             fake.sendMediaStatus();
@@ -115,7 +116,7 @@ class CastSinkTest {
             fake.playingAt(0, "PLAYING");
             fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
             sink.write(tone(), FRAMES);
 
             fake.send(FakeCastDevice.TRANSPORT, CastMessages.MEDIA,
@@ -126,13 +127,31 @@ class CastSinkTest {
         }
     }
 
+    /**
+     * A release carrying no art of its own, which is most of them, still gives a screen something: a card of
+     * what is known about the song, drawn and served beside the sound.
+     */
+    @Test
+    void drawsACardForASongWithNoArtOfItsOwn() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            sink.open(SAMPLE_RATE);
+
+            sink.begin(NowPlaying.builder().title("Just for Blues").artist("Mantronix").build());
+
+            assertTrue(waitFor(() -> fake.received().stream().anyMatch(message -> message.payload().contains("images")
+                    && message.payload().contains(".png"))), "a screen is pointed at a picture to show");
+        }
+    }
+
     @Test
     void stopsWritingToADeviceSomeoneElseHasTakenOver() throws Exception {
         try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
             fake.playingAt(0, "PLAYING");
             fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
             sink.write(tone(), FRAMES);
 
             fake.refusing("CANCELLED");
@@ -150,7 +169,7 @@ class CastSinkTest {
             fake.playingAt(0, "BUFFERING");
             fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
             sink.write(tone(), FRAMES);
 
             assertTrue(waitFor(() -> sink.lag().isPresent()), "the device said where it is");
@@ -169,7 +188,7 @@ class CastSinkTest {
             fake.playingAt(0, "PLAYING");
             fake.fetchesWhatItIsGiven();
             sink.open(SAMPLE_RATE);
-            sink.begin("Paula Test", "");
+            sink.begin(song("Paula Test"));
 
             final Thread stuck = sayItIsPlayingButNeverGetOn(fake);
             final Thread player = play(sink);
@@ -229,6 +248,10 @@ class CastSinkTest {
             session = new CastSession(CastChannel.over(fake.connect()), device);
             return session;
         });
+    }
+
+    private static NowPlaying song(String title) {
+        return NowPlaying.builder().title(title).build();
     }
 
     private static short[] tone() {

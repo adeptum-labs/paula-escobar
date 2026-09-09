@@ -26,12 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastMessages.CastMessage;
 import com.adeptum.paula.cast.CastSession.Position;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Duration;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,15 @@ import org.junit.jupiter.api.Test;
 class CastSessionTest {
 
     private static final String URL = "http://192.168.1.1:4711/paula-1.wav";
+    private static final NowPlaying SONG = NowPlaying.builder().title("Paula Test").build();
     private static final CastDevice KITCHEN = new CastDevice("id", "Kök", "Nest Audio",
             InetAddress.getLoopbackAddress(), CastDevice.CAST_PORT);
 
     @Test
     void launchesTheReceiverAndHandsItTheStream() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
-            session.load(URL, "Paula Test", "ProTracker, 4 channels");
+            session.load(URL, NowPlaying.builder().title("Paula Test").artist("ProTracker, 4 channels")
+                    .length(Duration.ofMillis(184_500)).picture("https://media.demozoo.org/s/1.png").build());
 
             final CastMessage launch = only(device.received(), "LAUNCH");
             assertEquals(CastMessages.RECEIVER_NAMESPACE, launch.namespace());
@@ -60,6 +64,9 @@ class CastSessionTest {
             assertEquals(URL, media.getString("contentId"));
             assertEquals("audio/wav", media.getString("contentType"));
             assertEquals("Paula Test", media.getJsonObject("metadata").getString("title"));
+            assertEquals(184.5, media.getJsonNumber("duration").doubleValue(), "which a screen draws its progress against");
+            assertEquals("https://media.demozoo.org/s/1.png",
+                    media.getJsonObject("metadata").getJsonArray("images").getJsonObject(0).getString("url"));
             assertTrue(CastChannel.parse(load.payload()).getBoolean("autoplay"));
         }
     }
@@ -68,7 +75,7 @@ class CastSessionTest {
     void carriesThePositionForwardWhileTheDevicePlays() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
             device.playingAt(10, "PLAYING");
-            session.load(URL, "Paula Test", "");
+            session.load(URL, SONG);
 
             assertTrue(waitFor(() -> session.position().isPresent()));
             final double first = session.position().orElseThrow().now();
@@ -84,7 +91,7 @@ class CastSessionTest {
     void holdsThePositionWhileTheDeviceIsBuffering() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
             device.playingAt(4, "BUFFERING");
-            session.load(URL, "Paula Test", "");
+            session.load(URL, SONG);
 
             assertTrue(waitFor(() -> session.position().isPresent()), "the device said where it is");
             Thread.sleep(40);
@@ -97,7 +104,7 @@ class CastSessionTest {
     void knowsWhenTheDeviceHasPlayedItAll() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
             device.playingAt(0, "IDLE");
-            session.load(URL, "Paula Test", "");
+            session.load(URL, SONG);
             assertFalse(session.isFinished(), "idle before it ever played is not finished");
 
             device.playingAt(5, "PLAYING");
@@ -113,7 +120,7 @@ class CastSessionTest {
     @Test
     void asksWhereTheDeviceIs() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
-            session.load(URL, "Paula Test", "");
+            session.load(URL, SONG);
             session.poll();
 
             final CastMessage status = only(device.received(), "GET_STATUS");
@@ -126,7 +133,7 @@ class CastSessionTest {
     void stopsTheReceiverWhenClosed() throws Exception {
         try (FakeCastDevice device = new FakeCastDevice()) {
             final CastSession session = session(device);
-            session.load(URL, "Paula Test", "");
+            session.load(URL, SONG);
             session.close();
 
             assertTrue(waitFor(() -> device.received().stream().anyMatch(message -> message.payload().contains("STOP"))));
@@ -141,7 +148,7 @@ class CastSessionTest {
             device.answer("LAUNCH", request -> CastChannel.object("RECEIVER_STATUS")
                     .add("status", Json.createObjectBuilder().add("volume", Json.createObjectBuilder().add("level", 1))));
 
-            assertThrows(IOException.class, () -> session.load(URL, "Paula Test", ""));
+            assertThrows(IOException.class, () -> session.load(URL, SONG));
         }
     }
 

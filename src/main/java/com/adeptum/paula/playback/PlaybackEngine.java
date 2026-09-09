@@ -28,6 +28,7 @@ import static com.adeptum.paula.playback.PlaybackState.STOPPED;
 
 import com.adeptum.paula.audio.AudioException;
 import com.adeptum.paula.audio.AudioSink;
+import com.adeptum.paula.audio.NowPlaying;
 import java.time.Duration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -56,8 +57,7 @@ public final class PlaybackEngine implements AutoCloseable {
     private volatile AudioSink output;
     private volatile PlaybackState state = STOPPED;
     private volatile Renderer renderer;
-    private volatile String title = "";
-    private volatile String subtitle = "";
+    private volatile NowPlaying playing = NowPlaying.builder().build();
     private Thread pump;
 
     public PlaybackEngine(AudioSink output, int sampleRate, int bufferFrames) throws AudioException {
@@ -108,14 +108,13 @@ public final class PlaybackEngine implements AutoCloseable {
     }
 
     public synchronized void play(Renderer newRenderer) throws AudioException {
-        play(newRenderer, "", "");
+        play(newRenderer, NowPlaying.builder().build());
     }
 
-    public synchronized void play(Renderer newRenderer, String newTitle, String newSubtitle) throws AudioException {
+    public synchronized void play(Renderer newRenderer, NowPlaying song) throws AudioException {
         stop();
-        title = newTitle;
-        subtitle = newSubtitle;
-        output.begin(newTitle, newSubtitle);
+        playing = song;
+        output.begin(song);
         renderer = newRenderer;
         state = PLAYING;
         pump = new Thread(this::pumpLoop, "paula-audio");
@@ -131,7 +130,7 @@ public final class PlaybackEngine implements AutoCloseable {
         next.open(sampleRate);
         if (state == PLAYING || state == PAUSED) {
             try {
-                next.begin(title, subtitle);
+                next.begin(playing);
             } catch (AudioException e) {
                 next.close();
                 throw e;

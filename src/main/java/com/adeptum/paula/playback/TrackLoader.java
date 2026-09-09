@@ -24,6 +24,7 @@ package com.adeptum.paula.playback;
 import com.adeptum.paula.playlist.Track;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -39,7 +40,7 @@ public final class TrackLoader implements AutoCloseable {
         Track track();
     }
 
-    public record Loaded(Track track, Path path) implements Result {
+    public record Loaded(Track track, Path path, String picture, List<String> art) implements Result {
     }
 
     public record Failed(Track track, IOException error) implements Result {
@@ -47,6 +48,21 @@ public final class TrackLoader implements AutoCloseable {
 
     public interface Resolver {
         Path resolve(Track track) throws IOException;
+
+        /**
+         * A picture of the release for a screen to show, asked for here rather than as the song starts since
+         * it may have to be fetched; nothing where whatever offered the track has no picture of it.
+         */
+        default Optional<String> pictureOf(Track track) {
+            return Optional.empty();
+        }
+
+        /**
+         * The text art the release carries, which is drawn into a picture where nobody holds one of it.
+         */
+        default List<String> artOf(Track track) {
+            return List.of();
+        }
     }
 
     private static final String THREAD_NAME = "paula-loader";
@@ -95,7 +111,8 @@ public final class TrackLoader implements AutoCloseable {
 
     private static Result resolve(Track track, Resolver resolver) {
         try {
-            return new Loaded(track, resolver.resolve(track));
+            return new Loaded(track, resolver.resolve(track), resolver.pictureOf(track).orElse(null),
+                    resolver.artOf(track));
         } catch (IOException e) {
             return new Failed(track, e);
         } catch (RuntimeException e) {

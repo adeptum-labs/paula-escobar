@@ -495,7 +495,7 @@ class TrackResolverTest {
     }
 
     private static Production production(List<Link> downloads, List<Link> externals) {
-        return new Production(7, "Funkyeeh", downloads, externals);
+        return new Production(7, "Funkyeeh", downloads, externals, null);
     }
 
     private static String productionJson(String... classesAndUrls) {

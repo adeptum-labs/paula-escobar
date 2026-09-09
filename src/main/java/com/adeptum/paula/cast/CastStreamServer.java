@@ -32,6 +32,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -84,9 +85,17 @@ public final class CastStreamServer implements AutoCloseable {
     private static final int AHEAD_SECONDS = 10;
     private static final long PACE_STEP_MILLIS = 20;
 
+    /**
+     * The most silence written to make a song up to the length it said, so a length that is badly wrong ends
+     * the stream rather than holding the connection open for hours.
+     */
+    private static final long MOST_SILENCE = 30L * 192_000;
+
     private final ServerSocket server;
     private final Map<String, PcmStream> streams = new ConcurrentHashMap<>();
     private final Map<PcmStream, Socket> connections = new ConcurrentHashMap<>();
+    private final Map<String, byte[]> pictures = new ConcurrentHashMap<>();
+    private final Map<PcmStream, Long> lengths = new ConcurrentHashMap<>();
     private final AtomicInteger names = new AtomicInteger();
     private volatile boolean closed;
 
@@ -111,13 +120,23 @@ public final class CastStreamServer implements AutoCloseable {
     }
 
     /**
-     * A new stream at an address of its own, which is what the device is told to play.
+     * A new stream at an address of its own, which is what the device is told to play, and beside it the
+     * picture to show while it plays where there is one for the device to fetch.
      */
-    public Served open(int sampleRate) {
-        final String path = "/paula-" + names.incrementAndGet() + ".wav";
+    public Served open(int sampleRate, Duration length, byte[] picture) {
+        final String name = "/paula-" + names.incrementAndGet();
         final PcmStream stream = new PcmStream(sampleRate, sampleRate * HELD_SECONDS);
-        streams.put(path, stream);
-        return new Served(stream, "http://" + server.getInetAddress().getHostAddress() + ":" + port() + path);
+        lengths.put(stream, length == null ? ENDLESS
+                : Math.min(ENDLESS, Math.round(length.toMillis() / 1000.0 * sampleRate) * CHANNELS * BITS / Byte.SIZE));
+        streams.put(name + ".wav", stream);
+        if (picture.length > 0) {
+            pictures.put(name + ".png", picture);
+        }
+        return new Served(stream, at(name + ".wav"), picture.length > 0 ? at(name + ".png") : null);
+    }
+
+    private String at(String path) {
+        return "http://" + server.getInetAddress().getHostAddress() + ":" + port() + path;
     }
 
     /**
@@ -128,6 +147,8 @@ public final class CastStreamServer implements AutoCloseable {
     public void forget(Served served) {
         served.stream().abandon();
         streams.values().remove(served.stream());
+        lengths.remove(served.stream());
+        pictures.keySet().removeIf(path -> at(path).equals(served.picture()));
         hangUp(connections.remove(served.stream()));
     }
 
@@ -154,7 +175,7 @@ public final class CastStreamServer implements AutoCloseable {
         }
     }
 
-    public record Served(PcmStream stream, String url) {
+    public record Served(PcmStream stream, String url, String picture) {
     }
 
     private void serve() {
@@ -177,13 +198,20 @@ public final class CastStreamServer implements AutoCloseable {
             final Request request = Request.read(client);
             log.debug("{} asked for {}{}", client.getInetAddress().getHostAddress(), request == null ? "nothing" : request.path,
                     request == null || request.range.isEmpty() ? "" : " from " + request.range);
-            final PcmStream stream = request == null ? null : streams.get(request.path);
             final OutputStream out = client.getOutputStream();
+            final byte[] picture = request == null ? null : pictures.get(request.path);
+            if (picture != null) {
+                out.write(pictureHeaders(picture.length).getBytes(StandardCharsets.US_ASCII));
+                out.write(request.head ? new byte[0] : picture);
+                return;
+            }
+            final PcmStream stream = request == null ? null : streams.get(request.path);
             if (stream == null) {
                 out.write(("HTTP/1.1 404 Not Found" + CRLF + "Connection: close" + CRLF + CRLF).getBytes(StandardCharsets.US_ASCII));
                 return;
             }
-            out.write(headers().getBytes(StandardCharsets.US_ASCII));
+            final long sound = lengths.getOrDefault(stream, (long) ENDLESS);
+            out.write(headers(sound).getBytes(StandardCharsets.US_ASCII));
             if (request.head) {
                 return;
             }
@@ -191,10 +219,10 @@ public final class CastStreamServer implements AutoCloseable {
             connections.put(stream, client);
             final int bytesPerSecond = stream.sampleRate() * CHANNELS * BITS / Byte.SIZE;
             final byte[] start = soundToStartOn(stream, (long) bytesPerSecond * START_SECONDS);
-            out.write(waveHeader(stream.sampleRate()));
+            out.write(waveHeader(stream.sampleRate(), sound));
             out.write(start);
             out.flush();
-            pump(stream, out, bytesPerSecond, start.length);
+            pump(stream, out, bytesPerSecond, start.length, sound);
         } catch (IOException | InterruptedException e) {
             log.debug("A stream connection ended", e);
         }
@@ -213,19 +241,32 @@ public final class CastStreamServer implements AutoCloseable {
         return start.toByteArray();
     }
 
-    private static void pump(PcmStream stream, OutputStream out, int bytesPerSecond, long alreadySent)
+    private static void pump(PcmStream stream, OutputStream out, int bytesPerSecond, long alreadySent, long sound)
             throws IOException, InterruptedException {
         final long started = System.nanoTime();
         long sent = alreadySent;
         byte[] chunk;
-        while ((chunk = stream.read()) != null) {
+        while (sent < sound && (chunk = stream.read()) != null) {
             while (sent > allowed(started, bytesPerSecond)) {
                 Thread.sleep(PACE_STEP_MILLIS);
             }
-            out.write(chunk);
+            out.write(chunk, 0, (int) Math.min(chunk.length, sound - sent));
             out.flush();
             sent += chunk.length;
         }
+        fillOut(out, sound - sent);
+    }
+
+    /**
+     * Silence to the length the wave header promised, for a song that ended a shade before the length it gave.
+     * A device told how long the sound is waits for all of it, and would sit at the end of the song otherwise.
+     */
+    private static void fillOut(OutputStream out, long missing) throws IOException {
+        final byte[] silence = new byte[8192];
+        for (long left = Math.min(missing, MOST_SILENCE); left > 0; left -= silence.length) {
+            out.write(silence, 0, (int) Math.min(silence.length, left));
+        }
+        out.flush();
     }
 
     private static long allowed(long started, int bytesPerSecond) {
@@ -233,24 +274,33 @@ public final class CastStreamServer implements AutoCloseable {
                 + (System.nanoTime() - started) % 1_000_000_000L * bytesPerSecond / 1_000_000_000L;
     }
 
-    private static String headers() {
+    private static String pictureHeaders(int length) {
+        return "HTTP/1.1 200 OK" + CRLF
+                + "Content-Type: image/png" + CRLF
+                + "Content-Length: " + length + CRLF
+                + "Connection: close" + CRLF
+                + CRLF;
+    }
+
+    private static String headers(long sound) {
         return "HTTP/1.1 200 OK" + CRLF
                 + "Content-Type: audio/wav" + CRLF
+                + (sound < ENDLESS ? "Content-Length: " + (sound + WAVE_HEADER_LENGTH) + CRLF : "")
                 + "Accept-Ranges: none" + CRLF
                 + "Cache-Control: no-cache, no-store" + CRLF
                 + "Connection: close" + CRLF
                 + CRLF;
     }
 
-    static byte[] waveHeader(int sampleRate) {
+    static byte[] waveHeader(int sampleRate, long sound) {
         final ByteBuffer header = ByteBuffer.allocate(WAVE_HEADER_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
-        header.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(ENDLESS + WAVE_HEADER_LENGTH - 8);
+        header.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt((int) sound + WAVE_HEADER_LENGTH - 8);
         header.put("WAVE".getBytes(StandardCharsets.US_ASCII));
         header.put("fmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16);
         header.putShort((short) 1).putShort((short) CHANNELS).putInt(sampleRate);
         header.putInt(sampleRate * CHANNELS * BITS / Byte.SIZE).putShort((short) (CHANNELS * BITS / Byte.SIZE));
         header.putShort((short) BITS);
-        header.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(ENDLESS);
+        header.put("data".getBytes(StandardCharsets.US_ASCII)).putInt((int) sound);
         return header.array();
     }
 

@@ -119,7 +119,17 @@ public final class DemozooJson {
 
     public static Production production(byte[] body) throws IOException {
         return parse(body, production -> new Production(production.getInt("id"), production.getString("title", ""),
-                links(production, "download_links"), links(production, "external_links")));
+                links(production, "download_links"), links(production, "external_links"), picture(production)));
+    }
+
+    /**
+     * The first screenshot at the size Demozoo keeps for showing, which is what a screen on the network is
+     * given. Null where the release has none, as a music release almost always has.
+     */
+    private static String picture(JsonObject production) {
+        final JsonArray screenshots = production.getJsonArray("screenshots");
+        return screenshots == null || screenshots.isEmpty() ? null
+                : screenshots.getJsonObject(0).getString("standard_url", null);
     }
 
     /**

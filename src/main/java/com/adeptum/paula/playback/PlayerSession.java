@@ -27,11 +27,16 @@ import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import com.adeptum.paula.audio.AudioException;
+import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastDevice;
 import com.adeptum.paula.cast.CastDiscovery;
 import com.adeptum.paula.cast.CastSink;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.playlist.DemozooTrack;
+import com.adeptum.paula.playlist.LocalTrack;
+import com.adeptum.paula.playlist.ModArchiveTrack;
+import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.playlist.Track;
 import com.adeptum.paula.ui.Action;
@@ -243,6 +248,19 @@ public final class PlayerSession {
     /**
      * What a screen beside the sound says the song is: the tracker or format it is in and how many channels.
      */
+    /**
+     * Who made the song, where whatever offered it names them. A card on a screen reads far better for the
+     * name than for the tracker the song was made in, which is what it falls back to.
+     */
+    private static Optional<String> author(Track track) {
+        return switch (track) {
+            case DemozooTrack demozoo -> Optional.of(demozoo.entry().author());
+            case MusicianTrack musician -> Optional.of(musician.musician().name());
+            case ModArchiveTrack ignored -> Optional.empty();
+            case LocalTrack ignored -> Optional.empty();
+        };
+    }
+
     private static String describe(Module module) {
         final String format = module.metadata().format().name();
         return module.metadata().channels() > 0 ? format + ", " + module.metadata().channels() + " channels" : format;
@@ -252,7 +270,14 @@ public final class PlayerSession {
         try {
             module = loaders.load(loaded.path());
             renderer = module.createRenderer(engine.sampleRate());
-            engine.play(renderer, module.metadata().title(), describe(module));
+            engine.play(renderer, NowPlaying.builder()
+                    .title(module.metadata().title())
+                    .artist(author(loaded.track()).orElseGet(() -> describe(module)))
+                    .album(describe(module))
+                    .length(renderer.length().orElse(null))
+                    .picture(loaded.picture())
+                    .art(loaded.art())
+                    .build());
         } catch (IOException e) {
             return skip(loaded.track(), e);
         } catch (AudioException e) {

@@ -29,9 +29,9 @@ public interface AudioSink extends AutoCloseable {
     void open(int sampleRate) throws AudioException;
 
     /**
-     * A new song is about to be written, named for a sink that shows or announces what it plays.
+     * A new song is about to be written, described for a sink that shows or announces what it plays.
      */
-    default void begin(String title, String subtitle) throws AudioException {
+    default void begin(NowPlaying song) throws AudioException {
     }
 
     void write(short[] interleavedStereo, int frames);

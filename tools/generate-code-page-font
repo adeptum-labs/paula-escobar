@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Builds the code page 437 font Paula draws release art with, from the public domain
+font8x8 headers by Daniel Hepper (https://github.com/dhepper/font8x8).
+
+Fetches the headers, keeps the glyph for every character of the code page in the order
+the code page puts them, and writes 256 glyphs of eight rows each. Run it from the
+project root; it rewrites src/main/resources/cp437-8x8.bin."""
+
+import re
+import sys
+import urllib.request
+
+HEADERS = ["basic", "box", "block", "greek", "ext_latin", "misc"]
+SOURCE = "https://raw.githubusercontent.com/dhepper/font8x8/master/font8x8_%s.h"
+HIGH_HALF = (
+    "ÇüéâäàåçêëèïîìÄÅ"
+    "ÉæÆôöòûùÿÖÜ¢£¥₧ƒ"
+    "áíóúñÑªº¿⌐¬½¼¡«»"
+    "░▒▓│┤╡╢╖╕╣║╗╝╜╛┐"
+    "└┴┬├─┼╞╟╚╔╩╦╠═╬╧"
+    "╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀"
+    "αßΓπΣσµτΦΘΩδ∞φε∩"
+    "≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ "
+)
+GLYPH = re.compile(r"\{([^}]*)\}[^/]*//\s*U\+([0-9A-Fa-f]{4})")
+
+# The maths half of the code page is not in font8x8; art uses only these two of it.
+DRAWN = {
+    "■": bytes([0x00, 0x00, 0x7E, 0x7E, 0x7E, 0x7E, 0x00, 0x00]),
+    "∙": bytes([0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00]),
+}
+
+
+def glyphs():
+    found = {}
+    for header in HEADERS:
+        text = urllib.request.urlopen(SOURCE % header).read().decode("utf-8", "replace")
+        for rows, point in GLYPH.findall(text):
+            bits = [int(value, 16) for value in re.findall(r"0x([0-9A-Fa-f]{2})", rows)]
+            if len(bits) == 8:
+                found.setdefault(int(point, 16), bytes(bits))
+    return found
+
+
+def main():
+    found = glyphs()
+    blank = bytes(8)
+    font = bytearray()
+    missing = []
+    for code in range(256):
+        character = chr(code) if code < 0x80 else HIGH_HALF[code - 0x80]
+        glyph = DRAWN.get(character) or found.get(ord(character))
+        if glyph is None and code >= 0x20:
+            missing.append("%02X %s" % (code, character))
+        font += glyph or blank
+    with open("src/main/resources/cp437-8x8.bin", "wb") as out:
+        out.write(font)
+    print("wrote %d bytes" % len(font))
+    if missing:
+        print("no glyph for: " + ", ".join(missing), file=sys.stderr)
+
+
+main()

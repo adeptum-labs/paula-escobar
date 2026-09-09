@@ -32,9 +32,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -44,12 +47,14 @@ class CastStreamServerTest {
     private static final int SAMPLE_RATE = 48000;
     private static final int FRAMES = 4;
     private static final short[] TONE = {100, -100, 200, -200, 300, -300, 400, -400};
+    private static final byte[] NO_PICTURE = new byte[0];
+    private static final byte[] PICTURE = {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
     private static final byte[] TONE_BYTES = {100, 0, -100, -1, -56, 0, 56, -1, 44, 1, -44, -2, -112, 1, 112, -2};
 
     @Test
     void servesAWaveFileThatNeverEndsAtTheAddressItGaveOut() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE);
+            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             assertEquals("127.0.0.1", url.getHost());
             assertEquals(server.port(), url.getPort());
@@ -67,6 +72,27 @@ class CastStreamServerTest {
         }
     }
 
+    /**
+     * A screen draws its progress against the length of the sound, and a wave file that says it runs for the
+     * hours a wave file can hold draws a bar that never visibly moves. A song of a known length says so.
+     */
+    @Test
+    void saysHowLongTheSoundIsWhereTheSongHasALength() throws Exception {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
+            final Served served = server.open(SAMPLE_RATE, Duration.ofSeconds(2), NO_PICTURE);
+            served.stream().write(TONE, FRAMES);
+            served.stream().end();
+            final URI url = URI.create(served.url());
+            final Response response = get(url, "GET " + url.getPath() + " HTTP/1.1\r\n\r\n");
+
+            final int sound = 2 * SAMPLE_RATE * 2 * Short.BYTES;
+            assertTrue(response.headers.contains("Content-Length: " + (sound + 44)), response.headers);
+            assertEquals(sound, ByteBuffer.wrap(response.body, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt(),
+                    "and the wave header says the same");
+            assertEquals(sound + 44, response.body.length, "the sound is filled out to the length it promised");
+        }
+    }
+
     @Test
     void servesOnAnyFreePortWhenTheOneAskedForIsTaken() throws Exception {
         try (CastStreamServer first = new CastStreamServer(InetAddress.getLoopbackAddress(), 0);
@@ -79,7 +105,7 @@ class CastStreamServerTest {
     @Test
     void ignoresTheRangeTheDeviceAsksFor() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE);
+            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
             served.stream().end();
             final URI url = URI.create(served.url());
             final Response response = get(url, "GET " + url.getPath() + " HTTP/1.1\r\nRange: bytes=0-\r\n\r\n");
@@ -92,7 +118,7 @@ class CastStreamServerTest {
     @Test
     void answersAHeadRequestWithTheHeadersAlone() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE);
+            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             final Response response = get(url, "HEAD " + url.getPath() + " HTTP/1.1\r\n\r\n");
 
@@ -101,10 +127,31 @@ class CastStreamServerTest {
         }
     }
 
+    /**
+     * Music is seldom pictured, so what a screen shows is usually drawn from the art the release carries and
+     * served beside the sound.
+     */
+    @Test
+    void servesThePictureItWasGivenBesideTheStream() throws Exception {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
+            final Served served = server.open(SAMPLE_RATE, null, PICTURE);
+            final URI url = URI.create(served.picture());
+            final Response response = get(url, "GET " + url.getPath() + " HTTP/1.1\r\n\r\n");
+
+            assertTrue(response.headers.contains("Content-Type: image/png"));
+            assertArrayEquals(PICTURE, response.body);
+            assertTrue(served.picture().endsWith(".png") && served.url().endsWith(".wav"), served.picture());
+
+            server.forget(served);
+            assertTrue(get(url, "GET " + url.getPath() + " HTTP/1.1\r\n\r\n").headers.startsWith("HTTP/1.1 404"),
+                    "and lets it go with the song");
+        }
+    }
+
     @Test
     void knowsNothingOfAStreamItWasNotAskedToOpen() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final URI url = URI.create(server.open(SAMPLE_RATE).url());
+            final URI url = URI.create(server.open(SAMPLE_RATE, null, NO_PICTURE).url());
             final Response response = get(url, "GET /elsewhere.wav HTTP/1.1\r\n\r\n");
 
             assertTrue(response.headers.startsWith("HTTP/1.1 404"));
@@ -118,7 +165,7 @@ class CastStreamServerTest {
     @Test
     void keepsTheFirstTrickleBackUntilThereIsSomethingToStartOn() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE);
+            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             served.stream().write(TONE, FRAMES);
 

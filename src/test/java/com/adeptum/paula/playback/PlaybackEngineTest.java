@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.audio.AudioException;
 import com.adeptum.paula.audio.AudioSink;
+import com.adeptum.paula.audio.NowPlaying;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -120,7 +121,7 @@ class PlaybackEngineTest {
     void movesTheSoundToAnotherSinkWithoutStoppingTheSong() throws AudioException {
         final RecordingSink next = new RecordingSink();
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
-            engine.play(new SeekRecordingRenderer(Duration.ZERO), "Song", "Tracker");
+            engine.play(new SeekRecordingRenderer(Duration.ZERO), NowPlaying.builder().title("Song").build());
             engine.switchOutput(next);
             next.awaitFrames();
 
@@ -264,7 +265,7 @@ class PlaybackEngineTest {
         }
 
         @Override
-        public void begin(String title, String subtitle) {
+        public void begin(NowPlaying song) {
         }
 
         @Override
@@ -305,8 +306,8 @@ class PlaybackEngineTest {
         }
 
         @Override
-        public void begin(String newTitle, String subtitle) {
-            title = newTitle;
+        public void begin(NowPlaying song) {
+            title = song.title();
         }
 
         @Override

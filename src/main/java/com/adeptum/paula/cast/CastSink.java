@@ -23,11 +23,16 @@ package com.adeptum.paula.cast;
 
 import com.adeptum.paula.audio.AudioException;
 import com.adeptum.paula.audio.AudioSink;
+import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastSession.Position;
 import com.adeptum.paula.cast.CastStreamServer.Served;
+import com.adeptum.paula.image.TextPicture;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +53,8 @@ public final class CastSink implements AudioSink {
     private static final Duration LONGEST_TAIL = Duration.ofSeconds(30);
     private static final long STEP_MILLIS = 100;
     private static final String UNTITLED = "Paula Escobar";
+    private static final int WIDEST_ON_A_CARD = 44;
+    private static final int CARD_MARGIN = 3;
 
     /**
      * How far behind the device is left to run unless another distance is asked for. A device left alone
@@ -122,12 +129,13 @@ public final class CastSink implements AudioSink {
     }
 
     @Override
-    public void begin(String title, String subtitle) throws AudioException {
+    public void begin(NowPlaying song) throws AudioException {
         forgetStream();
-        final Served next = server.open(sampleRate);
-        log.debug("Serving {} at {}", title, next.url());
+        final Served next = server.open(sampleRate, song.length(),
+                song.picture() == null ? TextPicture.of(shown(song)) : new byte[0]);
+        log.debug("Serving {} at {}", song.title(), next.url());
         try {
-            session.load(next.url(), title.isBlank() ? UNTITLED : title, subtitle);
+            session.load(next.url(), shown(song, next));
         } catch (IOException e) {
             server.forget(next);
             throw new AudioException(device.name() + " would not play: " + e.getMessage(), e);
@@ -261,9 +269,54 @@ public final class CastSink implements AudioSink {
         }
     }
 
+    /**
+     * What is drawn for a screen: the art the release carries, or a card of what is known about the song
+     * where it carries none, which is most of them.
+     */
+    private static List<String> shown(NowPlaying song) {
+        if (!song.art().isEmpty()) {
+            return song.art();
+        }
+        final List<String> text = Stream.of(song.title(), song.artist(), song.album())
+                .filter(line -> !line.isBlank())
+                .map(line -> line.length() > WIDEST_ON_A_CARD ? line.substring(0, WIDEST_ON_A_CARD) : line)
+                .toList();
+        return text.isEmpty() ? List.of() : framed(text);
+    }
+
+    /**
+     * The lines in a box the width of the longest, drawn the way the scene framed its own.
+     */
+    private static List<String> framed(List<String> text) {
+        final int width = text.stream().mapToInt(String::length).max().orElseThrow() + 2 * CARD_MARGIN;
+        final List<String> card = new ArrayList<>();
+        card.add("╔" + "═".repeat(width) + "╗");
+        card.add("║" + " ".repeat(width) + "║");
+        text.forEach(line -> card.add("║" + " ".repeat(CARD_MARGIN) + line
+                + " ".repeat(width - CARD_MARGIN - line.length()) + "║"));
+        card.add("║" + " ".repeat(width) + "║");
+        card.add("╚" + "═".repeat(width) + "╝");
+        return card;
+    }
+
+    /**
+     * The song as the device is told it: under the player's name where it has none of its own, since a screen
+     * showing nothing at all is worse, and pointed at the picture drawn from its art where nobody holds one.
+     */
+    private static NowPlaying shown(NowPlaying song, Served served) {
+        final NowPlaying.NowPlayingBuilder shown = song.toBuilder();
+        if (song.title().isBlank()) {
+            shown.title(UNTITLED);
+        }
+        if (song.picture() == null) {
+            shown.picture(served.picture());
+        }
+        return shown.build();
+    }
+
     private void beginUntitled() {
         try {
-            begin(UNTITLED, "");
+            begin(NowPlaying.builder().title(UNTITLED).build());
         } catch (AudioException e) {
             throw new IllegalStateException(e.getMessage(), e);
         }

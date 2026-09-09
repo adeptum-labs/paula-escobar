@@ -22,9 +22,15 @@
 package com.adeptum.paula.demozoo;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * A release with its file downloads and the external pages (ModArchive, Pouët, YouTube) Demozoo links to.
+ * A release with its file downloads, the external pages (ModArchive, Pouët, YouTube) Demozoo links to, and a
+ * picture of it where Demozoo holds one. Music is rarely pictured, so the picture is usually missing.
  */
-public record Production(int id, String title, List<Link> downloads, List<Link> externals) {
+public record Production(int id, String title, List<Link> downloads, List<Link> externals, String picture) {
+
+    public Optional<String> pictured() {
+        return Optional.ofNullable(picture);
+    }
 }

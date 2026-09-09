@@ -182,10 +182,15 @@ than assumed, from where the device says it is against what it has been
 given, and everything on the screen follows the sound being heard rather
 than the sound being sent: the spectrum and the scopes read back by that
 much, the position with them, and the status line saying how far behind the
-device runs. Screens show a card
-with the song's name and format through Google's own media receiver; the
-scopes themselves stay in the terminal, since drawing them on the device
-needs a receiver of Paula's own, registered and hosted with Google.
+device runs. Screens show a card through Google's own media receiver, with
+the song's name, the musician, how far through it is, and a picture: the
+one Demozoo holds of the release where it holds any, otherwise the
+`file_id.diz` art the release carries, otherwise the party's own logo,
+each set in the code page it was drawn in, and failing all of them a card
+of the song drawn the same way. All of it is served beside the sound.
+The scopes themselves stay in the terminal,
+since drawing them on the device needs a receiver of Paula's own,
+registered and hosted with Google.
 
 The sound is served on port 7373, or the one `--cast-port` names, from the
 address the device was reached through; a firewall between the two must let
@@ -266,4 +271,8 @@ the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
 license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which allows
 unpacking RAR archives and forbids re-creating the RAR compression algorithm;
-Paula Escobar only unpacks.
+Paula Escobar only unpacks. The eight by eight font the release art is drawn
+with on a screen comes from
+[font8x8](https://github.com/dhepper/font8x8) by Daniel Hepper, after Marcel
+Sondaar, placed in the public domain; `tools/generate-code-page-font`
+puts its glyphs in code page order.

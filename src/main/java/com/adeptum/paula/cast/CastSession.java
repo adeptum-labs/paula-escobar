@@ -21,10 +21,12 @@
 
 package com.adeptum.paula.cast;
 
+import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastMessages.CastMessage;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -126,7 +128,7 @@ public final class CastSession implements AutoCloseable {
      * waiting here waits on ourselves. What the device makes of it is heard on the reading thread, where the
      * media it is leaving behind is passed over.</p>
      */
-    public void load(String url, String title, String subtitle) throws IOException {
+    public void load(String url, NowPlaying song) throws IOException {
         if (transport == null) {
             launch();
         }
@@ -134,17 +136,23 @@ public final class CastSession implements AutoCloseable {
         position = null;
         refusal = null;
         retiredSession = mediaSession;
-        channel.ask(transport, CastMessages.MEDIA, CastChannel.object("LOAD")
-                .add("media", Json.createObjectBuilder()
-                        .add("contentId", url)
-                        .add("contentType", "audio/wav")
-                        .add("streamType", "BUFFERED")
-                        .add("metadata", Json.createObjectBuilder()
-                                .add("metadataType", MUSIC_TRACK)
-                                .add("title", title)
-                                .add("artist", subtitle)
-                                .add("albumName", "Paula Escobar")))
-                .add("autoplay", true));
+        final JsonObjectBuilder metadata = Json.createObjectBuilder()
+                .add("metadataType", MUSIC_TRACK)
+                .add("title", song.title())
+                .add("artist", song.artist())
+                .add("albumName", song.album());
+        if (song.picture() != null) {
+            metadata.add("images", Json.createArrayBuilder().add(Json.createObjectBuilder().add("url", song.picture())));
+        }
+        final JsonObjectBuilder media = Json.createObjectBuilder()
+                .add("contentId", url)
+                .add("contentType", "audio/wav")
+                .add("streamType", "BUFFERED")
+                .add("metadata", metadata);
+        if (song.length() != null) {
+            media.add("duration", song.length().toMillis() / 1000.0);
+        }
+        channel.ask(transport, CastMessages.MEDIA, CastChannel.object("LOAD").add("media", media).add("autoplay", true));
     }
 
     /**

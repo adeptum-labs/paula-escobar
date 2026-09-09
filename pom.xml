@@ -163,6 +163,7 @@
         <configuration>
           <nonFilteredFileExtensions>
             <nonFilteredFileExtension>obx</nonFilteredFileExtension>
+            <nonFilteredFileExtension>bin</nonFilteredFileExtension>
           </nonFilteredFileExtensions>
         </configuration>
       </plugin>

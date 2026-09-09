@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.fusesource.jansi.AnsiConsole;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -52,6 +53,8 @@ import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
 import com.adeptum.paula.demozoo.CachedReleaseArt;
+import com.adeptum.paula.demozoo.PartyArt;
+import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FetchingReleaseArt;
 import com.adeptum.paula.demozoo.SceneOrgPartyArt;
 import com.adeptum.paula.demozoo.TrackResolver;
@@ -75,6 +78,7 @@ import com.adeptum.paula.ui.Browser;
 import com.adeptum.paula.ui.TerminalUi;
 import com.adeptum.paula.ui.Theme;
 
+@Slf4j
 @Command(name = "paula",
         mixinStandardHelpOptions = true,
         versionProvider = BuildInfo.class,
@@ -165,10 +169,13 @@ public final class Paula implements Runnable {
             final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress());
             // Art is fetched behind the browser's back and must not write over what the player is waiting for.
             final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders);
+            final CachedReleaseArt releaseArt = new CachedReleaseArt(cache);
+            final SceneOrgPartyArt partyArt = new SceneOrgPartyArt(demozoo, http, cache, fetchingArt);
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
-                    new FetchingReleaseArt(new CachedReleaseArt(cache), artResolver, fetchingArt),
-                    new SceneOrgPartyArt(demozoo, http, cache, fetchingArt));
-            new PlayerSession(playlist, loaders, engine, ui, loader, track -> resolve(track, resolver, loaders, sidLengths), browser, discovery, outputs(), deadline()).run();
+                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt);
+            new PlayerSession(playlist, loaders, engine, ui, loader,
+                    tracks(resolver, loaders, sidLengths, demozoo, releaseArt, partyArt),
+                    browser, discovery, outputs(), deadline()).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
@@ -243,6 +250,65 @@ public final class Paula implements Runnable {
     /**
      * Runs on the loader thread, so the song length database is read there before a SID reaches the player.
      */
+    /**
+     * How the loader brings a track down and finds a picture of the release to go with it.
+     */
+    private static TrackLoader.Resolver tracks(TrackResolver resolver, ModuleLoaderRegistry loaders,
+            SongLengths sidLengths, DemozooClient demozoo, ReleaseArt art, PartyArt parties) {
+        return new TrackLoader.Resolver() {
+
+            @Override
+            public Path resolve(Track track) throws IOException {
+                return Paula.resolve(track, resolver, loaders, sidLengths);
+            }
+
+            @Override
+            public Optional<String> pictureOf(Track track) {
+                return picture(track, demozoo);
+            }
+
+            @Override
+            public List<String> artOf(Track track) {
+                final List<String> release = art.of(productionOf(track)).orElse(List.of());
+                return release.isEmpty() ? partyLogo(track, parties) : release;
+            }
+        };
+    }
+
+    /**
+     * What Demozoo holds a picture of, which for music is seldom anything; the release is already cached by
+     * the time it is asked for, so this costs nothing on a track that has been played before.
+     */
+    private static Optional<String> picture(Track track, DemozooClient demozoo) {
+        final int production = productionOf(track);
+        try {
+            return production == 0 ? Optional.empty() : demozoo.production(production).pictured();
+        } catch (IOException e) {
+            log.debug("Looking for a picture of production {}", production, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The party's own logo, which is what a competition entry packed without art of its own can still show;
+     * most of them were, and the logo is already there for the browser.
+     */
+    private static List<String> partyLogo(Track track, PartyArt parties) {
+        return track instanceof DemozooTrack entry ? parties.of(entry.party().id()).orElse(List.of()) : List.of();
+    }
+
+    /**
+     * The release a track came from, or nothing for one that came from somewhere Demozoo does not number.
+     */
+    private static int productionOf(Track track) {
+        return switch (track) {
+            case DemozooTrack remote -> remote.entry().productionId();
+            case MusicianTrack work -> work.work().entry().productionId();
+            case LocalTrack ignored -> 0;
+            case ModArchiveTrack ignored -> 0;
+        };
+    }
+
     private static Path resolve(Track track, TrackResolver resolver, ModuleLoaderRegistry loaders, SongLengths sidLengths) throws IOException {
         final Path path = switch (track) {
             case LocalTrack local -> local.path();

@@ -3,6 +3,7 @@
     "includes": [
       {"pattern": "\\Qpaula-build.properties\\E"},
       {"pattern": "\\Qsimplelogger.properties\\E"},
+      {"pattern": "\\Qcp437-8x8.bin\\E"},
       {"pattern": "de/quippy/sidplay/resid_builder/resid/WAVE.*"},
       {"pattern": "\\Qde/quippy/mp3/decoder/sfd.ser\\E"},
       {"pattern": "\\Qnet/sf/asap/\\E.*\\.obx"}

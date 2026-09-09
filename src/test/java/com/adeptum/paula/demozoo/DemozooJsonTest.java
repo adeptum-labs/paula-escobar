@@ -22,6 +22,7 @@
 package com.adeptum.paula.demozoo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -155,6 +156,19 @@ class DemozooJsonTest {
         assertEquals(List.of(new Link("SceneOrgFile", "https://files.scene.org/view/x.zip")), production.downloads());
         assertEquals(List.of(new Link("ModarchiveModule", "https://modarchive.org/index.php?request=view_by_moduleid&query=5")),
                 production.externals());
+    }
+
+    /**
+     * Music is seldom pictured, so a release with no screenshot is the ordinary case rather than the odd one.
+     */
+    @Test
+    void takesTheFirstScreenshotAsThePictureOfARelease() throws IOException {
+        assertNull(DemozooJson.production(bytes(PRODUCTION)).picture(), "nothing where the release has none");
+
+        final String pictured = PRODUCTION.replace("\"title\":\"Funkyeeh\"",
+                "\"title\":\"Funkyeeh\",\"screenshots\":[{\"standard_url\":\"https://media.demozoo.org/s/1.png\","
+                        + "\"thumbnail_url\":\"https://media.demozoo.org/t/1.png\"}]");
+        assertEquals("https://media.demozoo.org/s/1.png", DemozooJson.production(bytes(pictured)).picture());
     }
 
     @Test
