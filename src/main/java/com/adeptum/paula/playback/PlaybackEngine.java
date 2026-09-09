@@ -58,6 +58,7 @@ public final class PlaybackEngine implements AutoCloseable {
     private volatile PlaybackState state = STOPPED;
     private volatile Renderer renderer;
     private volatile NowPlaying playing = NowPlaying.builder().build();
+    private volatile boolean handOn;
     private Thread pump;
 
     public PlaybackEngine(AudioSink output, int sampleRate, int bufferFrames) throws AudioException {
@@ -114,6 +115,7 @@ public final class PlaybackEngine implements AutoCloseable {
     public synchronized void play(Renderer newRenderer, NowPlaying song) throws AudioException {
         stop();
         playing = song;
+        handOn = false;
         output.begin(song);
         renderer = newRenderer;
         state = PLAYING;
@@ -155,10 +157,38 @@ public final class PlaybackEngine implements AutoCloseable {
     public void seek(Duration delta) {
         synchronized (rendererLock) {
             final Renderer current = renderer;
-            if (current != null) {
-                current.seek(current.position().plus(delta));
+            if (current == null) {
+                return;
             }
+            current.seek(current.position().plus(delta));
         }
+        handOn = true;
+    }
+
+    /**
+     * An output that plays late is holding seconds of the sound from before the seek, and would go on playing
+     * them before anything moved. It is given the song again from where the player now stands, which drops
+     * what it held; an output that plays as it is written has nothing to give back and does nothing here.
+     *
+     * <p>This waits for the pump rather than happening where the seek was asked for, since the output belongs
+     * to the pump: handing it a song from another thread races the writing of the one before.</p>
+     */
+    private void handOnAfresh() {
+        handOn = false;
+        final Renderer current = renderer;
+        if (current == null) {
+            return;
+        }
+        try {
+            output.begin(whatIsLeft(current.position()));
+        } catch (AudioException e) {
+            log.debug("The output would not take the song again after a seek", e);
+        }
+    }
+
+    private NowPlaying whatIsLeft(Duration position) {
+        final Duration left = playing.length() == null ? null : playing.length().minus(position);
+        return playing.toBuilder().length(left == null || left.isNegative() || left.isZero() ? null : left).build();
     }
 
     public synchronized void stop() {
@@ -188,6 +218,9 @@ public final class PlaybackEngine implements AutoCloseable {
             if (state == PAUSED) {
                 sleepQuietly();
                 continue;
+            }
+            if (handOn) {
+                handOnAfresh();
             }
             final int frames = renderNextFrames();
             if (frames == 0) {

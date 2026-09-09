@@ -192,6 +192,10 @@ The scopes themselves stay in the terminal,
 since drawing them on the device needs a receiver of Paula's own,
 registered and hosted with Google.
 
+Seeking hands the song to the device again from where the player stands,
+since it is otherwise holding seconds of the sound from before the seek
+and would play those out first.
+
 The sound is served on port 7373, or the one `--cast-port` names, from the
 address the device was reached through; a firewall between the two must let
 the device fetch from that port.

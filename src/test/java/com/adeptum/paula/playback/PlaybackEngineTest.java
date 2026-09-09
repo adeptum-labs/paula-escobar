@@ -214,6 +214,22 @@ class PlaybackEngineTest {
         }
     }
 
+    /**
+     * An output that plays late holds seconds of the sound from before the seek and would play those out
+     * before anything moved, so it is handed the song again from where the player now stands.
+     */
+    @Test
+    void handsTheSongToTheOutputAgainAfterASeek() throws AudioException {
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(new SeekRecordingRenderer(Duration.ofSeconds(10)),
+                    NowPlaying.builder().title("Song").length(Duration.ofSeconds(60)).build());
+
+            engine.seek(Duration.ofSeconds(5));
+
+            assertTrue(sink.awaitLength(Duration.ofSeconds(50)), "with what is left of it to play, but was " + sink.length);
+        }
+    }
+
     @Test
     void seekingWithoutASongIsIgnored() throws AudioException {
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
@@ -296,6 +312,7 @@ class PlaybackEngineTest {
         private volatile int frames;
         private volatile int openedAt;
         private volatile String title;
+        private volatile Duration length;
         private volatile boolean drained;
         private volatile boolean closed;
 
@@ -308,6 +325,7 @@ class PlaybackEngineTest {
         @Override
         public void begin(NowPlaying song) {
             title = song.title();
+            length = song.length();
         }
 
         @Override
@@ -323,6 +341,17 @@ class PlaybackEngineTest {
         @Override
         public void close() {
             closed = true;
+        }
+
+        boolean awaitLength(Duration wanted) {
+            for (int tries = 0; tries < 200 && !wanted.equals(length); tries++) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return wanted.equals(length);
         }
 
         void awaitFrames() throws AudioException {
