@@ -91,11 +91,18 @@ public final class CastStreamServer implements AutoCloseable {
      */
     private static final long MOST_SILENCE = 30L * 192_000;
 
+    /**
+     * How long a device is given to ask for the byte the sound begins at before it is given the song anyway.
+     */
+    private static final Duration TO_SEEK = Duration.ofSeconds(3);
+    private static final long QUIET_STEP_MILLIS = 100;
+
     private final ServerSocket server;
     private final Map<String, PcmStream> streams = new ConcurrentHashMap<>();
     private final Map<PcmStream, Socket> connections = new ConcurrentHashMap<>();
     private final Map<String, byte[]> pictures = new ConcurrentHashMap<>();
     private final Map<PcmStream, Long> lengths = new ConcurrentHashMap<>();
+    private final Map<PcmStream, Long> starts = new ConcurrentHashMap<>();
     private final AtomicInteger names = new AtomicInteger();
     private volatile boolean closed;
 
@@ -123,11 +130,14 @@ public final class CastStreamServer implements AutoCloseable {
      * A new stream at an address of its own, which is what the device is told to play, and beside it the
      * picture to show while it plays where there is one for the device to fetch.
      */
-    public Served open(int sampleRate, Duration length, byte[] picture) {
+    public Served open(int sampleRate, Duration length, Duration from, byte[] picture) {
         final String name = "/paula-" + names.incrementAndGet();
         final PcmStream stream = new PcmStream(sampleRate, sampleRate * HELD_SECONDS);
+        final int bytesPerSecond = sampleRate * CHANNELS * BITS / Byte.SIZE;
         lengths.put(stream, length == null ? ENDLESS
-                : Math.min(ENDLESS, Math.round(length.toMillis() / 1000.0 * sampleRate) * CHANNELS * BITS / Byte.SIZE));
+                : Math.min(ENDLESS, Math.round(length.toMillis() / 1000.0 * bytesPerSecond)));
+        starts.put(stream, from == null || from.isZero() ? 0L
+                : WAVE_HEADER_LENGTH + Math.round(from.toMillis() / 1000.0 * bytesPerSecond));
         streams.put(name + ".wav", stream);
         if (picture.length > 0) {
             pictures.put(name + ".png", picture);
@@ -148,6 +158,7 @@ public final class CastStreamServer implements AutoCloseable {
         served.stream().abandon();
         streams.values().remove(served.stream());
         lengths.remove(served.stream());
+        starts.remove(served.stream());
         pictures.keySet().removeIf(path -> at(path).equals(served.picture()));
         hangUp(connections.remove(served.stream()));
     }
@@ -211,20 +222,64 @@ public final class CastStreamServer implements AutoCloseable {
                 return;
             }
             final long sound = lengths.getOrDefault(stream, (long) ENDLESS);
-            out.write(headers(sound).getBytes(StandardCharsets.US_ASCII));
+            final long from = starts.getOrDefault(stream, 0L);
+            final int bytesPerSecond = stream.sampleRate() * CHANNELS * BITS / Byte.SIZE;
+            if (from > 0 && request.offset() == 0) {
+                quietUntilItSeeks(stream, out, request, sound, bytesPerSecond);
+                return;
+            }
+            final long at = request.offset();
+            out.write(headers(sound, at).getBytes(StandardCharsets.US_ASCII));
             if (request.head) {
                 return;
             }
             stream.fetching();
             connections.put(stream, client);
-            final int bytesPerSecond = stream.sampleRate() * CHANNELS * BITS / Byte.SIZE;
             final byte[] start = soundToStartOn(stream, (long) bytesPerSecond * START_SECONDS);
-            out.write(waveHeader(stream.sampleRate(), sound));
+            if (at == 0) {
+                out.write(waveHeader(stream.sampleRate(), sound));
+            }
             out.write(start);
             out.flush();
-            pump(stream, out, bytesPerSecond, start.length, sound);
+            pump(stream, out, bytesPerSecond, soundSent(at) + start.length, sound);
         } catch (IOException | InterruptedException e) {
             log.debug("A stream connection ended", e);
+        }
+    }
+
+    /**
+     * How much of the sound is behind the byte the device asked for, the wave header not being sound.
+     */
+    private static long soundSent(long from) {
+        return from == 0 ? 0 : from - WAVE_HEADER_LENGTH;
+    }
+
+    /**
+     * A device told the sound begins partway through the song plays from the start of what it is given and
+     * only then asks for the byte that moment sits at. It is given silence until it does, so that none of the
+     * song is spent before it is listening at the right place; a device that never asks is given the song
+     * here in the end, which leaves its clock adrift but the sound right.
+     */
+    private void quietUntilItSeeks(PcmStream stream, OutputStream out, Request request, long sound,
+            int bytesPerSecond) throws IOException, InterruptedException {
+        out.write(headers(sound, 0).getBytes(StandardCharsets.US_ASCII));
+        if (request.head) {
+            return;
+        }
+        out.write(waveHeader(stream.sampleRate(), sound));
+        out.write(new byte[bytesPerSecond * START_SECONDS]);
+        out.flush();
+        final byte[] quiet = new byte[bytesPerSecond / 10];
+        final long until = System.currentTimeMillis() + TO_SEEK.toMillis();
+        while (!stream.isFetched() && System.currentTimeMillis() < until) {
+            out.write(quiet);
+            out.flush();
+            Thread.sleep(QUIET_STEP_MILLIS);
+        }
+        if (!stream.isFetched()) {
+            log.debug("{} never asked where the sound begins, giving it the song where it is", request.path);
+            stream.fetching();
+            pump(stream, out, bytesPerSecond, 0, sound);
         }
     }
 
@@ -282,11 +337,14 @@ public final class CastStreamServer implements AutoCloseable {
                 + CRLF;
     }
 
-    private static String headers(long sound) {
-        return "HTTP/1.1 200 OK" + CRLF
+    private static String headers(long sound, long from) {
+        final long total = sound + WAVE_HEADER_LENGTH;
+        return (from > 0 ? "HTTP/1.1 206 Partial Content" + CRLF
+                + "Content-Range: bytes " + from + "-" + (total - 1) + "/" + total + CRLF
+                : "HTTP/1.1 200 OK" + CRLF)
                 + "Content-Type: audio/wav" + CRLF
-                + (sound < ENDLESS ? "Content-Length: " + (sound + WAVE_HEADER_LENGTH) + CRLF : "")
-                + "Accept-Ranges: none" + CRLF
+                + (sound < ENDLESS ? "Content-Length: " + (total - from) + CRLF : "")
+                + (sound < ENDLESS ? "Accept-Ranges: bytes" + CRLF : "Accept-Ranges: none" + CRLF)
                 + "Cache-Control: no-cache, no-store" + CRLF
                 + "Connection: close" + CRLF
                 + CRLF;
@@ -305,6 +363,19 @@ public final class CastStreamServer implements AutoCloseable {
     }
 
     private record Request(String path, boolean head, String range) {
+
+        /**
+         * The byte the device asked to start from, or zero where it asked for no particular one.
+         */
+        long offset() {
+            final int first = range.indexOf('=');
+            final int last = range.indexOf('-');
+            try {
+                return first < 0 || last < first ? 0 : Long.parseLong(range.substring(first + 1, last).strip());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
 
         /**
          * The request line and headers, of which only the method and the path say anything to a stream.

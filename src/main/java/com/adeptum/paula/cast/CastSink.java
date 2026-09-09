@@ -131,7 +131,7 @@ public final class CastSink implements AudioSink {
     @Override
     public void begin(NowPlaying song) throws AudioException {
         forgetStream();
-        final Served next = server.open(sampleRate, song.length(),
+        final Served next = server.open(sampleRate, song.length(), song.position(),
                 song.picture() == null ? TextPicture.of(shown(song)) : new byte[0]);
         log.debug("Serving {} at {}", song.title(), next.url());
         try {

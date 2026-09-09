@@ -226,7 +226,8 @@ class PlaybackEngineTest {
 
             engine.seek(Duration.ofSeconds(5));
 
-            assertTrue(sink.awaitLength(Duration.ofSeconds(50)), "with what is left of it to play, but was " + sink.length);
+            assertTrue(sink.awaitPosition(Duration.ofSeconds(10)), "saying where the sound now begins");
+            assertEquals(Duration.ofSeconds(60), sink.length, "and still how long the whole song is");
         }
     }
 
@@ -313,6 +314,7 @@ class PlaybackEngineTest {
         private volatile int openedAt;
         private volatile String title;
         private volatile Duration length;
+        private volatile Duration position;
         private volatile boolean drained;
         private volatile boolean closed;
 
@@ -326,6 +328,7 @@ class PlaybackEngineTest {
         public void begin(NowPlaying song) {
             title = song.title();
             length = song.length();
+            position = song.position();
         }
 
         @Override
@@ -343,15 +346,15 @@ class PlaybackEngineTest {
             closed = true;
         }
 
-        boolean awaitLength(Duration wanted) {
-            for (int tries = 0; tries < 200 && !wanted.equals(length); tries++) {
+        boolean awaitPosition(Duration wanted) {
+            for (int tries = 0; tries < 200 && !wanted.equals(position); tries++) {
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
-            return wanted.equals(length);
+            return wanted.equals(position);
         }
 
         void awaitFrames() throws AudioException {

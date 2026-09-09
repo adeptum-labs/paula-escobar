@@ -194,7 +194,10 @@ registered and hosted with Google.
 
 Seeking hands the song to the device again from where the player stands,
 since it is otherwise holding seconds of the sound from before the seek
-and would play those out first.
+and would play those out first. The device is told where in the song that
+is, so the card counts with the player rather than from nothing; it plays
+what it is given before it asks for the byte that moment sits at, so it is
+given silence until it asks and none of the song is spent on it.
 
 The sound is served on port 7373, or the one `--cast-port` names, from the
 address the device was reached through; a firewall between the two must let

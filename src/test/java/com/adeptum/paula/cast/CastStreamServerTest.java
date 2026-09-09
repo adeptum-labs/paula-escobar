@@ -54,7 +54,7 @@ class CastStreamServerTest {
     @Test
     void servesAWaveFileThatNeverEndsAtTheAddressItGaveOut() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
+            final Served served = server.open(SAMPLE_RATE, null, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             assertEquals("127.0.0.1", url.getHost());
             assertEquals(server.port(), url.getPort());
@@ -79,7 +79,7 @@ class CastStreamServerTest {
     @Test
     void saysHowLongTheSoundIsWhereTheSongHasALength() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, Duration.ofSeconds(2), NO_PICTURE);
+            final Served served = server.open(SAMPLE_RATE, Duration.ofSeconds(2), null, NO_PICTURE);
             served.stream().write(TONE, FRAMES);
             served.stream().end();
             final URI url = URI.create(served.url());
@@ -91,6 +91,56 @@ class CastStreamServerTest {
                     "and the wave header says the same");
             assertEquals(sound + 44, response.body.length, "the sound is filled out to the length it promised");
         }
+    }
+
+    /**
+     * A device told the sound begins partway through the song asks for the byte that moment sits at, and is
+     * given the song from there with no wave header before it, since it is no longer at the start of a file.
+     */
+    @Test
+    void servesTheSoundFromTheByteTheDeviceWasToldToStartAt() throws Exception {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
+            final Served served = server.open(SAMPLE_RATE, Duration.ofSeconds(60), Duration.ofSeconds(2), NO_PICTURE);
+            served.stream().write(TONE, FRAMES);
+            served.stream().end();
+            final URI url = URI.create(served.url());
+            final long from = 44 + 2L * SAMPLE_RATE * 2 * Short.BYTES;
+
+            final Response sound = get(url, "GET " + url.getPath() + " HTTP/1.1\r\nRange: bytes=" + from + "-\r\n\r\n");
+
+            assertTrue(sound.headers.startsWith("HTTP/1.1 206 Partial Content"), sound.headers);
+            assertTrue(sound.headers.contains("Content-Range: bytes " + from + "-"), sound.headers);
+            assertArrayEquals(TONE_BYTES, Arrays.copyOf(sound.body, TONE_BYTES.length));
+        }
+    }
+
+    /**
+     * It plays from the start of what it is given before it asks, so that first request is given silence and
+     * none of the song is spent on it. A device that never asks is given the song there in the end.
+     */
+    @Test
+    void givesSilenceToADeviceAskingFromTheStartOfASoundThatBeginsLater() throws Exception {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
+            final Served served = server.open(SAMPLE_RATE, Duration.ofSeconds(60), Duration.ofSeconds(2), NO_PICTURE);
+            served.stream().write(TONE, FRAMES);
+            served.stream().end();
+            final URI url = URI.create(served.url());
+
+            final Response quiet = get(url, "GET " + url.getPath() + " HTTP/1.1\r\nRange: bytes=0-\r\n\r\n");
+
+            assertTrue(quiet.headers.startsWith("HTTP/1.1 200 OK"), quiet.headers);
+            assertTrue(allZero(quiet.body, 44, 44 + 4096), "silence while it waits for the device to ask");
+            assertTrue(indexOf(quiet.body, TONE_BYTES) < quiet.body.length, "and the song in the end");
+        }
+    }
+
+    private static boolean allZero(byte[] body, int from, int until) {
+        for (int at = from; at < Math.min(until, body.length); at++) {
+            if (body[at] != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Test
@@ -105,7 +155,7 @@ class CastStreamServerTest {
     @Test
     void ignoresTheRangeTheDeviceAsksFor() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
+            final Served served = server.open(SAMPLE_RATE, null, null, NO_PICTURE);
             served.stream().end();
             final URI url = URI.create(served.url());
             final Response response = get(url, "GET " + url.getPath() + " HTTP/1.1\r\nRange: bytes=0-\r\n\r\n");
@@ -118,7 +168,7 @@ class CastStreamServerTest {
     @Test
     void answersAHeadRequestWithTheHeadersAlone() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
+            final Served served = server.open(SAMPLE_RATE, null, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             final Response response = get(url, "HEAD " + url.getPath() + " HTTP/1.1\r\n\r\n");
 
@@ -134,7 +184,7 @@ class CastStreamServerTest {
     @Test
     void servesThePictureItWasGivenBesideTheStream() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, null, PICTURE);
+            final Served served = server.open(SAMPLE_RATE, null, null, PICTURE);
             final URI url = URI.create(served.picture());
             final Response response = get(url, "GET " + url.getPath() + " HTTP/1.1\r\n\r\n");
 
@@ -151,7 +201,7 @@ class CastStreamServerTest {
     @Test
     void knowsNothingOfAStreamItWasNotAskedToOpen() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final URI url = URI.create(server.open(SAMPLE_RATE, null, NO_PICTURE).url());
+            final URI url = URI.create(server.open(SAMPLE_RATE, null, null, NO_PICTURE).url());
             final Response response = get(url, "GET /elsewhere.wav HTTP/1.1\r\n\r\n");
 
             assertTrue(response.headers.startsWith("HTTP/1.1 404"));
@@ -165,7 +215,7 @@ class CastStreamServerTest {
     @Test
     void keepsTheFirstTrickleBackUntilThereIsSomethingToStartOn() throws Exception {
         try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
-            final Served served = server.open(SAMPLE_RATE, null, NO_PICTURE);
+            final Served served = server.open(SAMPLE_RATE, null, null, NO_PICTURE);
             final URI url = URI.create(served.url());
             served.stream().write(TONE, FRAMES);
 

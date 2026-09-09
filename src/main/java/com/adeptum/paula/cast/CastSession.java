@@ -154,8 +154,11 @@ public final class CastSession implements AutoCloseable {
         if (song.length() != null) {
             media.add("duration", song.length().toMillis() / 1000.0);
         }
-        channel.ask(transport, CastMessages.MEDIA,
-                CastChannel.object("LOAD").add("media", media).add("autoplay", true), loadRequest);
+        final JsonObjectBuilder load = CastChannel.object("LOAD").add("media", media).add("autoplay", true);
+        if (!song.position().isZero()) {
+            load.add("currentTime", song.position().toMillis() / 1000.0);
+        }
+        channel.ask(transport, CastMessages.MEDIA, load, loadRequest);
     }
 
     /**

@@ -163,6 +163,19 @@ public final class PlaybackEngine implements AutoCloseable {
             current.seek(current.position().plus(delta));
         }
         handOn = true;
+        letGoOfTheWait();
+    }
+
+    /**
+     * An output holding the player back while a device catches up would sit on the seek for as long as the
+     * hold lasts. The wait is cut short instead; the buffer it was in the middle of is lost with it, which is
+     * sound from before the seek and on its way out anyway.
+     */
+    private void letGoOfTheWait() {
+        final Thread current = pump;
+        if (current != null) {
+            current.interrupt();
+        }
     }
 
     /**
@@ -187,8 +200,7 @@ public final class PlaybackEngine implements AutoCloseable {
     }
 
     private NowPlaying whatIsLeft(Duration position) {
-        final Duration left = playing.length() == null ? null : playing.length().minus(position);
-        return playing.toBuilder().length(left == null || left.isNegative() || left.isZero() ? null : left).build();
+        return playing.toBuilder().position(position).build();
     }
 
     public synchronized void stop() {
@@ -220,6 +232,7 @@ public final class PlaybackEngine implements AutoCloseable {
                 continue;
             }
             if (handOn) {
+                Thread.interrupted();
                 handOnAfresh();
             }
             final int frames = renderNextFrames();

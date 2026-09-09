@@ -30,17 +30,19 @@ import lombok.Builder;
  * puts this on the screen it is plugged into.
  *
  * <p>The length is what a screen draws its progress against and is missing for a song that runs until it is
- * stopped. The picture is the one whoever offered the song holds of it, which for music is seldom anything;
+ * stopped; the position is where the sound handed over begins, which is anywhere but the start only after a
+ * seek. The picture is the one whoever offered the song holds of it, which for music is seldom anything;
  * the art is the text the release itself carries, which is drawn into a picture where there is no other.</p>
  */
 @Builder(toBuilder = true)
-public record NowPlaying(String title, String artist, String album, Duration length, String picture,
-        List<String> art) {
+public record NowPlaying(String title, String artist, String album, Duration length, Duration position,
+        String picture, List<String> art) {
 
     public NowPlaying {
         title = title == null ? "" : title;
         artist = artist == null ? "" : artist;
         album = album == null ? "" : album;
         art = art == null ? List.of() : List.copyOf(art);
+        position = position == null ? Duration.ZERO : position;
     }
 }
