@@ -59,6 +59,32 @@ public final class TestModules {
     public static final int HIVELY_MIX_GAIN = 100;
     public static final int HIVELY_STEREO = 2;
 
+    public static final String FLEX_MARK = "FLEX";
+    public static final int FLEX_BLOCK_LENGTH = 152;
+    public static final int FLEX_CHANNELS = 8;
+
+    /**
+     * Where each of the six settings begins, in the order the effects are named in the tracker: the reverb's
+     * decay and level, then the delay's decay, time, ping-pong and level.
+     */
+    public static final int[] FLEX_EFFECTS_AT = {124, 132, 136, 140, 144, 148};
+
+    public static final int FLEX_REVERB_DECAY = 40;
+    public static final int FLEX_REVERB_LEVEL = 63;
+    public static final int FLEX_DELAY_DECAY = 35;
+    public static final int FLEX_DELAY_TIME = 50;
+    public static final int FLEX_DELAY_PING_PONG = 64;
+    public static final int FLEX_DELAY_LEVEL = 38;
+
+    private static final int FLEX_REVERB_DECAY_RECORD_AT = 124;
+    private static final int FLEX_VALUE_IN_RECORD = 3;
+    private static final int FLEX_SAMPLES = 31;
+    private static final int FLEX_SAMPLE_ENTRY_LENGTH = 30;
+    private static final int FLEX_FIRST_SAMPLE_LENGTH_AT = 20 + 22;
+    private static final String FLEX_MARK_8CHN = "8CHN";
+    private static final int ROWS = 64;
+    private static final int BYTES_PER_NOTE = 4;
+
     private static final int HEADER_LENGTH = 1084;
     private static final int PATTERN_LENGTH = 64 * 4 * 4;
     private static final int SAMPLE_LENGTH = 64;
@@ -598,6 +624,70 @@ public final class TestModules {
 
     private static void chunk(ByteBuffer buffer, String id, byte[] body) {
         buffer.put(id.getBytes(StandardCharsets.US_ASCII)).putInt(body.length).put(body);
+    }
+
+    /**
+     * An eight-channel ProTracker module with the block FlexTrax appends after the samples, holding the six
+     * effect settings in the last seven of its thirty-eight records.
+     */
+    public static byte[] flexTrax(int... effects) {
+        return eightChannel(flexBlock(effects));
+    }
+
+    /**
+     * The same module saved with the effects switched off, which FlexTrax writes without any block at all.
+     */
+    public static byte[] flexTraxWithoutEffects() {
+        return eightChannel(new byte[0]);
+    }
+
+    /**
+     * A block whose reverb decay carries a value no slider of the tracker's could have produced.
+     */
+    public static byte[] flexTraxWithAStrayReverbDecay() {
+        final byte[] block = flexBlock(0, FLEX_REVERB_LEVEL, 0, 0, 0, 0);
+        block[FLEX_MARK.length() + FLEX_REVERB_DECAY_RECORD_AT] = 0x20;
+        return eightChannel(block);
+    }
+
+    /**
+     * The same module with every sample it does not use given the length of one word that ProTracker gives an
+     * empty one, and no data stored for any of them.
+     */
+    public static byte[] flexTraxWithUnusedSamples(int... effects) {
+        final byte[] module = eightChannel(flexBlock(effects));
+        for (int sample = 1; sample < FLEX_SAMPLES; sample++) {
+            module[FLEX_FIRST_SAMPLE_LENGTH_AT + sample * FLEX_SAMPLE_ENTRY_LENGTH + 1] = 1;
+        }
+        return module;
+    }
+
+    private static byte[] eightChannel(byte[] trailer) {
+        final int patternLength = ROWS * FLEX_CHANNELS * BYTES_PER_NOTE;
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + patternLength + SAMPLE_LENGTH + trailer.length);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded(SAMPLE_NAME, 22))
+                .putShort((short) (SAMPLE_LENGTH / 2))
+                .put((byte) 0)
+                .put((byte) 64)
+                .putShort((short) 0)
+                .putShort((short) (SAMPLE_LENGTH / 2));
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put(FLEX_MARK_8CHN.getBytes(StandardCharsets.US_ASCII));
+        buffer.position(HEADER_LENGTH + patternLength + SAMPLE_LENGTH);
+        buffer.put(trailer);
+        return buffer.array();
+    }
+
+    private static byte[] flexBlock(int... effects) {
+        final ByteBuffer block = ByteBuffer.allocate(FLEX_MARK.length() + FLEX_BLOCK_LENGTH);
+        block.put(FLEX_MARK.getBytes(StandardCharsets.US_ASCII));
+        for (int effect = 0; effect < effects.length; effect++) {
+            block.put(FLEX_MARK.length() + FLEX_EFFECTS_AT[effect] + FLEX_VALUE_IN_RECORD, (byte) effects[effect]);
+        }
+        return block.array();
     }
 
     private static byte[] padded(String text, int length) {

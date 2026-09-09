@@ -19,16 +19,32 @@ it, so that Paula can.
 
 The block begins immediately after the last sample, at
 
-    1084 + patterns * 4 * channels * 64 + sampleBytes
+    1084 + patterns * 64 * channels * 4 + sampleBytes
 
-where `patterns` is one more than the highest pattern number in the order
-list, and `sampleBytes` is the total of the sample lengths in the header. The
-first four bytes there read `FLEX`; 152 bytes follow, and the file ends.
+The first four bytes there read `FLEX`; 152 bytes follow, and the file ends.
+
+Two things about that sum are easy to get wrong, and both were found by
+computing it for every module in the archive and seeing where it missed.
+
+`patterns` is one more than the highest pattern the order list names anywhere
+in its full 128 entries, not merely within the length the song plays. A module
+keeps every pattern it was written with, including any the song has since
+stopped playing, and one module in the archive stores seven such.
+
+`sampleBytes` counts nothing for a sample the module leaves empty. ProTracker
+gives an unused sample a length of one word rather than none, so that the loop
+it also carries stays legal, and no data is stored for it. Counting those two
+bytes puts the block two bytes further on for every empty sample, and twelve of
+the modules in the archive are findable only once that is allowed for, one of
+them carrying twenty-six.
+
+Looking for the mark instead of computing where it should be is not safe: one
+module in the archive spells `FLEX` in its sample data.
 
 A module saved without effects has no block at all and ends with its samples.
-Of the twenty-seven FlexTrax modules in the Fujiology archive, twenty-three
-carry the block and four do not, so its absence is ordinary and means no
-effects rather than a truncated file.
+Of the thirty-one FlexTrax modules in the Fujiology archive, twenty-seven carry
+the block and four do not, so its absence is ordinary and means no effects
+rather than a truncated file.
 
 ## The block
 
@@ -104,4 +120,4 @@ count, and has to choose one of the two as the rate the count was meant for.
 
 Everything here was read out of FlexTrax 0.9 itself, from the manual shipped
 with it and from its program and DSP binaries, and checked against the
-twenty-seven FlexTrax modules the Fujiology archive holds.
+thirty-one FlexTrax modules the Fujiology archive holds.
