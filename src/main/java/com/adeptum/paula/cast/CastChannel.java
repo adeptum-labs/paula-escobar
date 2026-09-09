@@ -136,6 +136,14 @@ public final class CastChannel implements AutoCloseable {
     }
 
     /**
+     * Asks without waiting: the device answers a request number of its own, and whatever it sends back
+     * reaches the listeners like anything else it says.
+     */
+    public void ask(String destination, String namespace, JsonObjectBuilder payload) throws IOException {
+        send(destination, namespace, payload.add(REQUEST_ID, requestIds.incrementAndGet()));
+    }
+
+    /**
      * Sends and waits for the answer carrying the same request number, which the device echoes back.
      */
     public JsonObject request(String destination, String namespace, JsonObjectBuilder payload, Duration timeout)

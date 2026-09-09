@@ -49,6 +49,12 @@ public final class CastSession implements AutoCloseable {
     static final String DEFAULT_MEDIA_RECEIVER = "CC1AD845";
 
     private static final Duration ANSWER = Duration.ofSeconds(10);
+
+    /**
+     * How long the device is given to say it has stopped before the connection goes. Dropping the connection
+     * first leaves the stop unheard, and the device plays out the seconds it holds after Paula is gone.
+     */
+    private static final Duration STOPPING = Duration.ofSeconds(3);
     private static final String STATUS = "status";
     private static final String PLAYING = "PLAYING";
     private static final String BUFFERING = "BUFFERING";
@@ -61,6 +67,7 @@ public final class CastSession implements AutoCloseable {
     private volatile String transport;
     private volatile String sessionId;
     private volatile int mediaSession;
+    private volatile int retiredSession;
     private volatile Position position;
     private volatile boolean played;
     private volatile String refusal;
@@ -113,6 +120,11 @@ public final class CastSession implements AutoCloseable {
     /**
      * Launches the receiver if it is not up and hands it the stream to play; the card a screen shows carries
      * the title and what it is.
+     *
+     * <p>The answer is not waited for. A device asked to replace what it is already playing holds it back
+     * until the new stream has sound in it, and no sound is written until the player has been handed on, so
+     * waiting here waits on ourselves. What the device makes of it is heard on the reading thread, where the
+     * media it is leaving behind is passed over.</p>
      */
     public void load(String url, String title, String subtitle) throws IOException {
         if (transport == null) {
@@ -121,7 +133,8 @@ public final class CastSession implements AutoCloseable {
         played = false;
         position = null;
         refusal = null;
-        final JsonObject answer = channel.request(transport, CastMessages.MEDIA, CastChannel.object("LOAD")
+        retiredSession = mediaSession;
+        channel.ask(transport, CastMessages.MEDIA, CastChannel.object("LOAD")
                 .add("media", Json.createObjectBuilder()
                         .add("contentId", url)
                         .add("contentType", "audio/wav")
@@ -131,11 +144,7 @@ public final class CastSession implements AutoCloseable {
                                 .add("title", title)
                                 .add("artist", subtitle)
                                 .add("albumName", "Paula Escobar")))
-                .add("autoplay", true), ANSWER);
-        if (!"MEDIA_STATUS".equals(answer.getString("type", ""))) {
-            throw new IOException(device.name() + " would not play the stream: " + answer.getString("type", "no answer"));
-        }
-        mediaStatus(answer);
+                .add("autoplay", true));
     }
 
     /**
@@ -157,8 +166,8 @@ public final class CastSession implements AutoCloseable {
     public void close() {
         try {
             if (sessionId != null && channel.isOpen()) {
-                channel.send(CastMessages.RECEIVER, CastMessages.RECEIVER_NAMESPACE,
-                        CastChannel.object("STOP").add("sessionId", sessionId));
+                channel.request(CastMessages.RECEIVER, CastMessages.RECEIVER_NAMESPACE,
+                        CastChannel.object("STOP").add("sessionId", sessionId), STOPPING);
             }
         } catch (IOException e) {
             log.debug("Stopping the receiver on {}", device.name(), e);
@@ -193,17 +202,33 @@ public final class CastSession implements AutoCloseable {
         return null;
     }
 
+    /**
+     * What the device says of its own accord and what it answers alike. Only the load being refused is the
+     * song lost: a device asked about the media it has just replaced answers that the question was invalid,
+     * which says nothing about the song it now plays.
+     */
     private void heard(CastMessage message) {
         final JsonObject payload = CastChannel.parse(message.payload());
         if (payload == null) {
             return;
         }
-        switch (payload.getString("type", "")) {
+        final String type = payload.getString("type", "");
+        switch (type) {
             case "MEDIA_STATUS" -> mediaStatus(payload);
             case "RECEIVER_STATUS" -> receiverStatus(payload);
             case "CLOSE" -> transport = null;
+            case "LOAD_FAILED" -> refusal = type;
             default -> { }
         }
+    }
+
+    /**
+     * A device counts one up for every stream it is given, so word of the one before, which ends the moment
+     * the next is loaded over it, carries the number that was retired. Read as this song it says this song
+     * was interrupted, which skips it.
+     */
+    private boolean isTheMediaLeftBehind(int session) {
+        return retiredSession != 0 && session == retiredSession;
     }
 
     private void mediaStatus(JsonObject payload) {
@@ -212,10 +237,15 @@ public final class CastSession implements AutoCloseable {
             return;
         }
         final JsonObject status = statuses.getJsonObject(0);
-        mediaSession = status.getInt("mediaSessionId", mediaSession);
+        final int session = status.getInt("mediaSessionId", mediaSession);
         final String state = status.getString("playerState", IDLE);
-        log.debug("{} is {} at {}s{}", device.name(), state, status.get("currentTime"),
-                status.containsKey("idleReason") ? " because " + status.getString("idleReason") : "");
+        log.debug("{} is {} at {}s{} in {}", device.name(), state, status.get("currentTime"),
+                status.containsKey("idleReason") ? " because " + status.getString("idleReason") : "", session);
+        if (isTheMediaLeftBehind(session)) {
+            return;
+        }
+        retiredSession = 0;
+        mediaSession = session;
         played |= PLAYING.equals(state) || BUFFERING.equals(state);
         final String reason = status.getString("idleReason", "");
         if (IDLE.equals(state) && !reason.isEmpty() && !FINISHED.equals(reason)) {

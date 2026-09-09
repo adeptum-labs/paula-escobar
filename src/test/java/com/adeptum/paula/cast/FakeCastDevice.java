@@ -61,6 +61,7 @@ final class FakeCastDevice implements AutoCloseable {
     private volatile String playerState = "PLAYING";
     private volatile String idleReason;
     private volatile boolean fetches;
+    private volatile int mediaSession;
 
     FakeCastDevice() throws IOException {
         answers.put("GET_STATUS", request -> receiverStatus());
@@ -90,6 +91,13 @@ final class FakeCastDevice implements AutoCloseable {
     void playingAt(double seconds, String state) {
         currentTime = seconds;
         playerState = state;
+    }
+
+    /**
+     * Which media the statuses from here on are about, a device counting one up for every stream it is given.
+     */
+    void inSession(int id) {
+        mediaSession = id;
     }
 
     /**
@@ -144,7 +152,7 @@ final class FakeCastDevice implements AutoCloseable {
     }
 
     JsonObjectBuilder mediaStatus() {
-        final JsonObjectBuilder status = Json.createObjectBuilder().add("mediaSessionId", 1)
+        final JsonObjectBuilder status = Json.createObjectBuilder().add("mediaSessionId", mediaSession)
                 .add("playerState", playerState).add("currentTime", currentTime).add("playbackRate", 1);
         if (idleReason != null) {
             status.add("idleReason", idleReason);
@@ -187,8 +195,11 @@ final class FakeCastDevice implements AutoCloseable {
             }
             return;
         }
-        if (fetches && payload.containsKey("media")) {
-            fetch(payload.getJsonObject("media").getString("contentId"));
+        if (payload.containsKey("media")) {
+            mediaSession++;
+            if (fetches) {
+                fetch(payload.getJsonObject("media").getString("contentId"));
+            }
         }
         final Function<JsonObject, JsonObjectBuilder> reply = answers.get(type);
         if (reply != null && payload.containsKey("requestId")) {

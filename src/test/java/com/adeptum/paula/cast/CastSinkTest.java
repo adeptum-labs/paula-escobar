@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.cast;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,6 +57,72 @@ class CastSinkTest {
             assertTrue(refused.getMessage().contains("Kök"), refused.getMessage());
             assertTrue(refused.getMessage().contains("could not fetch"), refused.getMessage());
             assertTrue(refused.getMessage().contains("ERROR"), refused.getMessage());
+        }
+    }
+
+    /**
+     * A device replacing what it already plays holds its answer to the load back until the new stream has
+     * sound in it, and no sound is written until the player has been handed on. Waiting for that answer
+     * first is a wait on ourselves, which ran out and lost the song.
+     */
+    @Test
+    void handsThePlayerOnToADeviceThatHasNotAnsweredTheLoadYet() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            fake.answer("LOAD", request -> null);
+            sink.open(SAMPLE_RATE);
+
+            sink.begin("Paula Test", "");
+            sink.write(tone(), FRAMES);
+
+            fake.sendMediaStatus();
+            assertTrue(waitFor(() -> sink.lag().isPresent()), "and follows it once it does say where it is");
+        }
+    }
+
+    /**
+     * A device says the media it was playing was interrupted just after it is handed the next song. That is
+     * the song before ending, not this one being refused, and taking it for a refusal skipped the song.
+     */
+    @Test
+    void doesNotReadTheEndOfTheSongBeforeAsARefusalOfThisOne() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            sink.open(SAMPLE_RATE);
+            sink.begin("The song before", "");
+            sink.write(tone(), FRAMES);
+
+            fake.answer("LOAD", request -> null);
+            sink.begin("Paula Test", "");
+            fake.inSession(1);
+            fake.refusing("INTERRUPTED");
+            fake.sendMediaStatus();
+            Thread.sleep(200);
+
+            assertDoesNotThrow(() -> sink.write(tone(), FRAMES), "the song before ending is not this one refused");
+        }
+    }
+
+    /**
+     * Asked where it is in media it has just replaced, a device answers that the request was invalid. That
+     * is the question being late, not the device giving up on the song it now plays.
+     */
+    @Test
+    void playsOnThroughAnAnswerSayingOnlyThatTheQuestionWasWrong() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            sink.open(SAMPLE_RATE);
+            sink.begin("Paula Test", "");
+            sink.write(tone(), FRAMES);
+
+            fake.send(FakeCastDevice.TRANSPORT, CastMessages.MEDIA,
+                    CastChannel.object("INVALID_REQUEST").add("requestId", 0));
+            Thread.sleep(200);
+
+            assertDoesNotThrow(() -> sink.write(tone(), FRAMES), "which is not the device giving up");
         }
     }
 

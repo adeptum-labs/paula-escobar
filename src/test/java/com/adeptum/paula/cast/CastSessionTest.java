@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cast.CastMessages.CastMessage;
+import com.adeptum.paula.cast.CastSession.Position;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import java.io.IOException;
@@ -46,15 +47,14 @@ class CastSessionTest {
         try (FakeCastDevice device = new FakeCastDevice(); CastSession session = session(device)) {
             session.load(URL, "Paula Test", "ProTracker, 4 channels");
 
-            final List<CastMessage> received = device.received();
-            final CastMessage launch = only(received, "LAUNCH");
+            final CastMessage launch = only(device.received(), "LAUNCH");
             assertEquals(CastMessages.RECEIVER_NAMESPACE, launch.namespace());
             assertEquals(CastSession.DEFAULT_MEDIA_RECEIVER, CastChannel.parse(launch.payload()).getString("appId"));
 
-            assertTrue(received.stream().anyMatch(message -> message.payload().contains("CONNECT")
+            final CastMessage load = awaited(device, "LOAD");
+            assertTrue(device.received().stream().anyMatch(message -> message.payload().contains("CONNECT")
                     && FakeCastDevice.TRANSPORT.equals(message.destination())), "connected to the receiver's transport");
 
-            final CastMessage load = only(received, "LOAD");
             final JsonObject media = CastChannel.parse(load.payload()).getJsonObject("media");
             assertEquals(FakeCastDevice.TRANSPORT, load.destination());
             assertEquals(URL, media.getString("contentId"));
@@ -86,6 +86,7 @@ class CastSessionTest {
             device.playingAt(4, "BUFFERING");
             session.load(URL, "Paula Test", "");
 
+            assertTrue(waitFor(() -> session.position().isPresent()), "the device said where it is");
             Thread.sleep(40);
             assertEquals(4, session.position().orElseThrow().now());
             assertFalse(session.isFinished());
@@ -101,7 +102,7 @@ class CastSessionTest {
 
             device.playingAt(5, "PLAYING");
             device.sendMediaStatus();
-            assertTrue(waitFor(() -> session.position().orElseThrow().isPlaying()));
+            assertTrue(waitFor(() -> session.position().filter(Position::isPlaying).isPresent()));
 
             device.playingAt(31, "IDLE");
             device.sendMediaStatus();
@@ -148,12 +149,25 @@ class CastSessionTest {
         return new CastSession(CastChannel.over(device.connect()), KITCHEN);
     }
 
+    /**
+     * The one message of this type once it has arrived, for what the device is told without an answer being
+     * waited for.
+     */
+    private static CastMessage awaited(FakeCastDevice device, String type) throws InterruptedException {
+        assertTrue(waitFor(() -> device.received().stream().anyMatch(message -> type.equals(typeOf(message)))),
+                "the device was sent a " + type);
+        return only(device.received(), type);
+    }
+
     private static CastMessage only(List<CastMessage> messages, String type) {
-        final List<CastMessage> matching = messages.stream()
-                .filter(message -> type.equals(CastChannel.parse(message.payload()) == null ? ""
-                        : CastChannel.parse(message.payload()).getString("type", ""))).toList();
+        final List<CastMessage> matching = messages.stream().filter(message -> type.equals(typeOf(message))).toList();
         assertEquals(1, matching.size(), "one " + type);
         return matching.getFirst();
+    }
+
+    private static String typeOf(CastMessage message) {
+        final JsonObject payload = CastChannel.parse(message.payload());
+        return payload == null ? "" : payload.getString("type", "");
     }
 
     private static boolean waitFor(BooleanSupplier condition) throws InterruptedException {
