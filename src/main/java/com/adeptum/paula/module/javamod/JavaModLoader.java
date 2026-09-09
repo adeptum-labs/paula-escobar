@@ -38,6 +38,7 @@ import de.quippy.javamod.system.Log;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -56,10 +57,20 @@ public final class JavaModLoader implements ModuleLoader {
             ProTrackerMod.class, XMMod.class, ScreamTrackerOldMod.class, ScreamTrackerSTXMod.class,
             ScreamTrackerMod.class, ImpulseTrackerMod.class, FarandoleTrackerMod.class, MultiTrackerMod.class);
 
+    /**
+     * FlexTrax wrote the Atari Falcon a module in ProTracker's own layout, with the effects its DSP added
+     * held apart from it, so JavaMod plays one as the module it is and leaves those effects unsounded.
+     * JavaMod names the extension for none of its loaders, and reads the file by what is in it, not by what
+     * it is called.
+     */
+    private static final Set<String> FLEXTRAX = Set.of("flx");
+
     static {
         Log.setLogLevel(Log.LOGLEVEL_NONE);
         TRACKER_LOADERS.forEach(JavaModLoader::initialise);
-        FORMAT = new ModuleFormat("tracker", "Tracker modules (JavaMod)", Set.of(ModuleFactory.getSupportedFileExtensions()));
+        final Set<String> extensions = new HashSet<>(Set.of(ModuleFactory.getSupportedFileExtensions()));
+        extensions.addAll(FLEXTRAX);
+        FORMAT = new ModuleFormat("tracker", "Tracker modules (JavaMod)", extensions);
     }
 
     private static void initialise(Class<?> loader) {

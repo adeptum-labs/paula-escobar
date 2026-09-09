@@ -126,7 +126,9 @@ Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
 Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
 reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
 `lib/` with the fixes in `tools/javamod-*.patch` compiled in by
-`tools/patch-javamod`. MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave,
+`tools/patch-javamod`. The Atari Falcon's FlexTrax modules are ProTracker
+modules under their own extension and play as those, without the effects the
+Falcon's DSP laid over them. MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave,
 AIFF and AU files, the formats a streaming competition is handed in as, are
 decoded by JLayer, jFLAC, jOrbis and jMAC and resampled to the rate the
 engine mixes at; `--rate 44100` hands a CD-rate file through untouched.

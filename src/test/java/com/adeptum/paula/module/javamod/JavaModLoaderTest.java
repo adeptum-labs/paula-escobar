@@ -58,6 +58,18 @@ class JavaModLoaderTest {
         assertEquals(TestModules.SAMPLE_NAME, module.metadata().instruments().get(0));
     }
 
+    /**
+     * A FlexTrax module is a ProTracker one carrying the Falcon's own effects, which JavaMod reads as the
+     * module it is; the extension is all that is its own, and the effects are simply not sounded.
+     */
+    @Test
+    void playsFlextraxModulesAsTheProTrackerOnesTheyAre(@TempDir Path dir) throws Exception {
+        final Path flextrax = Files.write(dir.resolve("tune.flx"), TestModules.proTracker());
+
+        assertTrue(loader.supports(flextrax));
+        assertEquals(TestModules.TITLE, loader.load(flextrax).metadata().title());
+    }
+
     @Test
     void reportsGarbageAsUnsupported(@TempDir Path dir) throws Exception {
         final Path garbage = Files.write(dir.resolve("garbage.mod"), new byte[100]);
