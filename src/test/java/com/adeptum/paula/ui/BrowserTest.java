@@ -489,9 +489,9 @@ class BrowserTest {
         assertTrue(lines.get(1).indexOf("Parties") < lines.get(1).indexOf("Charts"), "two boxes, the parties left of the charts: " + lines.get(1));
         assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
         assertTrue(lines.get(2).contains("│  Top Favourites"), "the charts on the right, without the cursor: " + lines.get(2));
-        assertTrue(lines.get(3).startsWith("│  Alternative Party") && lines.get(3).contains("Most Downloads"));
+        assertTrue(lines.get(3).startsWith("│  Abstract") && lines.get(3).contains("Most Downloads"));
         assertTrue(lines.get(4).contains("Featured"));
-        assertTrue(lines.get(6).contains("Árok"), "an accent sorts among the A's, not after the Z's");
+        assertTrue(lines.get(7).contains("Árok"), "an accent sorts among the A's, not after the Z's");
         assertTrue(lines.get(2).trim().split(" {2,}").length > 2, "and the series flow into columns");
         assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
         assertTrue(browser.render(WIDTH, HEIGHT).stream().allMatch(line -> line.columnLength() == WIDTH));
@@ -696,7 +696,7 @@ class BrowserTest {
     }
 
     /**
-     * Sixty-eight series down one column is three screens of scrolling for a list that fits on one.
+     * Eighty series down one column is three screens of scrolling for a list that fits on one.
      */
     @Test
     void flowsTheLongListsIntoColumns() {

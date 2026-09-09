@@ -113,5 +113,17 @@ public record CuratedSeries(int id, String name) {
             new CuratedSeries(79, "Demobit"),
             new CuratedSeries(296, "Blacktron Music Compo"),
             new CuratedSeries(399, "QuaST"),
-            new CuratedSeries(370, "Rush Hours"));
+            new CuratedSeries(370, "Rush Hours"),
+            new CuratedSeries(86, "Paradox"),
+            new CuratedSeries(481, "North Party"),
+            new CuratedSeries(451, "Abstract"),
+            new CuratedSeries(35, "FLaG"),
+            new CuratedSeries(438, "BCN Party"),
+            new CuratedSeries(501, "Simulaatio"),
+            new CuratedSeries(40, "Summer Encounter"),
+            new CuratedSeries(1851, "Quantum Oscillation"),
+            new CuratedSeries(1388, "Fjälldata"),
+            new CuratedSeries(272, "Posadas"),
+            new CuratedSeries(173, "Cache"),
+            new CuratedSeries(176, "Flashback"));
 }

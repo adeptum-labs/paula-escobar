@@ -6,7 +6,7 @@
 
 A terminal music player for demoscene and chip music, named after the Amiga's
 sound chip. It plays tracker modules, SID and Atari tunes and streamed audio,
-and it opens the party archives: the music competitions of over sixty party
+and it opens the party archives: the music competitions of eighty party
 series and the [ModArchive](https://modarchive.org) charts, browsed year by
 year and played on the spot. Everything happens in the terminal, and the build
 produces a native executable with GraalVM, so there is no JVM to start and no
