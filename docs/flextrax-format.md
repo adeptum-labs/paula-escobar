@@ -12,8 +12,8 @@ modules by that mark plays an FLX file without knowing what it is.
 
 What makes it its own format is a block appended after the sample data,
 holding the settings for the two real-time effects the Falcon's DSP applied to
-the mix: a reverb and a delay. No player has ever read it. This note describes
-it, so that Paula can.
+the mix: a reverb and a delay. No other player reads it. This note describes
+it, and Paula sounds both effects from it.
 
 ## Finding the block
 
@@ -115,6 +115,17 @@ the rate the Falcon was replaying at. FlexTrax drives the machine's clock
 divider at either 1 or 2, which is 49170 Hz or 32780 Hz, and the module records
 which was in use nowhere. A player at another rate has to scale the sample
 count, and has to choose one of the two as the rate the count was meant for.
+Paula takes the faster of them, and scales every distance the two effects use
+from it.
+
+## Where the arithmetic runs over
+
+Both of the reverb's settings are turned into coefficients that pass unity
+partway up their range: the level at a stored 36 and the decay at 58. Only 24
+bits reach the chip, so beyond those points the coefficient wraps and comes
+back negative, which would make the control louder to a point and then quieter
+again. Most modules store more than 36. Paula holds both at unity instead,
+which is what a musician sliding the control would have expected.
 
 ## Sources
 

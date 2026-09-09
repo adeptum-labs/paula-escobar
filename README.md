@@ -127,8 +127,10 @@ Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
 reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
 `lib/` with the fixes in `tools/javamod-*.patch` compiled in by
 `tools/patch-javamod`. The Atari Falcon's FlexTrax modules are ProTracker
-modules under their own extension and play as those, without the effects the
-Falcon's DSP laid over them; those are kept in a block of the file that
+modules under their own extension and play as those, with the reverb and the
+delay the Falcon's DSP laid over the mix put back over it by replayers
+written for Paula that follow the tracker's own DSP program; the settings for
+those are kept in a block of the file that
 [docs/flextrax-format.md](docs/flextrax-format.md) describes. MPEG audio,
 FLAC, Ogg Vorbis, Monkey's Audio, wave,
 AIFF and AU files, the formats a streaming competition is handed in as, are
