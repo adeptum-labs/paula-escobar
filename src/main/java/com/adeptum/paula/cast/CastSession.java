@@ -69,7 +69,8 @@ public final class CastSession implements AutoCloseable {
     private volatile String transport;
     private volatile String sessionId;
     private volatile int mediaSession;
-    private volatile int retiredSession;
+    private volatile int loadsSince;
+    private volatile int loadRequest;
     private volatile Position position;
     private volatile boolean played;
     private volatile String refusal;
@@ -135,7 +136,8 @@ public final class CastSession implements AutoCloseable {
         played = false;
         position = null;
         refusal = null;
-        retiredSession = mediaSession;
+        loadsSince++;
+        loadRequest = channel.nextRequest();
         final JsonObjectBuilder metadata = Json.createObjectBuilder()
                 .add("metadataType", MUSIC_TRACK)
                 .add("title", song.title())
@@ -152,7 +154,8 @@ public final class CastSession implements AutoCloseable {
         if (song.length() != null) {
             media.add("duration", song.length().toMillis() / 1000.0);
         }
-        channel.ask(transport, CastMessages.MEDIA, CastChannel.object("LOAD").add("media", media).add("autoplay", true));
+        channel.ask(transport, CastMessages.MEDIA,
+                CastChannel.object("LOAD").add("media", media).add("autoplay", true), loadRequest);
     }
 
     /**
@@ -225,18 +228,28 @@ public final class CastSession implements AutoCloseable {
             case "MEDIA_STATUS" -> mediaStatus(payload);
             case "RECEIVER_STATUS" -> receiverStatus(payload);
             case "CLOSE" -> transport = null;
-            case "LOAD_FAILED" -> refusal = type;
+            case "LOAD_FAILED" -> failedToLoad(payload);
             default -> { }
         }
     }
 
     /**
-     * A device counts one up for every stream it is given, so word of the one before, which ends the moment
-     * the next is loaded over it, carries the number that was retired. Read as this song it says this song
-     * was interrupted, which skips it.
+     * A load that failed matters only while it is the load in hand. A device handed the next song answers for
+     * the one it was told to drop as well, and reading that as this song failing loses this song too.
+     */
+    private void failedToLoad(JsonObject payload) {
+        if (payload.getInt("requestId", 0) == loadRequest) {
+            refusal = "LOAD_FAILED";
+        }
+    }
+
+    /**
+     * A device counts one up for every stream it is given, so the newest is the last one it told us about
+     * plus the loads sent since. Anything below that is a stream already replaced, and it says so as it ends:
+     * read as this song, that it was interrupted or would not play, which loses this song and the next.
      */
     private boolean isTheMediaLeftBehind(int session) {
-        return retiredSession != 0 && session == retiredSession;
+        return session < mediaSession + loadsSince;
     }
 
     private void mediaStatus(JsonObject payload) {
@@ -252,8 +265,8 @@ public final class CastSession implements AutoCloseable {
         if (isTheMediaLeftBehind(session)) {
             return;
         }
-        retiredSession = 0;
         mediaSession = session;
+        loadsSince = 0;
         played |= PLAYING.equals(state) || BUFFERING.equals(state);
         final String reason = status.getString("idleReason", "");
         if (IDLE.equals(state) && !reason.isEmpty() && !FINISHED.equals(reason)) {

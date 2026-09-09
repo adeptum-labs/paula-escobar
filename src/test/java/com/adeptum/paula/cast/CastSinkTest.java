@@ -96,13 +96,17 @@ class CastSinkTest {
             sink.write(tone(), FRAMES);
 
             fake.answer("LOAD", request -> null);
+            sink.begin(song("The song after that"));
             sink.begin(song("Paula Test"));
             fake.inSession(1);
             fake.refusing("INTERRUPTED");
             fake.sendMediaStatus();
+            fake.inSession(2);
+            fake.sendMediaStatus();
             Thread.sleep(200);
 
-            assertDoesNotThrow(() -> sink.write(tone(), FRAMES), "the song before ending is not this one refused");
+            assertDoesNotThrow(() -> sink.write(tone(), FRAMES),
+                    "neither of the songs before ending is this one refused");
         }
     }
 
@@ -142,6 +146,29 @@ class CastSinkTest {
 
             assertTrue(waitFor(() -> fake.received().stream().anyMatch(message -> message.payload().contains("images")
                     && message.payload().contains(".png"))), "a screen is pointed at a picture to show");
+        }
+    }
+
+    /**
+     * A device handed the next song answers for the one it was told to drop as well. Read as this song
+     * failing, that lost this song too, and the next, and the player ran through the playlist.
+     */
+    @Test
+    void doesNotReadTheLoadBeforeFailingAsThisOneFailing() throws Exception {
+        try (FakeCastDevice fake = new FakeCastDevice(); CastSink sink = sink(fake)) {
+            fake.playingAt(0, "PLAYING");
+            fake.fetchesWhatItIsGiven();
+            sink.open(SAMPLE_RATE);
+            sink.begin(song("The song before"));
+            sink.write(tone(), FRAMES);
+
+            fake.answer("LOAD", request -> null);
+            sink.begin(song("Paula Test"));
+            fake.send(FakeCastDevice.TRANSPORT, CastMessages.MEDIA,
+                    CastChannel.object("LOAD_FAILED").add("requestId", 1));
+            Thread.sleep(200);
+
+            assertDoesNotThrow(() -> sink.write(tone(), FRAMES), "the load before failing is not this one");
         }
     }
 
