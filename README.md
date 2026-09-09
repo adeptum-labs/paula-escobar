@@ -171,10 +171,13 @@ was given or its address.
 A Cast device fetches the sound rather than being sent it, so Paula serves it
 an endless wave file and tells it where to look. Left to itself a device
 fetches near a minute ahead and plays that far behind; Paula gives it three
-seconds to start on, then only as fast as it plays, and waits for it whenever
-it runs more than four seconds behind, which is what the lag settles at.
-`--cast-lag SECONDS` asks for a shorter one, down to what the device keeps of
-its own: below that it runs dry and stutters. That lag is measured rather
+seconds to start on, lets the rest go out until it holds ten, and waits for
+it whenever it runs more than four seconds behind, which is what the lag
+settles at. `--cast-lag SECONDS` asks for a shorter one, down to what the
+device keeps of its own: below that it runs dry and stutters. A device asked
+to play one song while it is playing another will not start until it holds
+some nine seconds of the new one, so those ten are what keeps the sound from
+stopping for as long as it takes to fetch them. That lag is measured rather
 than assumed, from where the device says it is against what it has been
 given, and everything on the screen follows the sound being heard rather
 than the sound being sent: the spectrum and the scopes read back by that

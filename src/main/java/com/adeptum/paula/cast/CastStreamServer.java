@@ -22,6 +22,7 @@
 package com.adeptum.paula.cast;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -67,14 +68,25 @@ public final class CastStreamServer implements AutoCloseable {
     private static final int HELD_SECONDS = 2;
 
     /**
-     * A device fetches as much as it is given and plays that far behind, near a minute of it left to itself,
-     * so it is given a few seconds to start on and then only as fast as it plays.
+     * The sound the device is handed in one go when it takes a stream up, so that what it starts on is worth
+     * starting on rather than the first trickle of the song.
      */
-    private static final int BURST_SECONDS = 3;
+    static final int START_SECONDS = 3;
+
+    /**
+     * How far ahead of real time the sound may go out. A device asked to play a stream while it is already
+     * playing another will not start on the new one until it holds some nine seconds of it, and paced at the
+     * speed it plays it takes six seconds to get there: six seconds of silence on the device, and six
+     * seconds the player, held back only once the device is playing, spends running ahead of it. Given room
+     * to go out as fast as the player renders, the device has its fill within the moment. Nothing runs this
+     * far ahead once the device plays, since the player is held to the lag long before then.
+     */
+    private static final int AHEAD_SECONDS = 10;
     private static final long PACE_STEP_MILLIS = 20;
 
     private final ServerSocket server;
     private final Map<String, PcmStream> streams = new ConcurrentHashMap<>();
+    private final Map<PcmStream, Socket> connections = new ConcurrentHashMap<>();
     private final AtomicInteger names = new AtomicInteger();
     private volatile boolean closed;
 
@@ -108,19 +120,37 @@ public final class CastStreamServer implements AutoCloseable {
         return new Served(stream, "http://" + server.getInetAddress().getHostAddress() + ":" + port() + path);
     }
 
+    /**
+     * Done with a stream, and with the connection the device was reading it over. Abandoning the sound alone
+     * leaves a connection whose writer is stuck against a device that has stopped reading, and the device is
+     * slow to take up the next stream while the one before is still open to it.
+     */
     public void forget(Served served) {
         served.stream().abandon();
         streams.values().remove(served.stream());
+        hangUp(connections.remove(served.stream()));
     }
 
     @Override
     public void close() {
         closed = true;
         streams.values().forEach(PcmStream::abandon);
+        connections.values().forEach(CastStreamServer::hangUp);
         try {
             server.close();
         } catch (IOException e) {
             log.debug("Closing the stream server", e);
+        }
+    }
+
+    private static void hangUp(Socket client) {
+        if (client == null) {
+            return;
+        }
+        try {
+            client.close();
+        } catch (IOException e) {
+            log.debug("Closing a stream connection", e);
         }
     }
 
@@ -158,17 +188,35 @@ public final class CastStreamServer implements AutoCloseable {
                 return;
             }
             stream.fetching();
+            connections.put(stream, client);
+            final int bytesPerSecond = stream.sampleRate() * CHANNELS * BITS / Byte.SIZE;
+            final byte[] start = soundToStartOn(stream, (long) bytesPerSecond * START_SECONDS);
             out.write(waveHeader(stream.sampleRate()));
+            out.write(start);
             out.flush();
-            pump(stream, out, stream.sampleRate() * CHANNELS * BITS / Byte.SIZE);
+            pump(stream, out, bytesPerSecond, start.length);
         } catch (IOException | InterruptedException e) {
             log.debug("A stream connection ended", e);
         }
     }
 
-    private static void pump(PcmStream stream, OutputStream out, int bytesPerSecond) throws IOException, InterruptedException {
+    /**
+     * The sound the device is handed before anything else, gathered rather than waited for so that a stream
+     * holding less than this is still read out of while it fills. Short of it only where the song ends first.
+     */
+    private static byte[] soundToStartOn(PcmStream stream, long bytes) throws IOException, InterruptedException {
+        final ByteArrayOutputStream start = new ByteArrayOutputStream();
+        byte[] chunk;
+        while (start.size() < bytes && (chunk = stream.read()) != null) {
+            start.write(chunk);
+        }
+        return start.toByteArray();
+    }
+
+    private static void pump(PcmStream stream, OutputStream out, int bytesPerSecond, long alreadySent)
+            throws IOException, InterruptedException {
         final long started = System.nanoTime();
-        long sent = 0;
+        long sent = alreadySent;
         byte[] chunk;
         while ((chunk = stream.read()) != null) {
             while (sent > allowed(started, bytesPerSecond)) {
@@ -181,7 +229,7 @@ public final class CastStreamServer implements AutoCloseable {
     }
 
     private static long allowed(long started, int bytesPerSecond) {
-        return (long) BURST_SECONDS * bytesPerSecond + (System.nanoTime() - started) / 1_000_000_000L * bytesPerSecond
+        return (long) AHEAD_SECONDS * bytesPerSecond + (System.nanoTime() - started) / 1_000_000_000L * bytesPerSecond
                 + (System.nanoTime() - started) % 1_000_000_000L * bytesPerSecond / 1_000_000_000L;
     }
 

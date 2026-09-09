@@ -271,8 +271,12 @@ public final class CastSink implements AudioSink {
 
     private void poll() {
         final CastSession open = session;
-        if (open != null && served != null) {
+        final Served current = served;
+        if (open != null && current != null) {
             open.poll();
+            log.debug("{} has been given {} s of the song and is {} s behind", device.name(),
+                    String.format("%.1f", current.stream().writtenFrames() / (double) sampleRate),
+                    lag().map(behind -> String.format("%.1f", behind.toMillis() / 1000.0)).orElse("?"));
         }
     }
 

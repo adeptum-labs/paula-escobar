@@ -24,6 +24,7 @@ package com.adeptum.paula.cast;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cast.CastStreamServer.Served;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -106,6 +108,54 @@ class CastStreamServerTest {
             final Response response = get(url, "GET /elsewhere.wav HTTP/1.1\r\n\r\n");
 
             assertTrue(response.headers.startsWith("HTTP/1.1 404"));
+        }
+    }
+
+    /**
+     * A device handed the first trickle of a song starts on it, runs out within the moment and then sits
+     * buffering for seconds while the player runs on ahead of it. It is given something to start on instead.
+     */
+    @Test
+    void keepsTheFirstTrickleBackUntilThereIsSomethingToStartOn() throws Exception {
+        try (CastStreamServer server = new CastStreamServer(InetAddress.getLoopbackAddress(), 0)) {
+            final Served served = server.open(SAMPLE_RATE);
+            final URI url = URI.create(served.url());
+            served.stream().write(TONE, FRAMES);
+
+            try (Socket client = new Socket(url.getHost(), url.getPort())) {
+                client.getOutputStream().write(("GET " + url.getPath() + " HTTP/1.1\r\n\r\n")
+                        .getBytes(StandardCharsets.US_ASCII));
+                final InputStream in = client.getInputStream();
+                client.setSoTimeout(2000);
+                readTheHeaders(in);
+
+                client.setSoTimeout(400);
+                assertThrows(SocketTimeoutException.class, in::read, "a trickle is not worth starting on");
+
+                soundToStartOn(served);
+                client.setSoTimeout(5000);
+                assertTrue(in.readNBytes(Short.MAX_VALUE).length >= Short.MAX_VALUE, "which some seconds of it is");
+            }
+        }
+    }
+
+    /**
+     * Reads up to the blank line that ends the answer's headers, leaving the sound itself unread.
+     */
+    private static void readTheHeaders(InputStream in) throws IOException {
+        int blanks = 0;
+        while (blanks < 2) {
+            final int read = in.read();
+            if (read < 0) {
+                return;
+            }
+            blanks = read == '\n' ? blanks + 1 : read == '\r' ? blanks : 0;
+        }
+    }
+
+    private static void soundToStartOn(Served served) {
+        for (int written = 0; written < SAMPLE_RATE * CastStreamServer.START_SECONDS; written += FRAMES) {
+            served.stream().write(TONE, FRAMES);
         }
     }
 
