@@ -146,6 +146,9 @@ public final class PlayerSession {
                 key = ui.poll(DRAIN_TIMEOUT_MILLIS);
             }
             browser.tick();
+            if (castPopup.isOpen()) {
+                discovery.scan();
+            }
             browser.takeSelection().ifPresent(this::startPlaylist);
             final Optional<TrackLoader.Result> result = loader.poll();
             if (result.isPresent() && !apply(result.get())) {
@@ -180,9 +183,7 @@ public final class PlayerSession {
             }
             case CAST -> {
                 castPopup.open();
-                if (discovery.devices().isEmpty() && !discovery.isScanning()) {
-                    discovery.scan();
-                }
+                discovery.scan();
             }
             case NONE -> {
             }

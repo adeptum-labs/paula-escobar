@@ -40,9 +40,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -59,10 +59,15 @@ public final class CastDiscovery implements AutoCloseable {
 
     private static final Duration SCAN = Duration.ofSeconds(3);
     private static final Duration ASK_AGAIN = Duration.ofSeconds(1);
+
+    /**
+     * How long a device may say nothing before it is taken to be gone.
+     */
+    private static final Duration FORGET = Duration.ofSeconds(15);
     private static final int LARGEST_ANSWER = 9000;
 
     private final Map<String, CastDevice> devices = new ConcurrentHashMap<>();
-    private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+    private final Map<String, Long> heardAt = new ConcurrentHashMap<>();
     private final ExecutorService worker = DaemonExecutors.singleThread("paula-cast-discovery");
     private volatile boolean scanning;
     private volatile boolean closed;
@@ -98,13 +103,6 @@ public final class CastDiscovery implements AutoCloseable {
                 .findFirst();
     }
 
-    /**
-     * Called whenever a scan starts, finds something or ends, on the scanning thread.
-     */
-    public void onChange(Runnable listener) {
-        listeners.add(listener);
-    }
-
     public synchronized void scan() {
         if (scanning || closed) {
             return;
@@ -120,7 +118,6 @@ public final class CastDiscovery implements AutoCloseable {
     }
 
     private void runScan() {
-        changed();
         try (Selector selector = Selector.open()) {
             final List<Asking> askings = openChannels(selector);
             final long deadline = System.currentTimeMillis() + SCAN.toMillis();
@@ -133,11 +130,11 @@ public final class CastDiscovery implements AutoCloseable {
                 receive(selector, Math.max(1, Math.min(askAt, deadline) - System.currentTimeMillis()));
             }
             selector.keys().forEach(key -> closeQuietly((DatagramChannel) key.channel()));
+            forgetWhatHasGoneQuiet();
         } catch (IOException e) {
             log.debug("Looking for cast devices failed", e);
         } finally {
             scanning = false;
-            changed();
         }
     }
 
@@ -204,18 +201,30 @@ public final class CastDiscovery implements AutoCloseable {
         selector.selectedKeys().clear();
     }
 
-    private void heard(List<CastDevice> answered) {
-        boolean news = false;
-        for (final CastDevice device : answered) {
-            news |= !device.equals(devices.put(device.id(), device));
-        }
-        if (news) {
-            changed();
+    private void heard(List<CastDevice> heard) {
+        for (final CastDevice device : heard) {
+            heardAt.put(device.id(), System.currentTimeMillis());
+            devices.put(device.id(), device);
         }
     }
 
-    private void changed() {
-        listeners.forEach(Runnable::run);
+    /**
+     * A device nothing has been heard from for a while has been unplugged or switched off, so it goes from
+     * the list rather than sitting there to be chosen and failed on. It is counted in time rather than in
+     * scans because a device answers the same question only now and then, however often it is asked, so a
+     * scan or two with nothing from it says nothing about whether it is there.
+     */
+    private void forgetWhatHasGoneQuiet() {
+        if (closed) {
+            return;
+        }
+        final long gone = System.currentTimeMillis() - FORGET.toMillis();
+        for (final Map.Entry<String, Long> heard : heardAt.entrySet()) {
+            if (heard.getValue() < gone) {
+                devices.remove(heard.getKey());
+                heardAt.remove(heard.getKey());
+            }
+        }
     }
 
     private static List<NetworkInterface> reachable() throws SocketException {
