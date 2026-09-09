@@ -30,12 +30,11 @@ import de.quippy.javamod.multimedia.mod.mixer.BasicModMixer;
 import de.quippy.javamod.multimedia.mod.mixer.ChannelMemory;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Pulls 32-bit stereo audio from JavaMod's mixer and reduces it to Paula's 16-bit interleaved frames.
@@ -53,8 +52,12 @@ public final class JavaModRenderer implements Renderer {
     private final int sampleRate;
     private final int channelCount;
     private final Duration length;
-    private final Map<Sample, Double> samplePeaks = new HashMap<>();
-    private final Set<Integer> muted = new HashSet<>();
+    /**
+     * Read as the sound is rendered and written as the listener silences a channel, which are two threads;
+     * the peaks are worked out on whichever asks for a sample first.
+     */
+    private final Map<Sample, Double> samplePeaks = new ConcurrentHashMap<>();
+    private final Set<Integer> muted = ConcurrentHashMap.newKeySet();
     private long[] left = new long[0];
     private long[] right = new long[0];
     private long renderedFrames;
