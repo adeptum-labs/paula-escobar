@@ -105,6 +105,9 @@ public final class Paula implements Runnable {
     @Option(names = "--cast-port", paramLabel = "PORT", defaultValue = "7373", description = "Port the sound is served on for a Cast device to fetch (default: ${DEFAULT-VALUE}).")
     private int castPort;
 
+    @Option(names = "--cast-lag", paramLabel = "SECONDS", defaultValue = "4", description = "How far behind a Cast device is left to run (default: ${DEFAULT-VALUE}); less than the device buffers of its own makes it stutter.")
+    private double castLag;
+
     @Option(names = "--quit-after", paramLabel = "SECONDS", description = "Stop after this many seconds; no terminal is needed then.")
     private Integer quitAfterSeconds;
 
@@ -180,14 +183,18 @@ public final class Paula implements Runnable {
      */
     private Outputs outputs() {
         final AudioBackend here = output == AudioBackend.CAST ? AudioBackend.AUTO : output;
-        return new Outputs(() -> here.createSink(bufferFrames), device -> new CastSink(device, castPort));
+        return new Outputs(() -> here.createSink(bufferFrames), device -> new CastSink(device, castPort, castLag()));
     }
 
     private AudioSink outputSink(CastDiscovery discovery) throws AudioException {
         if (output != AudioBackend.CAST && cast == null) {
             return output.createSink(bufferFrames);
         }
-        return new CastSink(castDevice(discovery), castPort);
+        return new CastSink(castDevice(discovery), castPort, castLag());
+    }
+
+    private Duration castLag() {
+        return Duration.ofMillis(Math.round(castLag * 1000));
     }
 
     /**

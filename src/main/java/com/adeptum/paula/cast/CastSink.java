@@ -50,11 +50,13 @@ public final class CastSink implements AudioSink {
     private static final String UNTITLED = "Paula Escobar";
 
     /**
-     * How far behind the device may fall before the player waits for it. A device that rebuffers, or a
-     * moment of a busy network, otherwise costs seconds the device never makes up, and the sound drifts
-     * further from the screen for the rest of the song.
+     * How far behind the device is left to run unless another distance is asked for. A device left alone
+     * buffers further ahead than this and is held here instead, so this is what the sound heard settles at
+     * rather than only a ceiling on it; it is also what gives back the seconds a rebuffer costs, which the
+     * device never makes up on its own. Below the sound held for the device plus what the device keeps of
+     * its own the stream runs dry and the sound stutters, so shortening it has a floor.
      */
-    private static final Duration FURTHEST_BEHIND = Duration.ofSeconds(8);
+    public static final Duration FURTHEST_BEHIND = Duration.ofSeconds(4);
 
     /**
      * How long the player waits for a device to catch up before writing anyway, so a device that has stopped
@@ -69,6 +71,7 @@ public final class CastSink implements AudioSink {
 
     private final CastDevice device;
     private final int port;
+    private final Duration furthestBehind;
     private final Connection connection;
     private final ScheduledExecutorService poller;
     private volatile CastSession session;
@@ -76,17 +79,14 @@ public final class CastSink implements AudioSink {
     private volatile Served served;
     private volatile int sampleRate;
 
-    public CastSink(CastDevice device) {
-        this(device, CastStreamServer.DEFAULT_PORT);
+    public CastSink(CastDevice device, int port, Duration furthestBehind) {
+        this(device, port, furthestBehind, CastSession::open);
     }
 
-    public CastSink(CastDevice device, int port) {
-        this(device, port, CastSession::open);
-    }
-
-    CastSink(CastDevice device, int port, Connection connection) {
+    CastSink(CastDevice device, int port, Duration furthestBehind, Connection connection) {
         this.device = device;
         this.port = port;
+        this.furthestBehind = furthestBehind;
         this.connection = connection;
         this.poller = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "paula-cast-poll");
@@ -217,7 +217,7 @@ public final class CastSink implements AudioSink {
     private boolean hasFallenBehind() {
         final CastSession open = session;
         return open != null && open.position().filter(Position::isPlaying).isPresent()
-                && lag().orElse(Duration.ZERO).compareTo(FURTHEST_BEHIND) > 0;
+                && lag().orElse(Duration.ZERO).compareTo(furthestBehind) > 0;
     }
 
     /**

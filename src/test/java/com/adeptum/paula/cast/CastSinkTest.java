@@ -36,7 +36,7 @@ class CastSinkTest {
 
     private static final int SAMPLE_RATE = 8000;
     private static final int FRAMES = 400;
-    private static final Duration FURTHEST_BEHIND = Duration.ofSeconds(8);
+    private static final Duration FURTHEST_BEHIND = Duration.ofSeconds(3);
     private static final CastDevice KITCHEN = new CastDevice("id", "Kök", "Nest Audio",
             InetAddress.getLoopbackAddress(), CastDevice.CAST_PORT);
 
@@ -158,7 +158,7 @@ class CastSinkTest {
     }
 
     private CastSink sink(FakeCastDevice fake) {
-        return new CastSink(KITCHEN, 0, device -> {
+        return new CastSink(KITCHEN, 0, FURTHEST_BEHIND, device -> {
             session = new CastSession(CastChannel.over(fake.connect()), device);
             return session;
         });

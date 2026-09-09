@@ -171,12 +171,15 @@ was given or its address.
 A Cast device fetches the sound rather than being sent it, so Paula serves it
 an endless wave file and tells it where to look. Left to itself a device
 fetches near a minute ahead and plays that far behind; Paula gives it three
-seconds to start on and then only as fast as it plays, which holds the lag at
-some five seconds. That lag is measured rather than assumed, from where the
-device says it is against what it has been given, and everything on the
-screen follows the sound being heard rather than the sound being sent: the
-spectrum and the scopes read back by that much, the position with them, and
-the status line saying how far behind the device runs. Screens show a card
+seconds to start on, then only as fast as it plays, and waits for it whenever
+it runs more than four seconds behind, which is what the lag settles at.
+`--cast-lag SECONDS` asks for a shorter one, down to what the device keeps of
+its own: below that it runs dry and stutters. That lag is measured rather
+than assumed, from where the device says it is against what it has been
+given, and everything on the screen follows the sound being heard rather
+than the sound being sent: the spectrum and the scopes read back by that
+much, the position with them, and the status line saying how far behind the
+device runs. Screens show a card
 with the song's name and format through Google's own media receiver; the
 scopes themselves stay in the terminal, since drawing them on the device
 needs a receiver of Paula's own, registered and hosted with Google.
