@@ -61,8 +61,5 @@ class PlaybackDelayTest {
     @Test
     void hasNothingBeforeAnythingWasRecorded() {
         assertNull(delay.at(5));
-        delay.record(1, List.of(), Duration.ZERO);
-        delay.clear();
-        assertNull(delay.at(5));
     }
 }

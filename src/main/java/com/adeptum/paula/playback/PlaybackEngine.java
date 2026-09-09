@@ -50,6 +50,7 @@ public final class PlaybackEngine implements AutoCloseable {
     private final int sampleRate;
     private final short[] buffer;
     private final AudioTap tap;
+    private final PlaybackDelay delay;
     private final Object rendererLock = new Object();
 
     private volatile AudioSink output;
@@ -70,6 +71,7 @@ public final class PlaybackEngine implements AutoCloseable {
         this.sampleRate = sampleRate;
         this.buffer = new short[bufferFrames * CHANNELS];
         this.tap = new AudioTap(sampleRate * TAP_SECONDS);
+        this.delay = new PlaybackDelay((long) sampleRate * TAP_SECONDS);
         output.open(sampleRate);
         for (final AudioSink copy : copies) {
             copy.open(sampleRate);
@@ -82,6 +84,14 @@ public final class PlaybackEngine implements AutoCloseable {
 
     public PlaybackState state() {
         return state;
+    }
+
+    /**
+     * What the channels were doing at each moment still kept, so that a screen following a device which
+     * plays late can read them back for the moment being heard.
+     */
+    public PlaybackDelay delay() {
+        return delay;
     }
 
     public AudioTap tap() {
@@ -224,6 +234,7 @@ public final class PlaybackEngine implements AutoCloseable {
                 copy.write(buffer, frames);
             }
             tap.write(buffer, frames);
+            delay.record(tap.written(), renderer.channels(), renderer.position());
             return true;
         } catch (RuntimeException e) {
             log.error("Audio output failed, giving up on the current song", e);

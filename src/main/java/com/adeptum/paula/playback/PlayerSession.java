@@ -66,7 +66,6 @@ public final class PlayerSession {
     private static final int WATERFALL_DEPTH = 64;
     private static final Duration SEEK_STEP = Duration.ofSeconds(5);
     private static final String LOADING = "Loading ";
-    private static final int DELAY_SECONDS = 32;
     private static final String CASTING = "Casting to ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
     private static final short[] NO_AUDIO = new short[0];
@@ -95,7 +94,6 @@ public final class PlayerSession {
     private final CastDiscovery discovery;
     private final Outputs outputs;
     private final CastPopup castPopup = new CastPopup();
-    private final PlaybackDelay delay;
     private PlaybackDelay.Moment heard;
 
     /**
@@ -117,7 +115,6 @@ public final class PlayerSession {
         this.discovery = discovery;
         this.outputs = outputs;
         this.deadline = deadline;
-        this.delay = new PlaybackDelay((long) engine.sampleRate() * DELAY_SECONDS);
         this.spectrum = new Spectrum(SPECTRUM_BANDS, engine.sampleRate());
     }
 
@@ -285,12 +282,8 @@ public final class PlayerSession {
      * scopes and the position are looked up for the same moment.
      */
     private short[] heardAudio() {
-        final long written = engine.tap().written();
-        if (module != null && renderer != null) {
-            delay.record(written, renderer.channels(), engine.position());
-        }
-        final long heardAt = written - lagFrames();
-        heard = castingTo() == null ? null : delay.at(heardAt);
+        final long heardAt = engine.tap().written() - lagFrames();
+        heard = castingTo() == null ? null : engine.delay().at(heardAt);
         return engine.tap().snapshot(ANALYSIS_FRAMES, heardAt);
     }
 
@@ -324,7 +317,6 @@ public final class PlayerSession {
     private void playHere() throws AudioException {
         if (castingTo() != null) {
             engine.switchOutput(outputs.local().open());
-            delay.clear();
         }
         castPopup.close();
     }
@@ -332,7 +324,6 @@ public final class PlayerSession {
     private void playOn(CastDevice device) throws AudioException {
         if (!device.equals(castingTo())) {
             engine.switchOutput(outputs.cast().open(device));
-            delay.clear();
             status = null;
         }
         castPopup.close();

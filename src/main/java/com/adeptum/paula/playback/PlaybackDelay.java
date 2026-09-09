@@ -48,7 +48,7 @@ public final class PlaybackDelay {
     public record Moment(long frame, List<ChannelState> channels, Duration position) {
     }
 
-    public void record(long frame, List<ChannelState> channels, Duration position) {
+    public synchronized void record(long frame, List<ChannelState> channels, Duration position) {
         moments.addLast(new Moment(frame, channels, position));
         while (!moments.isEmpty() && moments.peekFirst().frame() < frame - keptFrames) {
             moments.pollFirst();
@@ -58,7 +58,7 @@ public final class PlaybackDelay {
     /**
      * The reading taken as that frame was written, or the nearest before it; the newest when nothing was.
      */
-    public Moment at(long frame) {
+    public synchronized Moment at(long frame) {
         Moment found = null;
         for (final Moment moment : moments) {
             if (moment.frame() > frame) {
@@ -67,9 +67,5 @@ public final class PlaybackDelay {
             found = moment;
         }
         return found != null ? found : moments.isEmpty() ? null : moments.peekFirst();
-    }
-
-    public void clear() {
-        moments.clear();
     }
 }

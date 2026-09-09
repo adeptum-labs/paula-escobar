@@ -161,6 +161,58 @@ class PlaybackEngineTest {
         }
     }
 
+    /**
+     * The channels are read back for the moment being heard, which on a device that plays late is seconds
+     * behind. Taking those readings as the screen is drawn rather than as the sound is rendered leaves the
+     * scopes with one reading a second wherever the player has run on ahead, and they crawl until it catches
+     * up; the sound itself, kept frame by frame, is right all along.
+     */
+    @Test
+    void readsTheChannelsForEveryBufferRatherThanForEveryDrawnFrame() throws AudioException {
+        final CountingRenderer renderer = new CountingRenderer(8);
+        try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
+            engine.play(renderer);
+            engine.awaitEnd();
+
+            for (int buffer = 0; buffer < 8; buffer++) {
+                assertEquals(buffer + 1, engine.delay().at((buffer + 1) * 256L).channels().getFirst().instrument(),
+                        "the reading taken as that buffer was rendered");
+            }
+        }
+    }
+
+    /**
+     * Renders a set number of buffers, each leaving its own reading of the channels behind it.
+     */
+    private static final class CountingRenderer implements Renderer {
+
+        private final int buffers;
+        private int rendered;
+
+        private CountingRenderer(int buffers) {
+            this.buffers = buffers;
+        }
+
+        @Override
+        public int render(short[] interleavedStereo) {
+            return rendered++ < buffers ? interleavedStereo.length / 2 : 0;
+        }
+
+        @Override
+        public List<ChannelState> channels() {
+            return List.of(new ChannelState(0, rendered, 1, new double[0], false));
+        }
+
+        @Override
+        public Duration position() {
+            return Duration.ZERO;
+        }
+
+        @Override
+        public void seek(Duration target) {
+        }
+    }
+
     @Test
     void seekingWithoutASongIsIgnored() throws AudioException {
         try (PlaybackEngine engine = new PlaybackEngine(sink, SAMPLE_RATE, 256)) {
