@@ -22,16 +22,20 @@
 package com.adeptum.paula.audio;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 
 /**
  * Keeps a copy of everything played in a wave file. The header carries the sizes, which
  * are only known at the end, so it is written last, over the room left for it at the start.
+ *
+ * <p>The file is held open as a {@link RandomAccessFile} rather than a channel. The pump
+ * carrying the sound here is interrupted to let go of an output holding it back, and a
+ * channel closes itself under a thread that is interrupted while writing, which would lose
+ * the recording every time a song was changed or the player stopped.</p>
  */
 public final class WaveRecorder implements AudioSink {
 
@@ -41,7 +45,7 @@ public final class WaveRecorder implements AudioSink {
     private static final int FORMAT_CHUNK_BYTES = 16;
 
     private final Path file;
-    private FileChannel channel;
+    private RandomAccessFile open;
     private int sampleRate;
     private long dataBytes;
     private byte[] bytes = new byte[0];
@@ -53,8 +57,9 @@ public final class WaveRecorder implements AudioSink {
     @Override
     public void open(int rate) throws AudioException {
         try {
-            channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-            channel.position(HEADER_BYTES);
+            open = new RandomAccessFile(file.toFile(), "rw");
+            open.setLength(0);
+            open.seek(HEADER_BYTES);
         } catch (IOException e) {
             throw new AudioException("Cannot record to " + file + ": " + e.getMessage(), e);
         }
@@ -65,7 +70,7 @@ public final class WaveRecorder implements AudioSink {
     public void write(short[] interleavedStereo, int frames) {
         bytes = Pcm.toLittleEndian(interleavedStereo, frames, bytes);
         try {
-            writeFully(ByteBuffer.wrap(bytes, 0, frames * Pcm.BYTES_PER_FRAME));
+            open.write(bytes, 0, frames * Pcm.BYTES_PER_FRAME);
             dataBytes += frames * Pcm.BYTES_PER_FRAME;
         } catch (IOException e) {
             throw new IllegalStateException("Recording to " + file + " failed: " + e.getMessage(), e);
@@ -78,33 +83,27 @@ public final class WaveRecorder implements AudioSink {
     }
 
     private void finishFile() {
-        if (channel == null) {
+        if (open == null) {
             return;
         }
-        try (FileChannel open = channel) {
-            open.position(0);
-            writeFully(header());
+        try (RandomAccessFile finishing = open) {
+            finishing.seek(0);
+            finishing.write(header());
         } catch (IOException e) {
             throw new IllegalStateException("Recording to " + file + " could not be finished: " + e.getMessage(), e);
         } finally {
-            channel = null;
+            open = null;
         }
     }
 
-    private ByteBuffer header() {
+    private byte[] header() {
         final ByteBuffer header = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         header.put(ascii("RIFF")).putInt((int) (HEADER_BYTES - 8 + dataBytes)).put(ascii("WAVE"));
         header.put(ascii("fmt ")).putInt(FORMAT_CHUNK_BYTES).putShort((short) PCM_FORMAT).putShort((short) Pcm.CHANNELS);
         header.putInt(sampleRate).putInt(sampleRate * Pcm.BYTES_PER_FRAME);
         header.putShort((short) Pcm.BYTES_PER_FRAME).putShort((short) Short.SIZE);
         header.put(ascii("data")).putInt((int) dataBytes);
-        return header.flip();
-    }
-
-    private void writeFully(ByteBuffer buffer) throws IOException {
-        while (buffer.hasRemaining()) {
-            channel.write(buffer);
-        }
+        return header.array();
     }
 
     private static byte[] ascii(String tag) {

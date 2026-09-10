@@ -69,6 +69,27 @@ class WaveRecorderTest {
         assertTrue(refusal.getMessage().contains("played.wav"), refusal.getMessage());
     }
 
+    /**
+     * The pump is interrupted to let go of an output holding it back, and the recording it carries along
+     * must survive that: the sound played is written and the file still closes as a wave file.
+     */
+    @Test
+    void anInterruptedThreadGoesOnRecording(@TempDir Path dir) throws Exception {
+        final Path wave = dir.resolve("played.wav");
+        try (WaveRecorder recorder = new WaveRecorder(wave)) {
+            recorder.open(SAMPLE_RATE);
+            Thread.currentThread().interrupt();
+            recorder.write(new short[] {1, -1}, 1);
+        } finally {
+            assertTrue(Thread.interrupted(), "The interrupt was swallowed rather than left for the pump.");
+        }
+
+        try (AudioInputStream audio = AudioSystem.getAudioInputStream(wave.toFile())) {
+            assertEquals(1, audio.getFrameLength());
+            assertArrayEquals(new byte[] {1, 0, -1, -1}, audio.readAllBytes());
+        }
+    }
+
     @Test
     void anEmptyRecordingIsStillAWaveFile(@TempDir Path dir) throws IOException, UnsupportedAudioFileException, AudioException {
         final Path wave = dir.resolve("played.wav");
