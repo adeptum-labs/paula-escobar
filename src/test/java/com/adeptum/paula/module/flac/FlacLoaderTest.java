@@ -33,12 +33,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class FlacLoaderTest {
 
     private static final String FIXTURE = "paula-test.flac";
+    private static final String UNTAGGED = "untagged.flac";
     private static final int RATE = 44100;
 
     private final FlacLoader loader = new FlacLoader();
@@ -77,6 +79,14 @@ class FlacLoaderTest {
     }
 
     @Test
+    void readsAFileNobodyTagged(@TempDir Path dir) throws IOException {
+        final ModuleMetadata meta = loader.load(fixture(dir, UNTAGGED)).metadata();
+
+        assertEquals("", meta.title(), "a Vorbis comment block holding only the vendor string names nothing");
+        assertEquals(List.of("44100 Hz, 16 bit, stereo"), meta.credits(), "so the stream is all there is to say");
+    }
+
+    @Test
     void refusesAFileThatHoldsNoStream(@TempDir Path dir) throws IOException {
         final Path notAudio = Files.write(dir.resolve("empty.flac"), new byte[512]);
 
@@ -84,8 +94,12 @@ class FlacLoaderTest {
     }
 
     static Path fixture(Path dir) throws IOException {
-        try (InputStream in = FlacLoaderTest.class.getResourceAsStream("/flac/" + FIXTURE)) {
-            return Files.write(dir.resolve(FIXTURE), in.readAllBytes());
+        return fixture(dir, FIXTURE);
+    }
+
+    private static Path fixture(Path dir, String name) throws IOException {
+        try (InputStream in = FlacLoaderTest.class.getResourceAsStream("/flac/" + name)) {
+            return Files.write(dir.resolve(name), in.readAllBytes());
         }
     }
 }

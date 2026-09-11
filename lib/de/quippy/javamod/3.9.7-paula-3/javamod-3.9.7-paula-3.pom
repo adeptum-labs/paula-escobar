@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.quippy</groupId>
   <artifactId>javamod</artifactId>
-  <version>3.9.7-paula-2</version>
+  <version>3.9.7-paula-3</version>
   <name>JavaMod</name>
   <description>Pure Java player for tracker modules, SID, OPL and more, by Daniel Becker; release 3.9.7 with the fixes in tools/javamod-*.patch applied</description>
   <url>https://github.com/quippy-git/javamod</url>
