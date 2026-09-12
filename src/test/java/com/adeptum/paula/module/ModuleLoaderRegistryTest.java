@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.module.ape.ApeLoader;
+import com.adeptum.paula.module.composer669.Composer669Loader;
 import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
 import com.adeptum.paula.module.hively.HivelyLoader;
@@ -49,8 +50,8 @@ class ModuleLoaderRegistryTest {
     @Test
     void listsBuiltInFormats() {
         assertEquals(List.of(JavaModLoader.FORMAT, SidLoader.FORMAT, SapLoader.FORMAT, DigiBoosterLoader.FORMAT,
-                HivelyLoader.FORMAT, MedLoader.FORMAT, Mo3Loader.FORMAT, Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT,
-                ApeLoader.FORMAT),
+                HivelyLoader.FORMAT, MedLoader.FORMAT, Composer669Loader.FORMAT, Mo3Loader.FORMAT, Mp3Loader.FORMAT,
+                FlacLoader.FORMAT, WavLoader.FORMAT, OggLoader.FORMAT, ApeLoader.FORMAT),
                 registry.formats());
     }
 
