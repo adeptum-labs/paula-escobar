@@ -21,6 +21,8 @@
 
 package com.adeptum.paula.module.mo3;
 
+import de.quippy.javamod.multimedia.mod.ModConstants;
+
 /**
  * One row of one track: a note, the instrument to sound it with, an effect and an effect in the volume column.
  *
@@ -31,11 +33,6 @@ package com.adeptum.paula.module.mo3;
  * counted the same way in both.</p>
  */
 final class Mo3Event {
-
-    static final int NO_NOTE = 0;
-    static final int KEY_OFF = -1;
-    static final int NOTE_CUT = -2;
-    static final int NOTE_FADE = -3;
 
     static final int NO_EFFECT = 0;
 
@@ -55,7 +52,7 @@ final class Mo3Event {
     static final int VOLUME_COLUMN_PITCH_UP = 0x0D;
     static final int VOLUME_COLUMN_OFFSET = 0x0E;
 
-    private int note = NO_NOTE;
+    private int note = ModConstants.NO_NOTE;
     private int instrument;
     private int effect = NO_EFFECT;
     private int effectOp;
@@ -91,10 +88,6 @@ final class Mo3Event {
         this.effectOp = effectOp;
     }
 
-    void effectOp(int effectOp) {
-        this.effectOp = effectOp;
-    }
-
     int volumeEffect() {
         return volumeEffect;
     }
@@ -110,10 +103,5 @@ final class Mo3Event {
 
     boolean hasVolumeEffect() {
         return volumeEffect != VOLUME_COLUMN_NONE;
-    }
-
-    boolean isEmpty() {
-        return note == NO_NOTE && instrument == 0 && effect == NO_EFFECT && effectOp == 0
-                && volumeEffect == VOLUME_COLUMN_NONE;
     }
 }

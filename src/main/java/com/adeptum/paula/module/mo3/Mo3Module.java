@@ -56,7 +56,6 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
     private static final int PANNING_SEPARATION = 128;
     private static final int DEFAULT_SPEED = 6;
     private static final int DEFAULT_TEMPO = 125;
-    private static final int FULL_RIGHT = 256;
     private static final int AMIGA_PANNING_PERIOD = 3;
     private static final int AMIGA_CHANNELS = 4;
 
@@ -93,10 +92,6 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         return module;
     }
 
-    Mo3File file() {
-        return file;
-    }
-
     private void load(byte[] bytes) throws IOException {
         file = Mo3Reader.read(bytes);
         final Mo3Song song = file.song();
@@ -106,7 +101,6 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         setTrackerName(file.kind().tracker());
         setSongName(file.name());
         message = file.message();
-        setSongFlags(songFlags());
 
         setNChannels(song.channels());
         setNPattern(song.patterns());
@@ -121,9 +115,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         readChannels();
         readArrangement();
         readPatterns();
-        if (isAmigaLike()) {
-            setSongFlags(getSongFlags() | ModConstants.SONG_AMIGALIMITS);
-        }
+        setSongFlags(songFlags());
         final InstrumentsContainer instruments = new InstrumentsContainer(this,
                 file.hasInstruments() ? song.instruments() : 0, song.samples());
         Mo3Instruments.read(instruments, file, isAmigaLike());
@@ -168,6 +160,9 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         }
         if (file.hasInstruments()) {
             flags |= ModConstants.SONG_USEINSTRUMENTS;
+        }
+        if (isAmigaLike()) {
+            flags |= ModConstants.SONG_AMIGALIMITS;
         }
         if (file.kind() == Mo3Kind.SCREAM_TRACKER) {
             if (song.has(Mo3Song.S3M_AMIGA_LIMITS)) {
@@ -229,7 +224,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         if (stored == Mo3Song.PANNING_SURROUND) {
             return ModConstants.CHANNEL_IS_SURROUND;
         }
-        return stored == Mo3Song.PANNING_FULL_RIGHT ? FULL_RIGHT : stored;
+        return stored == Mo3Song.PANNING_FULL_RIGHT ? ModConstants.OLD_PANNING_RIGHT : stored;
     }
 
     /**
@@ -302,7 +297,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         if (note > 0 && note <= ModConstants.noteValues.length) {
             return ModConstants.noteValues[note - 1];
         }
-        return note == Mo3Event.NO_NOTE ? 0 : note;
+        return note == ModConstants.NO_NOTE ? 0 : note;
     }
 
     @Override

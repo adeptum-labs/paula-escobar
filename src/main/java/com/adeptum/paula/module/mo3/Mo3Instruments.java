@@ -47,14 +47,12 @@ final class Mo3Instruments {
      */
     private static final int[] VIBRATO_SHAPES = {0, 3, 1, 4, 2, 0, 0, 0};
 
-    private static final int LOUDEST = 64;
-    private static final int MIDDLE_PANNING = 128;
     private static final int SHALLOWEST_FREQUENCY = 256;
     private static final int FINETUNES_PER_SEMITONE = 16;
     private static final int FINEST_AMIGA_TUNE = -8;
     private static final int COARSEST_AMIGA_TUNE = 7;
     private static final int MIDDLE_FINETUNE = 128;
-    private static final int SHAPES = 7;
+    private static final int SHAPE_MASK = 7;
 
     /**
      * The frequency of a sample is written as a step on a scale of a hundred and twenty-eight to the octave
@@ -71,7 +69,6 @@ final class Mo3Instruments {
 
     private static final int PITCH_ENVELOPE_SHIFT = 5;
     private static final int LOUDEST_ENVELOPE = 64;
-    private static final int LOUDEST_INSTRUMENT = 128;
     private static final int PANNING_SWING_STEPS = 4;
     private static final int LOUDEST_SWING = 100;
 
@@ -110,11 +107,11 @@ final class Mo3Instruments {
         sample.sustainLoopLength = mo3.sustainEnd() - mo3.sustainStart();
         sample.loopType = loopType(mo3);
 
-        sample.volume = Math.min(mo3.volume(), LOUDEST);
+        sample.volume = Math.min(mo3.volume(), ModConstants.MAXSAMPLEVOLUME);
         sample.globalVolume = kind == Mo3Kind.IMPULSE_TRACKER
-                ? Math.min(mo3.globalVolume(), LOUDEST) : ModConstants.MAXSAMPLEVOLUME;
+                ? Math.min(mo3.globalVolume(), ModConstants.MAXSAMPLEVOLUME) : ModConstants.MAXSAMPLEVOLUME;
         sample.setPanning = mo3.panning() <= Mo3Sample.LARGEST_PANNING;
-        sample.defaultPanning = sample.setPanning ? mo3.panning() : MIDDLE_PANNING;
+        sample.defaultPanning = sample.setPanning ? mo3.panning() : ModConstants.PANNING_CENTER;
 
         vibrato(sample, mo3.vibrato());
         sample.isStereo = mo3.has(Mo3Sample.STEREO);
@@ -144,7 +141,7 @@ final class Mo3Instruments {
     }
 
     private static void vibrato(Sample sample, Mo3Vibrato mo3) {
-        sample.vibratoType = VIBRATO_SHAPES[mo3.type() & SHAPES];
+        sample.vibratoType = VIBRATO_SHAPES[mo3.type() & SHAPE_MASK];
         sample.vibratoSweep = mo3.sweep();
         sample.vibratoDepth = mo3.depth();
         sample.vibratoRate = mo3.rate();
@@ -194,9 +191,9 @@ final class Mo3Instruments {
         if (kind != Mo3Kind.FAST_TRACKER || namesASample(instrument)) {
             instrument.volumeFadeOut = mo3.fadeOut();
         }
-        instrument.globalVolume = LOUDEST_INSTRUMENT;
+        instrument.globalVolume = ModConstants.MAXGLOBALVOLUME;
         instrument.setPanning = mo3.panningValue() <= Mo3Instrument.LARGEST_PANNING;
-        instrument.defaultPanning = instrument.setPanning ? mo3.panningValue() : MIDDLE_PANNING;
+        instrument.defaultPanning = instrument.setPanning ? mo3.panningValue() : ModConstants.PANNING_CENTER;
         instrument.mute = mo3.has(Mo3Instrument.MUTE);
         if (kind == Mo3Kind.IMPULSE_TRACKER) {
             impulseTracker(instrument, mo3);
@@ -224,7 +221,7 @@ final class Mo3Instruments {
      * of it, how far the sound may wander from one note to the next, and where its filter opens.
      */
     private static void impulseTracker(Instrument instrument, Mo3Instrument mo3) {
-        instrument.globalVolume = Math.min(mo3.globalVolume(), LOUDEST_INSTRUMENT);
+        instrument.globalVolume = Math.min(mo3.globalVolume(), ModConstants.MAXGLOBALVOLUME);
         instrument.NNA = mo3.newNoteAction();
         instrument.pitchPanSeparation = mo3.pitchPanSeparation();
         instrument.pitchPanCenter = mo3.pitchPanCentre();

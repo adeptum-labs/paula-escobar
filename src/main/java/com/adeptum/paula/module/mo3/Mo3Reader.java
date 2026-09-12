@@ -97,7 +97,7 @@ final class Mo3Reader {
         final int[] channelPanning = channelBytes(music);
         music.skip(MACRO_BYTES);
 
-        if (channels == 0 || channels > Mo3Song.LARGEST_CHANNEL_COUNT) {
+        if (channels == 0 || channels > Mo3Song.CHANNELS_IN_HEADER) {
             throw new IOException("The module says it has " + channels + " channels, which no tracker wrote");
         }
         if (restart > orders) {

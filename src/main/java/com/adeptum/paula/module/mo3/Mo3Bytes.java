@@ -95,13 +95,6 @@ final class Mo3Bytes {
     }
 
     /**
-     * Text out of a fixed field, ending at the first zero and stripped of whatever pads it out.
-     */
-    String text(int length) throws IOException {
-        return terminated(bytes(length));
-    }
-
-    /**
      * Text of no stated length, ending at the first zero, which is how the song name and message are stored.
      */
     String textZ() throws IOException {
@@ -117,10 +110,6 @@ final class Mo3Bytes {
 
     boolean has(int count) {
         return count >= 0 && at + count <= file.length;
-    }
-
-    int length() {
-        return file.length;
     }
 
     int remaining() {

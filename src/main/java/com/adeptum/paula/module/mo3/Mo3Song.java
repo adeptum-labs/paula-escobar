@@ -48,12 +48,10 @@ record Mo3Song(int channels, int orders, int restart, int patterns, int tracks, 
     static final int EXTENDED_FILTER_RANGE = 0x200000;
 
     /**
-     * Channel volume and panning are kept for as many channels as Impulse Tracker had room for, whatever the
-     * module goes on to use.
+     * Channel volume and panning are kept for as many channels as Impulse Tracker had room for, which is also
+     * as many as a module may claim to use.
      */
     static final int CHANNELS_IN_HEADER = 64;
-
-    static final int LARGEST_CHANNEL_COUNT = 64;
 
     /**
      * A panning value of its own, rather than one of the two the format spends on surround and full right.

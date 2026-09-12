@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import de.quippy.javamod.multimedia.mod.ModConstants;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -63,7 +64,7 @@ class Mo3TrackTest {
                 Mo3Kind.PROTRACKER);
 
         assertEquals(4, rows[0].instrument(), "the event after it is the one that fills the row");
-        assertEquals(Mo3Event.NO_NOTE, rows[0].note());
+        assertEquals(ModConstants.NO_NOTE, rows[0].note());
     }
 
     @Test

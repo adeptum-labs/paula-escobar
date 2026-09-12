@@ -26,6 +26,7 @@
 
 package com.adeptum.paula.module.mo3;
 
+import de.quippy.javamod.multimedia.mod.ModConstants;
 import de.quippy.javamod.multimedia.mod.loader.instrument.InstrumentsContainer;
 import de.quippy.javamod.multimedia.mod.loader.instrument.Sample;
 import java.util.Arrays;
@@ -40,35 +41,56 @@ import java.util.List;
  */
 final class Mo3Waveforms {
 
-    private static final int EIGHT_BIT_SHIFT = 24;
-    private static final int SIXTEEN_BIT_SHIFT = 16;
-
     private Mo3Waveforms() {
     }
 
     static void read(InstrumentsContainer container, Mo3File file, int modType) {
         final List<Mo3Sample> samples = file.samples();
-        int at = file.sampleData();
+        final int[] waveformAt = waveformOffsets(file);
         for (int index = 0; index < samples.size(); index++) {
             final Mo3Sample mo3 = samples.get(index);
             final Sample sample = container.getSample(index);
             if (mo3.isDuplicate()) {
                 copyWaveform(container, samples, index);
             } else if (sample.sampleLength > 0) {
-                at = readWaveform(file, index, mo3, sample, at, modType);
+                readWaveform(file, index, mo3, sample, waveformAt, modType);
             }
         }
+    }
+
+    /**
+     * Where each waveform begins. They follow one another in the order the samples were named, so the whole
+     * run is stepped over once here rather than again for every sample that reaches back to another's.
+     */
+    private static int[] waveformOffsets(Mo3File file) {
+        final List<Mo3Sample> samples = file.samples();
+        final int[] offsets = new int[samples.size()];
+        int at = file.sampleData();
+        for (int index = 0; index < samples.size(); index++) {
+            offsets[index] = at;
+            final Mo3Sample mo3 = samples.get(index);
+            if (!mo3.isDuplicate() && mo3.length() > 0) {
+                at += waveformLength(mo3);
+            }
+        }
+        return offsets;
     }
 
     /**
      * A waveform of no compression at all takes the room its samples need; anything packed takes the room its
      * header states, whether or not this reads the packing it was given.
      */
-    private static int readWaveform(Mo3File file, int index, Mo3Sample mo3, Sample sample, int at, int modType) {
+    private static int waveformLength(Mo3Sample mo3) {
         final int packed = mo3.compressedSize();
-        final int length = packed > 0 ? packed : mo3.length() * bytesPerSample(mo3) * mo3.channels();
+        return packed > 0 ? packed : mo3.length() * bytesPerSample(mo3) * mo3.channels();
+    }
+
+    private static void readWaveform(Mo3File file, int index, Mo3Sample mo3, Sample sample, int[] waveformAt,
+            int modType) {
+        final int at = waveformAt[index];
+        final int length = waveformLength(mo3);
         if (at < 0 || length < 0 || at + length > file.file().length) {
-            return at;
+            return;
         }
 
         final boolean wide = mo3.has(Mo3Sample.SIXTEEN_BIT);
@@ -81,47 +103,32 @@ final class Mo3Waveforms {
             case Mo3Sample.MPEG -> {
                 Mo3Mpeg.unpack(file.file(), at, length, waveform, mo3.encoderDelay());
                 keep(sample, waveform, true, modType);
-                return at + length;
+                return;
             }
             case Mo3Sample.OGG, Mo3Sample.SHARED_OGG -> {
-                Mo3Ogg.unpack(vorbis(file, index, mo3, at, length), waveform);
+                Mo3Ogg.unpack(vorbis(file, index, mo3, waveformAt, length), waveform);
                 keep(sample, waveform, true, modType);
-                return at + length;
+                return;
             }
             default -> {
-                return at + length;
+                return;
             }
         }
         keep(sample, waveform, wide, modType);
-        return at + length;
     }
 
     /**
      * The stream to hand a Vorbis decoder: the sample's own pages, with the beginning it borrows from another
      * sample put in front of them where it has one.
      */
-    private static byte[] vorbis(Mo3File file, int index, Mo3Sample mo3, int at, int length) {
+    private static byte[] vorbis(Mo3File file, int index, Mo3Sample mo3, int[] waveformAt, int length) {
+        final int at = waveformAt[index];
         final int shared = index + mo3.sharedOggHeader();
         if (mo3.compression() != Mo3Sample.SHARED_OGG || shared == index
-                || shared < 0 || shared >= file.samples().size() || mo3.encoderDelay() <= 0) {
+                || shared < 0 || shared >= waveformAt.length || mo3.encoderDelay() <= 0) {
             return Arrays.copyOfRange(file.file(), at, at + length);
         }
-        return Mo3Ogg.shared(file.file(), waveformAt(file, shared), mo3.encoderDelay(), at, length);
-    }
-
-    /**
-     * Where the waveform of a sample begins, which is only known by stepping over everything before it.
-     */
-    private static int waveformAt(Mo3File file, int index) {
-        int at = file.sampleData();
-        for (int before = 0; before < index; before++) {
-            final Mo3Sample mo3 = file.samples().get(before);
-            if (!mo3.isDuplicate() && mo3.length() > 0) {
-                at += mo3.compressedSize() > 0 ? mo3.compressedSize()
-                        : mo3.length() * bytesPerSample(mo3) * mo3.channels();
-            }
-        }
-        return at;
+        return Mo3Ogg.shared(file.file(), waveformAt[shared], mo3.encoderDelay(), at, length);
     }
 
     private static void plain(byte[] file, int at, int[][] waveform, boolean wide) {
@@ -149,16 +156,22 @@ final class Mo3Waveforms {
 
     private static void keep(Sample sample, int[][] waveform, boolean wide, int modType) {
         sample.allocSampleData();
-        final int shift = wide ? SIXTEEN_BIT_SHIFT : EIGHT_BIT_SHIFT;
-        for (int at = 0; at < waveform[0].length; at++) {
-            sample.sampleL[at] = (long) waveform[0][at] << shift;
-        }
+        promote(waveform[0], sample.sampleL, wide);
         if (sample.sampleR != null && waveform.length > 1) {
-            for (int at = 0; at < waveform[1].length; at++) {
-                sample.sampleR[at] = (long) waveform[1][at] << shift;
-            }
+            promote(waveform[1], sample.sampleR, wide);
         }
         sample.fixSampleLoops(modType);
+    }
+
+    /**
+     * Samples are held at the width the mixer works in, which is what the module's own reader promotes them to.
+     */
+    private static void promote(int[] waveform, long[] into, boolean wide) {
+        for (int at = 0; at < waveform.length; at++) {
+            into[at] = wide
+                    ? ModConstants.promoteSigned16BitToSigned32Bit(waveform[at])
+                    : ModConstants.promoteSigned8BitToSigned32Bit(waveform[at]);
+        }
     }
 
     private static int bytesPerSample(Mo3Sample mo3) {

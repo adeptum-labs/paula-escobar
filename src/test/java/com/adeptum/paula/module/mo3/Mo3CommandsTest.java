@@ -23,6 +23,7 @@ package com.adeptum.paula.module.mo3;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import de.quippy.javamod.multimedia.mod.ModConstants;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -66,9 +67,9 @@ class Mo3CommandsTest {
 
     @Test
     void readsTheNotesThatAreNotNotes() {
-        assertEquals(Mo3Event.KEY_OFF, applied(NOTE, 0xFF, Mo3Kind.IMPULSE_TRACKER).note());
-        assertEquals(Mo3Event.NOTE_CUT, applied(NOTE, 0xFE, Mo3Kind.IMPULSE_TRACKER).note());
-        assertEquals(Mo3Event.NOTE_FADE, applied(NOTE, 120, Mo3Kind.IMPULSE_TRACKER).note());
+        assertEquals(ModConstants.KEY_OFF, applied(NOTE, 0xFF, Mo3Kind.IMPULSE_TRACKER).note());
+        assertEquals(ModConstants.NOTE_CUT, applied(NOTE, 0xFE, Mo3Kind.IMPULSE_TRACKER).note());
+        assertEquals(ModConstants.NOTE_FADE, applied(NOTE, 120, Mo3Kind.IMPULSE_TRACKER).note());
     }
 
     @Test

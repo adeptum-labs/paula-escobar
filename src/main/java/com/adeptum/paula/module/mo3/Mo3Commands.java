@@ -26,6 +26,9 @@
 
 package com.adeptum.paula.module.mo3;
 
+import de.quippy.javamod.multimedia.mod.ModConstants;
+import java.util.Arrays;
+
 /**
  * Turns the commands of an MO3 back into the effects the tracker that wrote the module used.
  *
@@ -74,21 +77,19 @@ final class Mo3Commands {
      * The effects Fast Tracker gave letters to carry on from the sixteen it numbered, and two more sit past
      * the end of the alphabet.
      */
+    /**
+     * The stretch of commands that stands for the sixteen effects ProTracker numbered, in their own order.
+     */
+    private static final int FIRST_NUMBERED_COMMAND = 0x03;
+    private static final int LAST_NUMBERED_COMMAND = 0x12;
+
     private static final int XM_FIRST_LETTER = 0x10;
     private static final int XM_SMOOTH_MIDI = 0x24;
     private static final int XM_PARAMETER_EXTENSION = 0x26;
 
-    /**
-     * The ten volume-column portamento values Impulse Tracker allows, which an MO3 writes as the value itself
-     * rather than as the place it holds in this table.
-     */
-    private static final int[] IT_PORTAMENTO_VALUES = {0x00, 0x01, 0x04, 0x08, 0x10, 0x20, 0x40, 0x60, 0x80, 0xFF};
-
-    private static final int NOTES = 120;
     private static final int KEY_OFF = 0xFF;
     private static final int NOTE_CUT = 0xFE;
 
-    private static final int LOUDEST = 64;
     private static final int PANNING_RIGHT = 0xFF;
     private static final int HIGH_NIBBLE = 0xF0;
     private static final int LOW_NIBBLE = 0x0F;
@@ -98,6 +99,13 @@ final class Mo3Commands {
      * The volume column holds ten steps of each of the slides and portamentos it can carry.
      */
     private static final int COLUMN_STEPS = 10;
+
+    /**
+     * The four slides Impulse Tracker counts off in tens, in the order it counts them.
+     */
+    private static final int[] SLIDES_BY_TENS = {
+            Mo3Event.VOLUME_COLUMN_FINE_UP, Mo3Event.VOLUME_COLUMN_FINE_DOWN,
+            Mo3Event.VOLUME_COLUMN_SLIDE_UP, Mo3Event.VOLUME_COLUMN_SLIDE_DOWN};
 
     private static final int TENS = 10;
     private static final int IT_PANNING_STEPS = 4;
@@ -128,8 +136,12 @@ final class Mo3Commands {
             case VOLUME -> volume(event, value, kind);
             case PATTERN_BREAK -> patternBreak(event, value, kind);
             case SPEED_OR_TEMPO -> speedOrTempo(event, value, screamTracker);
-            case VOLUME_SLIDE_COARSE, VOLUME_SLIDE_FINE -> columnVolumeSlide(event, command, value);
-            case PANNING_SLIDE_COLUMN -> columnPanningSlide(event, value);
+            case VOLUME_SLIDE_COARSE -> nibbleColumn(event, value,
+                    Mo3Event.VOLUME_COLUMN_SLIDE_UP, Mo3Event.VOLUME_COLUMN_SLIDE_DOWN);
+            case VOLUME_SLIDE_FINE -> nibbleColumn(event, value,
+                    Mo3Event.VOLUME_COLUMN_FINE_UP, Mo3Event.VOLUME_COLUMN_FINE_DOWN);
+            case PANNING_SLIDE_COLUMN -> nibbleColumn(event, value,
+                    Mo3Event.VOLUME_COLUMN_PAN_RIGHT, Mo3Event.VOLUME_COLUMN_PAN_LEFT);
             case EXTRA_FINE_PORTAMENTO_UP -> event.effect(effect(command, screamTracker), EXTRA_FINE_UP | value);
             case EXTRA_FINE_PORTAMENTO_DOWN -> event.effect(effect(command, screamTracker), EXTRA_FINE_DOWN | value);
             case VIBRATO_SPEED_COLUMN -> event.volumeEffect(Mo3Event.VOLUME_COLUMN_VIBRATO_SPEED, value);
@@ -148,31 +160,33 @@ final class Mo3Commands {
      * happen to land on the same note for the same value; MultiTracker sits a semitone above them.
      */
     private static int note(int value, Mo3Kind kind) {
-        if (value < NOTES) {
+        if (value < ModConstants.NOTE_MAX) {
             return value + (kind == Mo3Kind.MULTITRACKER ? 2 : 1);
         }
         return switch (value) {
-            case KEY_OFF -> Mo3Event.KEY_OFF;
-            case NOTE_CUT -> Mo3Event.NOTE_CUT;
-            default -> Mo3Event.NOTE_FADE;
+            case KEY_OFF -> ModConstants.KEY_OFF;
+            case NOTE_CUT -> ModConstants.NOTE_CUT;
+            default -> ModConstants.NOTE_FADE;
         };
     }
 
     /**
      * Impulse Tracker and Fast Tracker both hold a tone portamento in the volume column when it is coarse
-     * enough to fit there, which is what an MO3 counts on rather than writing the column command itself.
+     * enough to fit there, which is what an MO3 counts on rather than writing the column command itself. An
+     * MO3 writes the speed itself, so the ten Impulse Tracker allows are looked back up as the step the mixer
+     * reads them as.
      */
     private static void tonePortamento(Mo3Event event, int value, Mo3Kind kind) {
-        if (!event.hasVolumeEffect() && kind == Mo3Kind.FAST_TRACKER && (value & LOW_NIBBLE) == 0) {
-            event.volumeEffect(Mo3Event.VOLUME_COLUMN_TONE_PORTAMENTO, value >> NIBBLE);
-            return;
-        }
-        if (!event.hasVolumeEffect() && kind == Mo3Kind.IMPULSE_TRACKER) {
-            for (int step = 0; step < IT_PORTAMENTO_VALUES.length; step++) {
-                if (IT_PORTAMENTO_VALUES[step] == value) {
-                    event.volumeEffect(Mo3Event.VOLUME_COLUMN_TONE_PORTAMENTO, step);
-                    return;
-                }
+        if (!event.hasVolumeEffect()) {
+            if (kind == Mo3Kind.FAST_TRACKER && (value & LOW_NIBBLE) == 0) {
+                event.volumeEffect(Mo3Event.VOLUME_COLUMN_TONE_PORTAMENTO, value >> NIBBLE);
+                return;
+            }
+            final int step = kind == Mo3Kind.IMPULSE_TRACKER
+                    ? Arrays.binarySearch(ModConstants.IT_VolColumnPortaNoteSpeedTranslation, value) : -1;
+            if (step >= 0) {
+                event.volumeEffect(Mo3Event.VOLUME_COLUMN_TONE_PORTAMENTO, step);
+                return;
             }
         }
         event.effect(effect(TONE_PORTAMENTO, kind.isScreamTrackerFamily()), value);
@@ -189,7 +203,7 @@ final class Mo3Commands {
     private static void panning(Mo3Event event, int value, Mo3Kind kind) {
         if (!event.hasVolumeEffect()) {
             if (kind == Mo3Kind.IMPULSE_TRACKER && value == PANNING_RIGHT) {
-                event.volumeEffect(Mo3Event.VOLUME_COLUMN_PANNING, LOUDEST);
+                event.volumeEffect(Mo3Event.VOLUME_COLUMN_PANNING, ModConstants.MAXSAMPLEVOLUME);
                 return;
             }
             if (kind == Mo3Kind.IMPULSE_TRACKER && value % IT_PANNING_STEPS == 0) {
@@ -205,7 +219,7 @@ final class Mo3Commands {
     }
 
     private static void volume(Mo3Event event, int value, Mo3Kind kind) {
-        if (kind != Mo3Kind.PROTRACKER && !event.hasVolumeEffect() && value <= LOUDEST) {
+        if (kind != Mo3Kind.PROTRACKER && !event.hasVolumeEffect() && value <= ModConstants.MAXSAMPLEVOLUME) {
             event.volumeEffect(Mo3Event.VOLUME_COLUMN_VOLUME, value);
         } else {
             event.effect(effect(VOLUME, kind.isScreamTrackerFamily()), value);
@@ -233,22 +247,15 @@ final class Mo3Commands {
         }
     }
 
-    private static void columnVolumeSlide(Mo3Event event, int command, int value) {
-        final boolean coarse = command == VOLUME_SLIDE_COARSE;
+    /**
+     * The volume column carries each of its slides as one nibble or the other, the high one counting the way
+     * up and the low one the way down.
+     */
+    private static void nibbleColumn(Mo3Event event, int value, int up, int down) {
         if ((value & HIGH_NIBBLE) != 0) {
-            event.volumeEffect(coarse ? Mo3Event.VOLUME_COLUMN_SLIDE_UP : Mo3Event.VOLUME_COLUMN_FINE_UP,
-                    value >> NIBBLE);
+            event.volumeEffect(up, value >> NIBBLE);
         } else {
-            event.volumeEffect(coarse ? Mo3Event.VOLUME_COLUMN_SLIDE_DOWN : Mo3Event.VOLUME_COLUMN_FINE_DOWN,
-                    value & LOW_NIBBLE);
-        }
-    }
-
-    private static void columnPanningSlide(Mo3Event event, int value) {
-        if ((value & HIGH_NIBBLE) != 0) {
-            event.volumeEffect(Mo3Event.VOLUME_COLUMN_PAN_RIGHT, value >> NIBBLE);
-        } else {
-            event.volumeEffect(Mo3Event.VOLUME_COLUMN_PAN_LEFT, value & LOW_NIBBLE);
+            event.volumeEffect(down, value & LOW_NIBBLE);
         }
     }
 
@@ -272,13 +279,9 @@ final class Mo3Commands {
      * units how far.
      */
     private static void columnVolumeSlideByTens(Mo3Event event, int value) {
-        final int by = value % COLUMN_STEPS;
-        switch (value / COLUMN_STEPS) {
-            case 0 -> event.volumeEffect(Mo3Event.VOLUME_COLUMN_FINE_UP, by);
-            case 1 -> event.volumeEffect(Mo3Event.VOLUME_COLUMN_FINE_DOWN, by);
-            case 2 -> event.volumeEffect(Mo3Event.VOLUME_COLUMN_SLIDE_UP, by);
-            case 3 -> event.volumeEffect(Mo3Event.VOLUME_COLUMN_SLIDE_DOWN, by);
-            default -> { }
+        final int slide = value / COLUMN_STEPS;
+        if (slide < SLIDES_BY_TENS.length) {
+            event.volumeEffect(SLIDES_BY_TENS[slide], value % COLUMN_STEPS);
         }
     }
 
@@ -345,22 +348,9 @@ final class Mo3Commands {
      */
     private static int[] protrackerEffects() {
         final int[] effects = new int[COMMANDS];
-        effects[0x03] = 0x00;
-        effects[0x04] = 0x01;
-        effects[0x05] = 0x02;
-        effects[0x06] = 0x03;
-        effects[0x07] = 0x04;
-        effects[0x08] = 0x05;
-        effects[0x09] = 0x06;
-        effects[0x0A] = 0x07;
-        effects[0x0B] = 0x08;
-        effects[0x0C] = 0x09;
-        effects[0x0D] = 0x0A;
-        effects[0x0E] = 0x0B;
-        effects[0x0F] = 0x0C;
-        effects[0x10] = 0x0D;
-        effects[0x11] = 0x0E;
-        effects[0x12] = 0x0F;
+        for (int command = FIRST_NUMBERED_COMMAND; command <= LAST_NUMBERED_COMMAND; command++) {
+            effects[command] = command - FIRST_NUMBERED_COMMAND;
+        }
         effects[0x13] = xmLetter('T');
         effects[0x16] = xmLetter('G');
         effects[0x17] = xmLetter('H');
