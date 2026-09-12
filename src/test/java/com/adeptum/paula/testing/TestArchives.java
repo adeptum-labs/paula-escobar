@@ -25,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -78,8 +79,16 @@ public final class TestArchives {
     }
 
     public static byte[] zip(Map<String, byte[]> entries) throws IOException {
+        return zip(entries, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Names in any charset but UTF-8 are written the way the zippers of old wrote them: without the flag that
+     * says what they are.
+     */
+    public static byte[] zip(Map<String, byte[]> entries, Charset names) throws IOException {
         final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+        try (ZipOutputStream zip = new ZipOutputStream(bytes, names)) {
             for (final Map.Entry<String, byte[]> entry : entries.entrySet()) {
                 zip.putNextEntry(new ZipEntry(entry.getKey()));
                 zip.write(entry.getValue());

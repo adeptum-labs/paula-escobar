@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.archive;
 
+import com.adeptum.paula.text.CodePage437;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,6 +31,10 @@ import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+/**
+ * Reads zip archives. A name flagged as UTF-8 is read as that; one without the flag is read as code page 437,
+ * the way the zippers of the DOS days wrote them and the way other readers take them.
+ */
 public final class ZipExtractor implements ArchiveExtractor {
 
     private static final byte[] MAGIC = {'P', 'K', 3, 4};
@@ -41,7 +46,8 @@ public final class ZipExtractor implements ArchiveExtractor {
 
     @Override
     public void extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
-        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(Files.newInputStream(archive)))) {
+        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(Files.newInputStream(archive)),
+                CodePage437.CHARSET)) {
             for (ZipEntry entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
                 final String name = entry.getName().replace('\\', '/');
                 if (!entry.isDirectory() && wanted.test(name)) {

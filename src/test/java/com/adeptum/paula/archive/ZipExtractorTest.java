@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
+import com.adeptum.paula.text.CodePage437;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -64,6 +65,20 @@ class ZipExtractorTest {
         try (Stream<Path> files = Files.walk(into)) {
             assertEquals(2, files.filter(Files::isRegularFile).count());
         }
+    }
+
+    /**
+     * The zippers of the DOS days wrote names in code page 437 and set no flag to say so, and a reader that
+     * takes such a name for UTF-8 refuses the whole archive at its first umlaut.
+     */
+    @Test
+    void readsNamesWrittenInTheDosCodePage(@TempDir Path dir) throws IOException {
+        final String name = "Oh Hört, du mîn Licht.xm";
+        final Path archive = Files.write(dir.resolve("a.zip"), TestArchives.zip(Map.of(name, README), CodePage437.CHARSET));
+
+        extractor.extract(archive, dir.resolve("out"), wanted -> wanted.endsWith(".xm"));
+
+        assertArrayEquals(README, Files.readAllBytes(dir.resolve("out").resolve(name)));
     }
 
     @Test
