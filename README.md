@@ -122,51 +122,47 @@ view afresh; delete the directory to start over.
 
 ### Chip and Amiga formats
 
-Tracker modules are decoded by [JavaMod](https://github.com/quippy-git/javamod),
-Daniel Becker's pure-Java player, which also brings the libsidplay2 port with
-reSID emulation that plays Commodore 64 SID tunes; its jar is vendored under
-`lib/` with the fixes in `tools/javamod-*.patch` compiled in by
-`tools/patch-javamod`. The Atari Falcon's FlexTrax modules are ProTracker
-modules under their own extension and play as those, with the reverb and the
-delay the Falcon's DSP laid over the mix put back over it by replayers
-written for Paula that follow the tracker's own DSP program; the settings for
-those are kept in a block of the file that
-[docs/flextrax-format.md](docs/flextrax-format.md) describes. MPEG audio,
-FLAC, Ogg Vorbis, Monkey's Audio, wave,
-AIFF and AU files, the formats a streaming competition is handed in as, are
-decoded by JLayer, jFLAC, jOrbis and jMAC and resampled to the rate the
-engine mixes at; `--rate 44100` hands a CD-rate file through untouched.
+`paula formats` prints what plays; a file named the way Modland names them,
+`MOD.tune`, counts as well.
 
-A SID tune plays for the length in the High Voltage SID Collection's song
-length database, fetched into the cache on first use and refreshed monthly,
-or three minutes when unlisted; a C64 party file that is a 1541 disk or a
-tape image has its programs run by the same emulation. Atari 8-bit SAP files
-and the native modules of the Atari trackers play through
-[ASAP](https://asap.sourceforge.net), Piotr Fusik's POKEY and 6502 emulation,
-for the length their TIME tag gives, each POKEY channel with a scope of its
-own. DigiBooster Pro 2 and 3 modules and AHX and HivelyTracker modules are
-played by replayers written for Paula that follow
+| Format | Extensions |
+|---|---|
+| Tracker modules of ProTracker, Fast Tracker, Scream Tracker, Impulse Tracker, MultiTracker and Farandole | `.mod` `.stk` `.nst` `.wow` `.flx` `.xm` `.s3m` `.stm` `.stx` `.sts` `.it` `.mptm` `.mtm` `.far` |
+| Commodore 64 SID tunes and programs | `.sid` `.psid` `.rsid` `.prg` `.p00` `.c64` |
+| Atari 8-bit tunes | `.sap` `.cmc` `.cm3` `.cmr` `.cms` `.dmc` `.dlt` `.mpt` `.mpd` `.rmt` `.tmc` `.tm2` `.tm8` `.fc` `.d8` `.d15` `.md1` `.md2` |
+| DigiBooster Pro modules | `.dbm` |
+| AHX and HivelyTracker modules | `.ahx` `.thx` `.hvl` |
+| OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
+| Composer 669 and UNIS 669 modules | `.669` |
+| MO3 compressed modules | `.mo3` |
+| MPEG audio | `.mp1` `.mp2` `.mp3` |
+| FLAC | `.flac` |
+| Ogg Vorbis | `.ogg` `.oga` |
+| Monkey's Audio | `.ape` `.apl` `.mac` |
+| Wave, AIFF and AU | `.wav` `.wave` `.aif` `.aiff` `.aifc` `.au` `.snd` |
+
+Tracker modules and Commodore 64 SID tunes play through
+[JavaMod](https://github.com/quippy-git/javamod), Daniel Becker's pure-Java
+player with its libsidplay2 port, vendored under `lib/` with the fixes in
+`tools/javamod-*.patch`. A SID tune plays for the length in the High Voltage
+SID Collection's database, fetched on first use, or three minutes when
+unlisted. Atari 8-bit tunes play through [ASAP](https://asap.sourceforge.net),
+Piotr Fusik's POKEY and 6502 emulation, for the length their TIME tag gives.
+MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave, AIFF and AU files are
+decoded by JLayer, jFLAC, jOrbis and jMAC and resampled to the engine's rate;
+`--rate 44100` hands a CD-rate file through untouched.
+
+The rest is played by replayers written for Paula, each with a scope and
+muting per voice: the Atari Falcon's FlexTrax modules with the reverb and
+delay of the Falcon's DSP, described in
+[docs/flextrax-format.md](docs/flextrax-format.md); DigiBooster Pro and AHX
+and HivelyTracker modules, sample for sample as
 [libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
-and [HivelyTracker](https://github.com/pete-gordon/hivelytracker)'s
-`hvl_replay.c` and render sample for sample as those do, with a scope and
-muting per voice. OctaMED modules of every kind, MMD0 through MMD3, are
-played by a third that follows the MED loaders and player of
-[libxmp](https://github.com/libxmp/libxmp), sounding the sampled,
-multi-octave, synthetic and hybrid instruments alike, with a scope and
-muting per track; its mixdown is Paula's own rather than libxmp's. Composer
-669 and UNIS 669 modules, from the PC tracker that counted its notes in
-hertz, are played by a fourth that follows what
-[OpenMPT](https://openmpt.org)'s player found the original to do: slides
-and vibrato by whole hertz, effects that carry on until the next note, and
-the pan slide and retrigger of the UNIS extension. MO3
-files, the compressed form the demoscene passes those trackers' modules
-around in, are unpacked back into the module the tracker wrote and played
-by its own player: the song, the effects and the instruments as Impulse
-Tracker, Scream Tracker, ProTracker, Fast Tracker or MultiTracker meant
-them, and the samples whether they were kept whole, delta packed, or
-squeezed into MPEG audio or Ogg Vorbis. Nothing
-under `net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
-`tools/patch-javamod` rebuilds the vendored JavaMod jar with its fixes.
+and [HivelyTracker](https://github.com/pete-gordon/hivelytracker) render
+them; OctaMED modules of every kind, following the MED player of
+[libxmp](https://github.com/libxmp/libxmp); Composer 669 and UNIS 669
+modules, following what [OpenMPT](https://openmpt.org) found the original
+to do; and MO3 files, unpacked back into the module the tracker wrote.
 
 ### Casting
 
