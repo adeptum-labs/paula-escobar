@@ -171,44 +171,19 @@ under `net.sf.asap` is edited by hand; `tools/generate-asap` regenerates it, as
 ### Casting
 
 Press `c` in the player, or click `cast` in the footer, and Paula lists this
-machine and every Google Cast device on the network: Nest speakers and
-displays, Chromecasts and televisions with Chromecast built in. Choose one and
-the song moves there without stopping; choose this machine to bring it back.
-The footer only offers it once a device has answered, and the popup shows the
-network being scanned while it is. `--output cast` plays there from the start,
-`--cast NAME` says which device when there is more than one, by the name it
-was given or its address.
+machine and every Google Cast device on the network. Choose one and the song
+moves there without stopping; choose this machine to bring it back.
+`--output cast` plays there from the start and `--cast NAME` says which
+device, by the name it was given or its address.
 
 A Cast device fetches the sound rather than being sent it, so Paula serves it
-an endless wave file and tells it where to look. Left to itself a device
-fetches near a minute ahead and plays that far behind; Paula gives it three
-seconds to start on, lets the rest go out until it holds ten, and waits for
-it whenever it runs more than four seconds behind, which is what the lag
-settles at. `--cast-lag SECONDS` asks for a shorter one, down to what the
-device keeps of its own: below that it runs dry and stutters. A device asked
-to play one song while it is playing another will not start until it holds
-some nine seconds of the new one, so those ten are what keeps the sound from
-stopping for as long as it takes to fetch them. That lag is measured rather
-than assumed, from where the device says it is against what it has been
-given, and everything on the screen follows the sound being heard rather
-than the sound being sent: the spectrum and the scopes read back by that
-much, the position with them, and the status line saying how far behind the
-device runs. Screens show a card through Google's own media receiver, with
-the song's name, the musician, how far through it is, and a picture: the
-one Demozoo holds of the release where it holds any, otherwise the
-`file_id.diz` art the release carries, otherwise the party's own logo,
-each set in the code page it was drawn in, and failing all of them a card
-of the song drawn the same way. All of it is served beside the sound.
-The scopes themselves stay in the terminal,
-since drawing them on the device needs a receiver of Paula's own,
-registered and hosted with Google.
-
-Seeking hands the song to the device again from where the player stands,
-since it is otherwise holding seconds of the sound from before the seek
-and would play those out first. The device is told where in the song that
-is, so the card counts with the player rather than from nothing; it plays
-what it is given before it asks for the byte that moment sits at, so it is
-given silence until it asks and none of the song is spent on it.
+an endless wave file, paced so the device runs some four seconds behind;
+`--cast-lag SECONDS` asks for less, down to what the device keeps of its own.
+That lag is measured from where the device says it is, and the spectrum, the
+scopes and the position follow the sound being heard rather than the sound
+being sent. Screens show a card with the song, the musician and a picture
+from Demozoo, the release's `file_id.diz` or the party's logo. Seeking hands
+the song to the device again from where the player stands.
 
 The sound is served on port 7373, or the one `--cast-port` names, from the
 address the device was reached through; a firewall between the two must let
@@ -232,25 +207,6 @@ machine serves PulseAudio on its loopback with
 a reverse tunnel with `RemoteForward 4713 127.0.0.1:4713` in its
 `~/.ssh/config`; the script points `PULSE_SERVER` at the tunnel and says
 what is missing when nothing answers.
-
-## Releases
-
-Every release hangs off its tag on GitHub with an executable for Linux, macOS
-and Windows and the runnable jar, also kept under `releases/` here; the jar
-needs a Java 21 runtime:
-
-```
-java -jar paula-escobar-0.1.0.jar
-```
-
-`./create-release.sh` builds and tests at the version the pom is working
-towards, records the jar in a `Release X.Y.Z` commit with an annotated tag
-and opens the next snapshot, pushing nothing. Sending the tag builds the
-executables and drafts the release:
-
-```
-git push && git push origin v0.1.0
-```
 
 ## License
 
