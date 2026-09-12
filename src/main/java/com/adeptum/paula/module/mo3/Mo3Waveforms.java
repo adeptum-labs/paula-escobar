@@ -29,7 +29,6 @@ package com.adeptum.paula.module.mo3;
 import de.quippy.javamod.multimedia.mod.ModConstants;
 import de.quippy.javamod.multimedia.mod.loader.instrument.InstrumentsContainer;
 import de.quippy.javamod.multimedia.mod.loader.instrument.Sample;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -106,7 +105,7 @@ final class Mo3Waveforms {
                 return;
             }
             case Mo3Sample.OGG, Mo3Sample.SHARED_OGG -> {
-                Mo3Ogg.unpack(vorbis(file, index, mo3, waveformAt, length), waveform);
+                unpackVorbis(file, index, mo3, waveformAt, length, waveform);
                 keep(sample, waveform, true, modType);
                 return;
             }
@@ -121,14 +120,17 @@ final class Mo3Waveforms {
      * The stream to hand a Vorbis decoder: the sample's own pages, with the beginning it borrows from another
      * sample put in front of them where it has one.
      */
-    private static byte[] vorbis(Mo3File file, int index, Mo3Sample mo3, int[] waveformAt, int length) {
+    private static void unpackVorbis(Mo3File file, int index, Mo3Sample mo3, int[] waveformAt, int length,
+            int[][] waveform) {
         final int at = waveformAt[index];
         final int shared = index + mo3.sharedOggHeader();
         if (mo3.compression() != Mo3Sample.SHARED_OGG || shared == index
                 || shared < 0 || shared >= waveformAt.length || mo3.encoderDelay() <= 0) {
-            return Arrays.copyOfRange(file.file(), at, at + length);
+            Mo3Ogg.unpack(file.file(), at, length, waveform);
+            return;
         }
-        return Mo3Ogg.shared(file.file(), waveformAt[shared], mo3.encoderDelay(), at, length);
+        final byte[] merged = Mo3Ogg.shared(file.file(), waveformAt[shared], mo3.encoderDelay(), at, length);
+        Mo3Ogg.unpack(merged, 0, merged.length, waveform);
     }
 
     private static void plain(byte[] file, int at, int[][] waveform, boolean wide) {

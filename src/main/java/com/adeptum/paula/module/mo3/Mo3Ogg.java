@@ -73,7 +73,7 @@ final class Mo3Ogg {
     /**
      * Decodes a whole Ogg Vorbis stream into the waveform, filling as much of it as the stream reaches.
      */
-    static void unpack(byte[] stream, int[][] waveform) {
+    static void unpack(byte[] stream, int from, int length, int[][] waveform) {
         final SyncState sync = new SyncState();
         final StreamState pages = new StreamState();
         final Page page = new Page();
@@ -84,7 +84,7 @@ final class Mo3Ogg {
         sync.init();
         info.init();
         comment.init();
-        feed(sync, stream);
+        feed(sync, stream, from, length);
 
         try {
             if (!readHeaders(sync, pages, page, packet, info, comment)) {
@@ -98,10 +98,10 @@ final class Mo3Ogg {
         }
     }
 
-    private static void feed(SyncState sync, byte[] stream) {
-        final int index = sync.buffer(stream.length);
-        System.arraycopy(stream, 0, sync.data, index, stream.length);
-        sync.wrote(stream.length);
+    private static void feed(SyncState sync, byte[] stream, int from, int length) {
+        final int index = sync.buffer(length);
+        System.arraycopy(stream, from, sync.data, index, length);
+        sync.wrote(length);
     }
 
     private static boolean readHeaders(SyncState sync, StreamState pages, Page page, Packet packet, Info info,
@@ -131,6 +131,8 @@ final class Mo3Ogg {
 
     private static void sound(SyncState sync, DspState dsp, Block block, StreamState pages, Page page,
             Packet packet, Info info, int[][] waveform) {
+        final float[][][] pcm = new float[1][][];
+        final int[] index = new int[info.channels];
         int written = 0;
         while (written < waveform[0].length) {
             final int status = pages.packetout(packet);
@@ -146,7 +148,7 @@ final class Mo3Ogg {
             if (block.synthesis(packet) == 0) {
                 dsp.synthesis_blockin(block);
             }
-            written = drain(dsp, info, waveform, written);
+            written = drain(dsp, info, waveform, written, pcm, index);
         }
     }
 
@@ -163,9 +165,8 @@ final class Mo3Ogg {
         }
     }
 
-    private static int drain(DspState dsp, Info info, int[][] waveform, int written) {
-        final float[][][] pcm = new float[1][][];
-        final int[] index = new int[info.channels];
+    private static int drain(DspState dsp, Info info, int[][] waveform, int written, float[][][] pcm,
+            int[] index) {
         int frames;
         while ((frames = dsp.synthesis_pcmout(pcm, index)) > 0) {
             final int kept = Math.min(frames, waveform[0].length - written);

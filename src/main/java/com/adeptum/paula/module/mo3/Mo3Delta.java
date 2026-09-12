@@ -122,13 +122,8 @@ final class Mo3Delta {
      * delta needed, so the coding follows the waveform up and down.
      */
     private static int nextWidth(int width, int value, int shift) {
-        int used = 1;
-        if (value >= SMALLEST_CODED) {
-            used = shift;
-            while (((1 << used) & value) == 0 && used > 1) {
-                used--;
-            }
-        }
+        final int used = value < SMALLEST_CODED ? 1
+                : Math.clamp(Integer.SIZE - 1 - Integer.numberOfLeadingZeros(value), 1, shift);
         return width + used >> 1;
     }
 

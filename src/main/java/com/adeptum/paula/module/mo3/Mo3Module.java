@@ -72,7 +72,9 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
     private static final int SAMPLE_VOLUME_BELOW = 52;
     private static final int SAMPLE_VOLUME_ABOVE = 51;
 
-    private Mo3File file;
+    private Mo3Kind kind;
+    private Mo3Song song;
+    private boolean amigaLike;
     private String message = "";
     private boolean amigaNotesOnly = true;
 
@@ -92,13 +94,19 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         return module;
     }
 
+    /**
+     * Only what the mixer goes on to ask for is held on to. The packed file and everything read out of it is
+     * done with once the patterns and the samples have been built, and an MO3 is large enough to be worth
+     * letting go of rather than carrying for the length of the track.
+     */
     private void load(byte[] bytes) throws IOException {
-        file = Mo3Reader.read(bytes);
-        final Mo3Song song = file.song();
+        final Mo3File file = Mo3Reader.read(bytes);
+        kind = file.kind();
+        song = file.song();
 
         setModType(modType());
         setModID(MOD_ID);
-        setTrackerName(file.kind().tracker());
+        setTrackerName(kind.tracker());
         setSongName(file.name());
         message = file.message();
 
@@ -113,12 +121,13 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         setSongRestart(song.restart());
 
         readChannels();
-        readArrangement();
-        readPatterns();
-        setSongFlags(songFlags());
+        readArrangement(file);
+        readPatterns(file);
+        amigaLike = kind == Mo3Kind.PROTRACKER && getNChannels() <= AMIGA_CHANNELS && amigaNotesOnly;
+        setSongFlags(songFlags(file));
         final InstrumentsContainer instruments = new InstrumentsContainer(this,
                 file.hasInstruments() ? song.instruments() : 0, song.samples());
-        Mo3Instruments.read(instruments, file, isAmigaLike());
+        Mo3Instruments.read(instruments, file, amigaLike);
         Mo3Waveforms.read(instruments, file, getModType());
         setInstrumentContainer(instruments);
     }
@@ -128,20 +137,20 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      * instrument per sample.
      */
     private int instrumentsOfSampleBasedTracker() {
-        return file.kind() == Mo3Kind.IMPULSE_TRACKER ? 0 : file.song().samples();
+        return kind == Mo3Kind.IMPULSE_TRACKER ? 0 : song.samples();
     }
 
     /**
      * Whether the module is one ProTracker itself could have played, which decides both how it is tuned and
-     * how far its slides may go.
+     * how far its slides may go. It is settled once the patterns say which notes the module reaches.
      */
     @Override
     public boolean isAmigaLike() {
-        return file.kind() == Mo3Kind.PROTRACKER && getNChannels() <= AMIGA_CHANNELS && amigaNotesOnly;
+        return amigaLike;
     }
 
     private int modType() {
-        return switch (file.kind()) {
+        return switch (kind) {
             case IMPULSE_TRACKER -> ModConstants.MODTYPE_IT;
             case SCREAM_TRACKER -> ModConstants.MODTYPE_S3M;
             case PROTRACKER, MULTITRACKER -> ModConstants.MODTYPE_MOD;
@@ -149,8 +158,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         };
     }
 
-    private int songFlags() {
-        final Mo3Song song = file.song();
+    private int songFlags(Mo3File file) {
         int flags = ModConstants.SONG_ISSTEREO;
         if (song.has(Mo3Song.LINEAR_SLIDES)) {
             flags |= ModConstants.SONG_LINEARSLIDES;
@@ -164,7 +172,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         if (isAmigaLike()) {
             flags |= ModConstants.SONG_AMIGALIMITS;
         }
-        if (file.kind() == Mo3Kind.SCREAM_TRACKER) {
+        if (kind == Mo3Kind.SCREAM_TRACKER) {
             if (song.has(Mo3Song.S3M_AMIGA_LIMITS)) {
                 flags |= ModConstants.SONG_AMIGALIMITS;
             }
@@ -172,7 +180,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
                 flags |= ModConstants.SONG_FASTVOLSLIDES;
             }
         }
-        if (file.kind() == Mo3Kind.IMPULSE_TRACKER) {
+        if (kind == Mo3Kind.IMPULSE_TRACKER) {
             if (!song.has(Mo3Song.IT_OLD_EFFECTS)) {
                 flags |= ModConstants.SONG_ITOLDEFFECTS;
             }
@@ -188,8 +196,8 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      * to sixty-four; the rest play at the loudest the mixer has.
      */
     private int baseVolume() {
-        final int volume = file.song().globalVolume();
-        return switch (file.kind()) {
+        final int volume = song.globalVolume();
+        return switch (kind) {
             case IMPULSE_TRACKER -> Math.min(volume, ModConstants.MAXGLOBALVOLUME / 2) * 2;
             case SCREAM_TRACKER -> Math.min(volume, ModConstants.MAXSAMPLEVOLUME) * 4;
             default -> ModConstants.MAXGLOBALVOLUME;
@@ -201,7 +209,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      * settled on rather than as the volume itself.
      */
     private int mixingPreAmp() {
-        final int step = file.song().sampleVolume();
+        final int step = song.sampleVolume();
         final int preAmp = step < 0
                 ? step + SAMPLE_VOLUME_BELOW
                 : (int) Math.exp(step * SAMPLE_VOLUME_SCALE) + SAMPLE_VOLUME_ABOVE;
@@ -209,11 +217,10 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
     }
 
     private void readChannels() {
-        final Mo3Song song = file.song();
         channelVolume = new int[Mo3Song.CHANNELS_IN_HEADER];
         panningValue = new int[Mo3Song.CHANNELS_IN_HEADER];
         for (int channel = 0; channel < Mo3Song.CHANNELS_IN_HEADER; channel++) {
-            channelVolume[channel] = file.kind() == Mo3Kind.IMPULSE_TRACKER
+            channelVolume[channel] = kind == Mo3Kind.IMPULSE_TRACKER
                     ? Math.min(song.channelVolume()[channel], ModConstants.MAXSAMPLEVOLUME)
                     : ModConstants.MAXSAMPLEVOLUME;
             panningValue[channel] = panning(song.channelPanning()[channel]);
@@ -231,17 +238,17 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      * Impulse Tracker and Scream Tracker keep two orders that name no pattern, one to skip over and one to
      * stop at; ProTracker and Fast Tracker have patterns of those numbers, so there they are ordinary orders.
      */
-    private void readArrangement() {
+    private void readArrangement(Mo3File file) {
         setSongLength(file.orders().length);
         allocArrangement(getSongLength());
         final int[] arrangement = getArrangement();
         for (int order = 0; order < arrangement.length; order++) {
-            arrangement[order] = order(file.orders()[order]);
+            arrangement[order] = order(file, file.orders()[order]);
         }
         removeEndOfArrangement();
     }
 
-    private int order(int stored) {
+    private int order(Mo3File file, int stored) {
         if (!file.hasOrderSeparators()) {
             return stored;
         }
@@ -252,22 +259,22 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         };
     }
 
-    private void readPatterns() {
+    private void readPatterns(Mo3File file) {
         final PatternContainer patterns = new PatternContainer(this, getNPattern());
         for (int index = 0; index < getNPattern(); index++) {
             final Mo3Pattern pattern = file.patterns().get(index);
             patterns.createPattern(index, pattern.rows(), getNChannels());
             for (int channel = 0; channel < getNChannels(); channel++) {
-                readTrack(patterns, index, channel, pattern);
+                readTrack(file, patterns, index, channel, pattern);
             }
         }
         setPatternContainer(patterns);
     }
 
-    private void readTrack(PatternContainer patterns, int index, int channel, Mo3Pattern pattern) {
+    private void readTrack(Mo3File file, PatternContainer patterns, int index, int channel, Mo3Pattern pattern) {
         final int track = pattern.trackFor(channel);
         final Mo3Event[] rows = track < file.tracks().size()
-                ? Mo3Track.rows(file.tracks().get(track), pattern.rows(), file.kind())
+                ? Mo3Track.rows(file.tracks().get(track), pattern.rows(), kind)
                 : new Mo3Event[pattern.rows()];
         for (int row = 0; row < rows.length; row++) {
             fill(patterns.createPatternElement(index, row, channel), rows[row]);
@@ -303,7 +310,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
     @Override
     public BasicModMixer getModMixer(int sampleRate, int doISP, int doAmigaEmulation, int doNoLoops,
             int maxNNAChannels) {
-        return file.kind().isScreamTrackerFamily()
+        return kind.isScreamTrackerFamily()
                 ? new ScreamTrackerMixer(this, sampleRate, doISP, doAmigaEmulation, doNoLoops, maxNNAChannels)
                 : new ProTrackerMixer(this, sampleRate, doISP, doAmigaEmulation, doNoLoops, maxNNAChannels);
     }
@@ -316,7 +323,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
     @Override
     public int getFrequencyTable() {
         final boolean linear = (getSongFlags() & ModConstants.SONG_LINEARSLIDES) != 0;
-        return switch (file.kind()) {
+        return switch (kind) {
             case IMPULSE_TRACKER -> linear ? ModConstants.IT_LINEAR_TABLE : ModConstants.IT_AMIGA_TABLE;
             case SCREAM_TRACKER -> ModConstants.STM_S3M_TABLE;
             case FAST_TRACKER -> linear ? ModConstants.XM_LINEAR_TABLE : ModConstants.XM_AMIGA_TABLE;
@@ -330,7 +337,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      */
     @Override
     public int getPanningValue(int channel) {
-        if (file.kind() == Mo3Kind.FAST_TRACKER) {
+        if (kind == Mo3Kind.FAST_TRACKER) {
             return channel % AMIGA_PANNING_PERIOD != 0 ? ModConstants.OLD_PANNING_RIGHT : ModConstants.OLD_PANNING_LEFT;
         }
         return panningValue[channel];
@@ -343,7 +350,7 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
 
     @Override
     public int getPanningSeparation() {
-        return file.kind() == Mo3Kind.IMPULSE_TRACKER ? file.song().panSeparation() : PANNING_SEPARATION;
+        return kind == Mo3Kind.IMPULSE_TRACKER ? song.panSeparation() : PANNING_SEPARATION;
     }
 
     @Override
@@ -367,12 +374,12 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
      */
     @Override
     public boolean getModSpeedIsTicks() {
-        return file.song().has(Mo3Song.MOD_VBLANK);
+        return song.has(Mo3Song.MOD_VBLANK);
     }
 
     @Override
     public boolean supportsAmigaFilter() {
-        return file.kind() == Mo3Kind.PROTRACKER;
+        return kind == Mo3Kind.PROTRACKER;
     }
 
     @Override
