@@ -123,7 +123,7 @@ view afresh; delete the directory to start over.
 `paula formats` prints what plays; a file named the way Modland names them,
 `MOD.tune`, counts as well.
 
-| Format | Extensions |
+| Music | Extensions |
 |---|---|
 | Tracker modules of ProTracker, Fast Tracker, Scream Tracker, Impulse Tracker, MultiTracker and Farandole | `.mod` `.stk` `.nst` `.wow` `.flx` `.xm` `.s3m` `.stm` `.stx` `.sts` `.it` `.mptm` `.mtm` `.far` |
 | Commodore 64 SID tunes and programs | `.sid` `.psid` `.rsid` `.prg` `.p00` `.c64` |
@@ -138,6 +138,22 @@ view afresh; delete the directory to start over.
 | Ogg Vorbis | `.ogg` `.oga` |
 | Monkey's Audio | `.ape` `.apl` `.mac` |
 | Wave, AIFF and AU | `.wav` `.wave` `.aif` `.aiff` `.aifc` `.au` `.snd` |
+
+Archives are opened by what they hold rather than what they are called, and
+a module crunched with XPK or PowerPacker keeps its own name.
+
+| Archive | Extensions |
+|---|---|
+| Zip | `.zip` |
+| 7z | `.7z` |
+| RAR | `.rar` |
+| LHA | `.lha` `.lzh` |
+| LZX | `.lzx` |
+| gzip | `.gz` |
+| PowerPacker crunched modules | `.pp` or the module's own |
+| XPK crunched modules | the module's own |
+| Unreal music packages | `.umx` |
+| Commodore 1541 disk and tape images | `.d64` `.t64` |
 
 Tracker modules and Commodore 64 SID tunes play through
 [JavaMod](https://github.com/quippy-git/javamod), Daniel Becker's pure-Java
