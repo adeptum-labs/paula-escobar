@@ -33,8 +33,8 @@ import java.util.Arrays;
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
  * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note, and an
- * AHX and a HivelyTracker module playing one synthesised square instead, and the ProTracker one again
- * as an MO3.
+ * AHX and a HivelyTracker module playing one synthesised square instead, the ProTracker one again
+ * as an MO3, and a Composer 669 module of two patterns.
  */
 public final class TestModules {
 
@@ -128,6 +128,36 @@ public final class TestModules {
     public static final int MO3_CHANNELS_AT = TITLE.length() + 2;
     public static final int MO3_ORDERS_AT = MO3_CHANNELS_AT + 1;
     public static final int MO3_RESTART_AT = MO3_ORDERS_AT + Short.BYTES;
+
+    public static final String C669_TITLE = "Paula 669";
+    public static final String C669_CREDIT = "by Adeptum";
+    public static final int C669_PATTERNS = 2;
+    public static final int C669_NOTE = 24;
+    public static final int C669_SECOND_NOTE = 36;
+    public static final int C669_VOLUME = 15;
+    public static final int C669_HALF_VOLUME = 8;
+    public static final int C669_VOLUME_ROW = 1;
+    public static final int C669_VOLUME_CHANNEL = 1;
+    public static final int C669_SPEED_ROW = 2;
+    public static final int C669_SPEED_COMMAND = 5;
+    public static final int C669_NEW_SPEED = 3;
+    public static final int[] C669_SPEEDS = {4, 2};
+    public static final int[] C669_BREAKS = {63, 3};
+    public static final int C669_SAMPLE_LENGTH = 64;
+    public static final int C669_SAMPLE_HIGH = 228;
+    public static final int C669_SAMPLE_LOW = 28;
+
+    private static final int C669_HEADER_LENGTH = 497;
+    private static final int C669_MESSAGE_LINE = 36;
+    private static final int C669_LIST_LENGTH = 128;
+    private static final int C669_END_OF_ORDERS = 0xFF;
+    private static final int C669_SAMPLE_HEADER_LENGTH = 25;
+    private static final int C669_NAME_LENGTH = 13;
+    private static final int C669_CHANNELS = 8;
+    private static final int C669_CELL_LENGTH = 3;
+    private static final int C669_PATTERN_LENGTH = ROWS * C669_CHANNELS * C669_CELL_LENGTH;
+    private static final int C669_EMPTY = 0xFF;
+    private static final int C669_VOLUME_ONLY = 0xFE;
 
     /**
      * Where the flags sit, past the seven counts, the speed and the tempo; they say which tracker wrote the
@@ -346,6 +376,64 @@ public final class TestModules {
         return bytes(64, 3, 1, 64, 1, 64, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x3f, 1, 0, 1, 1);
     }
 
+
+    public static Path writeComposer669(Path directory) throws IOException {
+        return Files.write(directory.resolve("paula.669"), composer669());
+    }
+
+    /**
+     * A minimal Composer 669 module: two patterns played once each. The first, at speed four, sounds a C-5 at
+     * full volume on a looping square, then sets a volume on its own and then a speed of three; the second, at
+     * speed two, sounds the octave above and is broken off after its fourth row.
+     */
+    public static byte[] composer669() {
+        return composer669("if");
+    }
+
+    public static byte[] composer669(String mark) {
+        final ByteBuffer buffer = ByteBuffer.allocate(C669_HEADER_LENGTH + C669_SAMPLE_HEADER_LENGTH
+                + C669_PATTERNS * C669_PATTERN_LENGTH + C669_SAMPLE_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.put(mark.getBytes(StandardCharsets.US_ASCII));
+        buffer.put(padded(C669_TITLE, C669_MESSAGE_LINE)).put(padded(C669_CREDIT, C669_MESSAGE_LINE))
+                .put(padded("", C669_MESSAGE_LINE));
+        buffer.put((byte) 1).put((byte) C669_PATTERNS).put((byte) 0);
+        buffer.put(list669(C669_END_OF_ORDERS, 0, 1)).put(list669(0, C669_SPEEDS)).put(list669(0, C669_BREAKS));
+        buffer.put(padded(SAMPLE_NAME, C669_NAME_LENGTH)).putInt(C669_SAMPLE_LENGTH).putInt(0)
+                .putInt(C669_SAMPLE_LENGTH);
+        final byte[] first = emptyPattern669();
+        cell669(first, 0, 0, C669_NOTE << 2, C669_VOLUME, C669_EMPTY);
+        cell669(first, C669_VOLUME_ROW, C669_VOLUME_CHANNEL, C669_VOLUME_ONLY, C669_HALF_VOLUME, C669_EMPTY);
+        cell669(first, C669_SPEED_ROW, 0, C669_EMPTY, C669_EMPTY, C669_SPEED_COMMAND << 4 | C669_NEW_SPEED);
+        final byte[] second = emptyPattern669();
+        cell669(second, 0, 0, C669_SECOND_NOTE << 2, C669_VOLUME, C669_EMPTY);
+        buffer.put(first).put(second);
+        for (int i = 0; i < C669_SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i < C669_SAMPLE_LENGTH / 2 ? C669_SAMPLE_HIGH : C669_SAMPLE_LOW));
+        }
+        return buffer.array();
+    }
+
+    private static byte[] list669(int filler, int... values) {
+        final byte[] list = new byte[C669_LIST_LENGTH];
+        Arrays.fill(list, (byte) filler);
+        for (int i = 0; i < values.length; i++) {
+            list[i] = (byte) values[i];
+        }
+        return list;
+    }
+
+    private static byte[] emptyPattern669() {
+        final byte[] pattern = new byte[C669_PATTERN_LENGTH];
+        Arrays.fill(pattern, (byte) C669_EMPTY);
+        return pattern;
+    }
+
+    private static void cell669(byte[] pattern, int row, int channel, int note, int volume, int effect) {
+        final int at = (row * C669_CHANNELS + channel) * C669_CELL_LENGTH;
+        pattern[at] = (byte) note;
+        pattern[at + 1] = (byte) volume;
+        pattern[at + 2] = (byte) effect;
+    }
 
     public static Path writeMed(Path directory) throws IOException {
         return Files.write(directory.resolve("paula.med"), medMmd0());
