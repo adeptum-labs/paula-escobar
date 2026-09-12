@@ -22,9 +22,7 @@ sounding instrument lit up, and on the right a spectrum analyser, one
 braille-dot oscilloscope per channel, a position bar and VU meters; `v`
 turns the upper panel to a waterfall and then to a vectorscope. The browser
 colours the first three placings gold, silver and bronze and keeps a small
-spectrum strip of what is playing above the key bar. The shot above is
-Approach by Nightbeat, which won the multichannel competition at Icing 1999,
-with a scope for each of its 31 channels.
+spectrum strip of what is playing above the key bar.
 
 ## Building
 
