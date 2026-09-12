@@ -21,21 +21,13 @@
 
 package com.adeptum.paula.module.composer669;
 
+import com.adeptum.paula.text.CodePage437;
+
 /**
- * The text of a 669 file as the DOS screen showed it: code page 437, where the bytes below a space are the
- * smileys, card suits, arrows and note signs of the IBM PC's character ROM rather than the control characters
- * a terminal would take them for, and the high half is the accented letters and box drawing of ANSI art.
+ * The text of a 669 file as the DOS screen showed it, in code page 437, where the bytes below a space are
+ * glyphs rather than the control characters a terminal would take them for.
  */
 final class C669Text {
-
-    private static final String BELOW_SPACE = "☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼";
-    private static final char DELETE = '⌂';
-    private static final String HIGH_HALF = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀"
-            + "αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
-    private static final int SPACE = 0x20;
-    private static final int DELETE_BYTE = 0x7F;
-    private static final int HIGH = 0x80;
-    private static final int BYTE = 0xFF;
 
     private C669Text() {
     }
@@ -44,24 +36,10 @@ final class C669Text {
      * The text up to its first zero byte, without the spaces the tracker pads its fields with.
      */
     static String decode(byte[] bytes) {
-        final StringBuilder text = new StringBuilder(bytes.length);
-        for (final byte b : bytes) {
-            final int value = b & BYTE;
-            if (value == 0) {
-                break;
-            }
-            text.append(glyph(value));
+        int end = 0;
+        while (end < bytes.length && bytes[end] != 0) {
+            end++;
         }
-        return text.toString().strip();
-    }
-
-    private static char glyph(int value) {
-        if (value < SPACE) {
-            return BELOW_SPACE.charAt(value - 1);
-        }
-        if (value == DELETE_BYTE) {
-            return DELETE;
-        }
-        return value < HIGH ? (char) value : HIGH_HALF.charAt(value - HIGH);
+        return new String(bytes, 0, end, CodePage437.CHARSET).strip();
     }
 }
