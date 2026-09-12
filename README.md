@@ -153,7 +153,12 @@ muting per voice. OctaMED modules of every kind, MMD0 through MMD3, are
 played by a third that follows the MED loaders and player of
 [libxmp](https://github.com/libxmp/libxmp), sounding the sampled,
 multi-octave, synthetic and hybrid instruments alike, with a scope and
-muting per track; its mixdown is Paula's own rather than libxmp's. MO3
+muting per track; its mixdown is Paula's own rather than libxmp's. Composer
+669 and UNIS 669 modules, from the PC tracker that counted its notes in
+hertz, are played by a fourth that follows what
+[OpenMPT](https://openmpt.org)'s player found the original to do: slides
+and vibrato by whole hertz, effects that carry on until the next note, and
+the pan slide and retrigger of the UNIS extension. MO3
 files, the compressed form the demoscene passes those trackers' modules
 around in, are unpacked back into the module the tracker wrote and played
 by its own player: the song, the effects and the instruments as Impulse
@@ -278,7 +283,8 @@ copyright the OpenMPT project developers and Olivier Lapicque, distributed
 under the BSD 3-Clause License reproduced in
 [OPENMPT-LICENSE.txt](OPENMPT-LICENSE.txt); its decompression routines come
 from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
-relicensed with his permission. 7z archives
+relicensed with his permission. The Composer 669 replayer follows the same
+project's `Load_669.cpp` and the hertz arithmetic of its player. 7z archives
 are read with Apache Commons Compress over the XZ for Java library, both under
 the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
