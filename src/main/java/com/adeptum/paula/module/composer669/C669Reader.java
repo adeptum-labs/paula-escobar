@@ -118,7 +118,7 @@ final class C669Reader {
             for (final byte c : text) {
                 controlCharacters += c > 0 && c <= LAST_CONTROL_CHARACTER ? 1 : 0;
             }
-            lines.add(text(text));
+            lines.add(C669Text.decode(text));
         }
         if (controlCharacters > MAX_CONTROL_CHARACTERS) {
             throw new IOException("the message is not text");
@@ -160,7 +160,7 @@ final class C669Reader {
 
     private static Header header(ByteBuffer in) throws IOException {
         require(in, SAMPLE_HEADER_LENGTH);
-        final String name = text(bytes(in, SAMPLE_NAME_LENGTH));
+        final String name = C669Text.decode(bytes(in, SAMPLE_NAME_LENGTH));
         final long length = Integer.toUnsignedLong(in.getInt());
         if (length >= LONGEST_SAMPLE) {
             throw new IOException("a sample longer than any Composer 669 wrote");
@@ -208,14 +208,6 @@ final class C669Reader {
         final int end = unlooped ? 0 : (int) Math.min(header.loopEnd(), raw.length);
         final int start = (int) Math.min(header.loopStart(), end);
         return new C669Sample(header.name(), data, start, end);
-    }
-
-    private static String text(byte[] bytes) {
-        int end = 0;
-        while (end < bytes.length && bytes[end] != 0) {
-            end++;
-        }
-        return new String(bytes, 0, end, StandardCharsets.ISO_8859_1).stripTrailing();
     }
 
     private static byte[] bytes(ByteBuffer in, int count) throws IOException {

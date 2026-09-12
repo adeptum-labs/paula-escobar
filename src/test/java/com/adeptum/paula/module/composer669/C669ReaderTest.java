@@ -35,6 +35,8 @@ import org.junit.jupiter.api.Test;
 
 class C669ReaderTest {
 
+    private static final int MESSAGE_AT = 2;
+    private static final int FIRST_SAMPLE_NAME_AT = 497;
     private static final int SAMPLES_AT = 110;
     private static final int PATTERNS_AT = 111;
     private static final int SPEEDS_AT = 241;
@@ -137,6 +139,39 @@ class C669ReaderTest {
         assertTrue(sample.loops());
         assertEquals(16, sample.loopStart());
         assertEquals(TestModules.C669_SAMPLE_LENGTH, sample.loopEnd());
+    }
+
+    /**
+     * A 669 message is code page 437 text, and its note sign is the byte a terminal takes for a shift out; the
+     * bytes are shown as the DOS screen showed them, never passed on as control characters.
+     */
+    @Test
+    void showsTheTextAsTheDosScreenDid() throws IOException {
+        final byte[] module = TestModules.composer669();
+        module[MESSAGE_AT] = 0x0E;
+        module[MESSAGE_AT + 1] = (byte) 0xC4;
+        module[MESSAGE_AT + 2] = (byte) 0x81;
+        module[MESSAGE_AT + 36] = ' ';
+        module[FIRST_SAMPLE_NAME_AT] = (byte) 0x81;
+
+        final C669File file = C669Reader.read(module);
+        assertEquals("♫─üla 669", file.title());
+        assertEquals("y Adeptum", file.message().get(1), "and the padding is gone on both sides");
+        assertEquals("üquare", file.samples().get(0).name());
+    }
+
+    @Test
+    void decodesEveryByteOfCodePage437() {
+        final byte[] all = new byte[255];
+        for (int i = 0; i < all.length; i++) {
+            all[i] = (byte) (i + 1);
+        }
+
+        final String text = C669Text.decode(all);
+        assertEquals(255, text.length());
+        assertEquals('☺', text.charAt(0));
+        assertEquals('⌂', text.charAt(0x7F - 1));
+        assertEquals('■', text.charAt(0xFE - 1));
     }
 
     @Test
