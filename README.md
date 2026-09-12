@@ -45,7 +45,7 @@ JDK 21 or newer registered in `~/.m2/toolchains.xml` with the vendor
 ```
 
 Everything runs on that toolchain, so `JAVA_HOME` and `GRAALVM_HOME` do not
-matter. `mvn test` runs the unit tests without the native image or the C.
+matter. `mvn test` runs the unit tests.
 
 ## Usage
 
