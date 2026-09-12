@@ -267,11 +267,11 @@ class C669EngineTest {
     }
 
     @Test
-    void leavesAnUnknownEffectAlone() {
-        final C669Engine engine = engine(noteWith(24, UNKNOWN, 5));
-        ticks(engine, SPEED);
+    void leavesAnUnknownEffectAloneAndWhatItCarriesToo() {
+        final C669Engine engine = engine(noteWith(24, PORTAMENTO_UP, 1), effect(UNKNOWN, 5));
+        ticks(engine, 2 * SPEED);
 
-        assertEquals(C5, engine.voice(0).frequency);
+        assertEquals(C5 + 8 * 80, engine.voice(0).frequency, "the slide ran on through the unknown effect");
         assertEquals(SPEED, engine.speed());
     }
 

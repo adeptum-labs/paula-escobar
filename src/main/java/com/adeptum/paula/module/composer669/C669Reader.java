@@ -195,16 +195,17 @@ final class C669Reader {
 
     /**
      * A loop end past the sample with a start at zero is how the tracker writes no loop at all; any other end
-     * loops, held within the sample.
+     * loops, held within the sample. A file cut short, as some in the wild are, keeps what is left of its
+     * last samples rather than being refused.
      */
     private static C669Sample sample(ByteBuffer in, Header header) throws IOException {
-        final byte[] raw = bytes(in, header.length());
+        final byte[] raw = bytes(in, Math.min(header.length(), in.remaining()));
         final short[] data = new short[raw.length];
         for (int i = 0; i < raw.length; i++) {
             data[i] = (short) ((unsigned(raw[i]) - UNSIGNED_MIDDLE) << WIDEN);
         }
         final boolean unlooped = header.loopEnd() == 0 || (header.loopEnd() > header.length() && header.loopStart() == 0);
-        final int end = unlooped ? 0 : (int) Math.min(header.loopEnd(), header.length());
+        final int end = unlooped ? 0 : (int) Math.min(header.loopEnd(), raw.length);
         final int start = (int) Math.min(header.loopStart(), end);
         return new C669Sample(header.name(), data, start, end);
     }

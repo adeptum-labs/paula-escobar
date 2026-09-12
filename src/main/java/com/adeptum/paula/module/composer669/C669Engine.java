@@ -268,10 +268,14 @@ final class C669Engine {
     }
 
     /**
-     * Any effect ends the one the channel was carrying before it takes hold; A, B, C and G then carry on
-     * themselves, the rest last only their own row or, for D, the note.
+     * Any effect the tracker knows ends the one the channel was carrying before it takes hold; A, B, C and G
+     * then carry on themselves, the rest last only their own row or, for D, the note. The commands past H that
+     * a few files carry do nothing at all, not even that.
      */
     private void command(C669Voice voice, C669Cell cell) {
+        if (cell.command() > RETRIGGER) {
+            return;
+        }
         final int parameter = cell.parameter();
         voice.carried = C669Cell.NONE;
         switch (cell.command()) {

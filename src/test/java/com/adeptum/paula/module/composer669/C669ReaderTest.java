@@ -160,11 +160,23 @@ class C669ReaderTest {
     }
 
     @Test
-    void refusesAFileCutShort() {
+    void refusesAFileCutShortInItsPatterns() {
         final byte[] module = TestModules.composer669();
 
-        assertThrows(IOException.class, () -> C669Reader.read(Arrays.copyOf(module, module.length - 1)));
         assertThrows(IOException.class, () -> C669Reader.read(Arrays.copyOf(module, 497 + 25 + 100)));
+    }
+
+    /**
+     * Some files in the wild lost the tail of their last sample somewhere on the way; they play with what is
+     * left, as OpenMPT plays them.
+     */
+    @Test
+    void keepsWhatIsLeftOfASampleCutShort() throws IOException {
+        final byte[] module = TestModules.composer669();
+
+        final C669Sample sample = C669Reader.read(Arrays.copyOf(module, module.length - 10)).samples().get(0);
+        assertEquals(TestModules.C669_SAMPLE_LENGTH - 10, sample.data().length);
+        assertEquals(TestModules.C669_SAMPLE_LENGTH - 10, sample.loopEnd(), "and the loop is held within it");
     }
 
     private static byte[] patched(int at, int value) {
