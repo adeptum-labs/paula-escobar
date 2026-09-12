@@ -22,11 +22,13 @@
 package com.adeptum.paula.module;
 
 import java.util.List;
+import java.util.regex.Pattern;
 import lombok.Builder;
 
 /**
  * What a module tells about itself. The song length is counted in the format's own unit, positions for tracker
- * modules and subtunes for SID files; credits are free-form lines such as author and release.
+ * modules and subtunes for SID files; credits are free-form lines such as author and release. All of it goes
+ * straight to the terminal, so no control character a file carries in its names is let through.
  */
 @Builder
 public record ModuleMetadata(
@@ -40,11 +42,21 @@ public record ModuleMetadata(
 
     private static final String POSITIONS = "positions";
 
+    /**
+     * An ANSI control sequence, whether introduced the seven-bit way or by the single C1 byte.
+     */
+    private static final Pattern CONTROL_SEQUENCE = Pattern.compile("(\\[|)[0-?]*[ -/]*[@-~]");
+
     public ModuleMetadata {
-        title = title == null ? "" : title;
+        title = printable(title == null ? "" : title);
         lengthUnit = lengthUnit == null ? POSITIONS : lengthUnit;
-        instruments = instruments == null ? List.of() : List.copyOf(instruments);
-        credits = credits == null ? List.of() : List.copyOf(credits);
+        instruments = instruments == null ? List.of() : instruments.stream().map(ModuleMetadata::printable).toList();
+        credits = credits == null ? List.of() : credits.stream().map(ModuleMetadata::printable).toList();
+    }
+
+    private static String printable(String text) {
+        return CONTROL_SEQUENCE.matcher(text).replaceAll("").codePoints().filter(c -> !Character.isISOControl(c))
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
     }
 
     public String displayTitle() {
