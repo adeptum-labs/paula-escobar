@@ -67,22 +67,22 @@ final class Mo3Commands {
     /**
      * The five effects OpenMPT added past the letters Impulse Tracker used, which its own modules may carry.
      */
-    private static final int PARAMETER_EXTENSION = 0x1B;
-    private static final int SMOOTH_MIDI = 0x1C;
-    private static final int DELAY_CUT = 0x1D;
-    private static final int FINE_TUNE = 0x1E;
-    private static final int FINE_TUNE_SMOOTH = 0x1F;
+    private static final int IT_PARAMETER_EXTENSION = 0x1B;
+    private static final int IT_SMOOTH_MIDI = 0x1C;
+    private static final int IT_DELAY_CUT = 0x1D;
+    private static final int IT_FINE_TUNE = 0x1E;
+    private static final int IT_FINE_TUNE_SMOOTH = 0x1F;
 
-    /**
-     * The effects Fast Tracker gave letters to carry on from the sixteen it numbered, and two more sit past
-     * the end of the alphabet.
-     */
     /**
      * The stretch of commands that stands for the sixteen effects ProTracker numbered, in their own order.
      */
     private static final int FIRST_NUMBERED_COMMAND = 0x03;
     private static final int LAST_NUMBERED_COMMAND = 0x12;
 
+    /**
+     * The effects Fast Tracker gave letters to carry on from the sixteen it numbered, and two more sit past
+     * the end of the alphabet.
+     */
     private static final int XM_FIRST_LETTER = 0x10;
     private static final int XM_SMOOTH_MIDI = 0x24;
     private static final int XM_PARAMETER_EXTENSION = 0x26;
@@ -334,11 +334,11 @@ final class Mo3Commands {
         effects[0x2D] = letter('W');
         effects[0x2E] = letter('Y');
         effects[0x2F] = letter('Z');
-        effects[0x35] = PARAMETER_EXTENSION;
-        effects[0x36] = SMOOTH_MIDI;
-        effects[0x37] = DELAY_CUT;
-        effects[0x38] = FINE_TUNE;
-        effects[0x39] = FINE_TUNE_SMOOTH;
+        effects[0x35] = IT_PARAMETER_EXTENSION;
+        effects[0x36] = IT_SMOOTH_MIDI;
+        effects[0x37] = IT_DELAY_CUT;
+        effects[0x38] = IT_FINE_TUNE;
+        effects[0x39] = IT_FINE_TUNE_SMOOTH;
         return effects;
     }
 

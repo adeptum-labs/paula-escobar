@@ -37,6 +37,8 @@ import de.quippy.javamod.multimedia.mod.mixer.ProTrackerMixer;
 import de.quippy.javamod.multimedia.mod.mixer.ScreamTrackerMixer;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * An MO3 as the tracker it was packed from, ready for that tracker's player.
@@ -259,26 +261,43 @@ public final class Mo3Module extends de.quippy.javamod.multimedia.mod.loader.Mod
         };
     }
 
+    /**
+     * Sharing one track between patterns is most of what an MO3 saves over the module it was packed from, so a
+     * track is read back into rows once and those rows fill every place the patterns put it.
+     */
     private void readPatterns(Mo3File file) {
         final PatternContainer patterns = new PatternContainer(this, getNPattern());
+        final Map<TrackOfRows, Mo3Event[]> read = new HashMap<>();
         for (int index = 0; index < getNPattern(); index++) {
             final Mo3Pattern pattern = file.patterns().get(index);
             patterns.createPattern(index, pattern.rows(), getNChannels());
             for (int channel = 0; channel < getNChannels(); channel++) {
-                readTrack(file, patterns, index, channel, pattern);
+                readTrack(file, patterns, index, channel, pattern, read);
             }
         }
         setPatternContainer(patterns);
     }
 
-    private void readTrack(Mo3File file, PatternContainer patterns, int index, int channel, Mo3Pattern pattern) {
-        final int track = pattern.trackFor(channel);
-        final Mo3Event[] rows = track < file.tracks().size()
-                ? Mo3Track.rows(file.tracks().get(track), pattern.rows(), kind)
-                : new Mo3Event[pattern.rows()];
+    private void readTrack(Mo3File file, PatternContainer patterns, int index, int channel, Mo3Pattern pattern,
+            Map<TrackOfRows, Mo3Event[]> read) {
+        final Mo3Event[] rows = read.computeIfAbsent(
+                new TrackOfRows(pattern.trackFor(channel), pattern.rows()), wanted -> rowsOf(file, wanted));
         for (int row = 0; row < rows.length; row++) {
             fill(patterns.createPatternElement(index, row, channel), rows[row]);
         }
+    }
+
+    private Mo3Event[] rowsOf(Mo3File file, TrackOfRows wanted) {
+        return wanted.track() < file.tracks().size()
+                ? Mo3Track.rows(file.tracks().get(wanted.track()), wanted.rows(), kind)
+                : new Mo3Event[wanted.rows()];
+    }
+
+    /**
+     * A track read out to a given number of rows. The same track fills patterns of differing lengths, and it
+     * reads back differently in each.
+     */
+    private record TrackOfRows(int track, int rows) {
     }
 
     private void fill(PatternElement element, Mo3Event event) {

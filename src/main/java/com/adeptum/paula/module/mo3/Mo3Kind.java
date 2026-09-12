@@ -21,6 +21,8 @@
 
 package com.adeptum.paula.module.mo3;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * The tracker an MO3 was packed from. The format keeps no trace of the original file, only a flag saying which
  * of the five it held, and that decides how the notes, the effects and the tuning are meant.
@@ -29,6 +31,7 @@ package com.adeptum.paula.module.mo3;
  * sample rates in hertz; ProTracker, Fast Tracker and MultiTracker count theirs the other way and tune by
  * finetune and transpose.</p>
  */
+@RequiredArgsConstructor
 enum Mo3Kind {
 
     IMPULSE_TRACKER("Impulse Tracker", true),
@@ -39,11 +42,6 @@ enum Mo3Kind {
 
     private final String tracker;
     private final boolean screamTrackerFamily;
-
-    Mo3Kind(String tracker, boolean screamTrackerFamily) {
-        this.tracker = tracker;
-        this.screamTrackerFamily = screamTrackerFamily;
-    }
 
     static Mo3Kind of(int flags) {
         if ((flags & Mo3Song.IS_IT) != 0) {
