@@ -38,6 +38,7 @@ class FlacRendererTest {
     private static final int HALF_RATE = 22050;
     private static final int FRAMES = 4096;
     private static final int STEREO = 2;
+    private static final String TWENTY_FOUR_BIT = "noise24.flac";
 
     private final short[] out = new short[FRAMES * STEREO];
 
@@ -116,6 +117,20 @@ class FlacRendererTest {
     @Test
     void knowsHowLongTheFileIs(@TempDir Path dir) throws IOException {
         assertEquals(1000, renderer(dir, ENGINE_RATE).length().orElseThrow().toMillis());
+    }
+
+    /**
+     * A 24-bit stream needs residuals wider than the four-bit Rice parameters of the first FLAC allow, so its
+     * encoder writes the five-bit ones instead; a decoder that only knows the first stops at the first frame.
+     */
+    @Test
+    void playsATwentyFourBitFileToTheEnd(@TempDir Path dir) throws IOException {
+        final Renderer renderer = new FlacLoader().load(FlacLoaderTest.fixture(dir, TWENTY_FOUR_BIT)).createRenderer(ENGINE_RATE);
+
+        final long frames = playToTheEnd(renderer);
+
+        assertTrue(Math.abs(frames - ENGINE_RATE / 4) < ENGINE_RATE / 40, "a quarter of a second, was " + frames + " frames");
+        assertTrue(loudest() > 50, "and the noise it holds is heard, peak was " + loudest());
     }
 
     private Renderer renderer(Path dir, int rate) throws IOException {

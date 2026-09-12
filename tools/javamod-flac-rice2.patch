@@ -1,0 +1,68 @@
+--- a/source/de/quippy/jflac/frame/Channel.java
++++ b/source/de/quippy/jflac/frame/Channel.java
+@@ -29,6 +29,9 @@
+     /** Partisioned Rice Encoding Method. */
+     public static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE = 0;
+ 
++    /** Partitioned Rice Encoding Method with 5-bit parameters, which 24-bit streams need. */
++    public static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE2 = 1;
++
+     /** The size of the encoding method field (in bits). */
+     public static final int ENTROPY_CODING_METHOD_TYPE_LEN = 2;
+ 
+--- a/source/de/quippy/jflac/frame/ChannelFixed.java
++++ b/source/de/quippy/jflac/frame/ChannelFixed.java
+@@ -64,9 +64,11 @@
+         EntropyPartitionedRice pr;
+         switch (type) {
+             case ENTROPY_CODING_METHOD_PARTITIONED_RICE :
++            case ENTROPY_CODING_METHOD_PARTITIONED_RICE2 :
+                 final int u32 = is.readRawUInt(ENTROPY_CODING_METHOD_PARTITIONED_RICE_ORDER_LEN);
+                 pr = new EntropyPartitionedRice();
+                 entropyCodingMethod = pr;
++                pr.rice2 = type == ENTROPY_CODING_METHOD_PARTITIONED_RICE2;
+                 pr.order = u32;
+                 pr.contents = channelData.getPartitionedRiceContents();
+                 pr.readResidual(is, order, pr.order, header, channelData.getResidual());
+--- a/source/de/quippy/jflac/frame/ChannelLPC.java
++++ b/source/de/quippy/jflac/frame/ChannelLPC.java
+@@ -89,7 +89,9 @@
+         //System.out.println("codingType="+codingType);
+         switch (codingType) {
+             case ENTROPY_CODING_METHOD_PARTITIONED_RICE :
++            case ENTROPY_CODING_METHOD_PARTITIONED_RICE2 :
+                 entropyCodingMethod = new EntropyPartitionedRice();
++                ((EntropyPartitionedRice) entropyCodingMethod).rice2 = codingType == ENTROPY_CODING_METHOD_PARTITIONED_RICE2;
+                 ((EntropyPartitionedRice) entropyCodingMethod).order = is.readRawUInt(ENTROPY_CODING_METHOD_PARTITIONED_RICE_ORDER_LEN);
+                 ((EntropyPartitionedRice) entropyCodingMethod).contents = channelData.getPartitionedRiceContents();
+                 break;
+--- a/source/de/quippy/jflac/frame/EntropyPartitionedRice.java
++++ b/source/de/quippy/jflac/frame/EntropyPartitionedRice.java
+@@ -30,9 +30,10 @@
+  */
+ public class EntropyPartitionedRice extends EntropyCodingMethod {
+     private static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE_PARAMETER_LEN = 4; /* bits */
++    private static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE2_PARAMETER_LEN = 5; /* bits */
+     private static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE_RAW_LEN = 5; /* bits */
+-    private static final int ENTROPY_CODING_METHOD_PARTITIONED_RICE_ESCAPE_PARAMETER = 15;
+ 
++    protected boolean rice2; // Whether the parameters are the 5-bit ones of RICE2, with 31 as the escape instead of 15.
+     protected int order; // The partition order, i.e. # of contexts = 2 ^ order.
+     protected EntropyPartitionedRiceContents contents; // The context's Rice parameters and/or raw bits.
+ 
+@@ -53,11 +54,13 @@
+         final int partitionSamples = partitionOrder > 0 ? header.blockSize >> partitionOrder : header.blockSize - predictorOrder;
+         contents.ensureSize(Math.max(6, partitionOrder));
+         contents.parameters = new int[partitions];
++        final int parameterLength = rice2 ? ENTROPY_CODING_METHOD_PARTITIONED_RICE2_PARAMETER_LEN : ENTROPY_CODING_METHOD_PARTITIONED_RICE_PARAMETER_LEN;
++        final int escapeParameter = (1 << parameterLength) - 1;
+ 
+         for (int partition = 0; partition < partitions; partition++) {
+-            int riceParameter = is.readRawUInt(ENTROPY_CODING_METHOD_PARTITIONED_RICE_PARAMETER_LEN);
++            int riceParameter = is.readRawUInt(parameterLength);
+             contents.parameters[partition] = riceParameter;
+-            if (riceParameter < ENTROPY_CODING_METHOD_PARTITIONED_RICE_ESCAPE_PARAMETER) {
++            if (riceParameter < escapeParameter) {
+                 final int u = (partitionOrder == 0 || partition > 0) ? partitionSamples : partitionSamples - predictorOrder;
+                 is.readRiceSignedBlock(residual, sample, u, riceParameter);
+                 sample += u;

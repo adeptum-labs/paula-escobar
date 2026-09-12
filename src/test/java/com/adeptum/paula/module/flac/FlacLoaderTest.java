@@ -97,7 +97,7 @@ class FlacLoaderTest {
         return fixture(dir, FIXTURE);
     }
 
-    private static Path fixture(Path dir, String name) throws IOException {
+    static Path fixture(Path dir, String name) throws IOException {
         try (InputStream in = FlacLoaderTest.class.getResourceAsStream("/flac/" + name)) {
             return Files.write(dir.resolve(name), in.readAllBytes());
         }
