@@ -118,7 +118,7 @@ shown above the list. Everything fetched is kept under `~/.cache/paula` (or
 still used offline, downloaded modules for good. `r` fetches the list in
 view afresh; delete the directory to start over.
 
-### Chip and Amiga formats
+### Formats
 
 `paula formats` prints what plays; a file named the way Modland names them,
 `MOD.tune`, counts as well.
