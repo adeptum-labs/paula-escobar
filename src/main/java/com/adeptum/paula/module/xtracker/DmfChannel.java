@@ -41,7 +41,8 @@ final class DmfChannel {
     private static final int HALF_ROW = ROW / 2;
     private static final int STEPS_PER_ROW = ROW / UNITS_PER_STEP;
     private static final int C3_PITCH = 36 * SEMITONE;
-    private static final int HIGHEST_PITCH = 107 * SEMITONE;
+    private static final int HIGHEST_NOTE = 107;
+    private static final int HIGHEST_PITCH = HIGHEST_NOTE * SEMITONE;
     private static final double OCTAVE = 12.0 * SEMITONE;
     private static final int SIXTEENTH = SEMITONE / 16;
     private static final int VIBRATO_RANGE = 2 * SEMITONE;
@@ -419,14 +420,16 @@ final class DmfChannel {
 
     /**
      * Towards note Data1 in whole semitones, as far along as the steps of the entry's span taken so far, so the
-     * target is reached as the span ends and held after.
+     * target is reached as the span ends and held after. Data1 is clamped to the highest note the tracker has,
+     * unlike the raw byte OpenMPT stores it as.
      */
     private void scratch() {
+        final int target = Math.min(noteData, HIGHEST_NOTE);
         if (scratchSteps == 0) {
             scratchFrom = pitch / SEMITONE;
         }
         scratchSteps = Math.min(spanSteps, scratchSteps + 1);
-        pitch = (scratchFrom + (noteData - scratchFrom) * scratchSteps / spanSteps) * SEMITONE;
+        pitch = (scratchFrom + (target - scratchFrom) * scratchSteps / spanSteps) * SEMITONE;
     }
 
     private double phase(int periodRows) {

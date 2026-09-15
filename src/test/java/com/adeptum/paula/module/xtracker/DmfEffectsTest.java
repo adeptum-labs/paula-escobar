@@ -245,6 +245,14 @@ class DmfEffectsTest {
     }
 
     @Test
+    void clampsTheScratchTargetToTheHighestNote() {
+        final DmfEngine engine = engine(track(noteEffect(c3(SQUARE), SCRATCH, 255), empty()));
+        rows(engine, 1);
+
+        assertEquals(107 * SEMITONE, engine.channel(0).pitch);
+    }
+
+    @Test
     void drawsTheThreeWaveforms() {
         assertEquals(1, DmfChannel.wave(0, 0.25), 1e-9);
         assertEquals(1, DmfChannel.wave(1, 0.25), 1e-9);
