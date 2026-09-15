@@ -130,7 +130,7 @@ final class DmfEngine {
             return;
         }
         for (final DmfChannel channel : channels) {
-            channel.unit();
+            channel.unit(unit);
         }
         unitFrames = tempo.nextUnitFrames();
         if (++unit >= unitsInRow) {

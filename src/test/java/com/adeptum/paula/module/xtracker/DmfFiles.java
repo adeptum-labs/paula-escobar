@@ -50,7 +50,7 @@ final class DmfFiles {
         for (int at = 0; at < data.length; at++) {
             data[at] = (short) (at < data.length / 2 ? HIGH : -HIGH);
         }
-        return new DmfSample("square", data, 0, SAMPLE_LENGTH, C3, volume);
+        return new DmfSample("square", data, 0, SAMPLE_LENGTH, C3, volume, false);
     }
 
     /**
@@ -62,7 +62,21 @@ final class DmfFiles {
         for (int at = 0; at < data.length; at++) {
             data[at] = (short) at;
         }
-        return new DmfSample("ramp", data, 0, 0, C3, 0);
+        return new DmfSample("ramp", data, 0, 0, C3, 0, false);
+    }
+
+    /**
+     * The ramp as if it had been stored in 16 bits, so its offsets count two bytes a frame.
+     */
+    static DmfSample wide() {
+        return new DmfSample("wide", ramp().data(), 0, 0, C3, 0, true);
+    }
+
+    /**
+     * Mixes whole rows, which leaves the engine at the start of the next one.
+     */
+    static void playRows(DmfEngine engine, int count) {
+        engine.mix(new short[count * ROW_FRAMES * 2], count * ROW_FRAMES);
     }
 
     static DmfTrackEntry note(int note, int instrument) {
@@ -123,7 +137,7 @@ final class DmfFiles {
             entries[row] = Arrays.copyOf(rows[row], tracks);
         }
         final DmfPattern pattern = new DmfPattern(tracks, 0, new DmfGlobalEntry[ROWS], entries);
-        return new DmfFile(8, "", "", tracks, new int[] {0}, List.of(pattern), List.of(square(0), ramp()));
+        return new DmfFile(8, "", "", tracks, new int[] {0}, List.of(pattern), List.of(square(0), ramp(), wide()));
     }
 
     static DmfEngine engine(DmfFile file) {

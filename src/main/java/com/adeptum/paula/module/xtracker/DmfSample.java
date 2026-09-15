@@ -23,9 +23,11 @@ package com.adeptum.paula.module.xtracker;
 
 /**
  * One sample: its name, its sound widened to 16 bits, the loop it sustains on (an end of zero for none), and the
- * rate it sounds at on C-3 with the volume it starts at, 0 keeping the channel's own.
+ * rate it sounds at on C-3 with the volume it starts at, 0 keeping the channel's own, and whether it was stored in
+ * 16 bits, which is what its offsets count bytes of.
  */
-record DmfSample(String name, short[] data, int loopStart, int loopEnd, int c3Frequency, int volume) {
+record DmfSample(String name, short[] data, int loopStart, int loopEnd, int c3Frequency, int volume,
+        boolean sixteenBit) {
 
     boolean looped() {
         return loopEnd > loopStart;

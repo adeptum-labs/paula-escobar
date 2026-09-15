@@ -299,7 +299,7 @@ final class DmfReader {
         final short[] sound = sound(stored(block(data), flags, (int) length), sixteenBit, (int) (length / width));
         final int end = (flags & LOOPED) != 0 ? (int) Math.min(loopEnd / width, sound.length) : 0;
         final int start = (int) Math.min(loopStart / width, end);
-        return new DmfSample(name, sound, start, end, c3Frequency, volume);
+        return new DmfSample(name, sound, start, end, c3Frequency, volume, sixteenBit);
     }
 
     /**

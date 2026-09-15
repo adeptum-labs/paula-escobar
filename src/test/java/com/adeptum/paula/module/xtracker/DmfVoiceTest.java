@@ -29,8 +29,10 @@ import org.junit.jupiter.api.Test;
 
 class DmfVoiceTest {
 
-    private static final DmfSample LOOPED = new DmfSample("loop", new short[] {0, 1000, 2000, 3000}, 1, 3, 8363, 0);
-    private static final DmfSample ONE_SHOT = new DmfSample("shot", new short[] {0, 1000, 2000, 3000}, 0, 0, 8363, 0);
+    private static final DmfSample LOOPED =
+            new DmfSample("loop", new short[] {0, 1000, 2000, 3000}, 1, 3, 8363, 0, false);
+    private static final DmfSample ONE_SHOT =
+            new DmfSample("shot", new short[] {0, 1000, 2000, 3000}, 0, 0, 8363, 0, false);
 
     private final DmfVoice voice = new DmfVoice();
 

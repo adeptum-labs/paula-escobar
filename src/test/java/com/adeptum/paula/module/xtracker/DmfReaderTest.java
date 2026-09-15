@@ -125,6 +125,7 @@ class DmfReaderTest {
         assertEquals(TestModules.DMF_SAMPLE_LENGTH, square.loopEnd());
         assertEquals(TestModules.DMF_C3_FREQUENCY, square.c3Frequency());
         assertEquals(0, square.volume());
+        assertFalse(square.sixteenBit());
 
         final DmfSample packed = file.sample(2);
         assertEquals(TestModules.DMF_PACKED_NAME, packed.name());
@@ -142,6 +143,7 @@ class DmfReaderTest {
         module[body(module, "SMPI") + SQUARE_FLAGS_IN_SMPI] |= SIXTEEN_BIT;
 
         final DmfSample square = DmfReader.read(module).sample(1);
+        assertTrue(square.sixteenBit());
         assertEquals(TestModules.DMF_SAMPLE_LENGTH / 2, square.data().length);
         assertEquals(TestModules.DMF_SAMPLE_LENGTH / 2, square.loopEnd());
         assertEquals(TestModules.DMF_SQUARE_HIGH | TestModules.DMF_SQUARE_HIGH << WIDEN, square.data()[0]);
