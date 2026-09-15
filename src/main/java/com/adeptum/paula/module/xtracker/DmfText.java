@@ -33,13 +33,16 @@ final class DmfText {
     }
 
     /**
-     * The text up to its first zero byte, without the spaces the tracker pads its fields with.
+     * The text of a field, its zero bytes read as spaces and the spaces the tracker pads its end with dropped. A
+     * leading space is kept, since the tracker lets an author put one there on purpose.
      */
     static String decode(byte[] bytes) {
-        int end = 0;
-        while (end < bytes.length && bytes[end] != 0) {
-            end++;
+        final byte[] spaced = bytes.clone();
+        for (int at = 0; at < spaced.length; at++) {
+            if (spaced[at] == 0) {
+                spaced[at] = ' ';
+            }
         }
-        return new String(bytes, 0, end, CodePage437.CHARSET).strip();
+        return new String(spaced, CodePage437.CHARSET).stripTrailing();
     }
 }

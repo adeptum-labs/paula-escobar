@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 class DmfReaderTest {
 
     private static final int VERSION_AT = 4;
+    private static final int TITLE_AT = 13;
+    private static final int TITLE_LENGTH = 30;
     private static final int CHUNK_HEADER = 8;
     private static final int TRACKS_IN_PATT = 2;
     private static final int SECOND_ORDER_IN_SEQU = 6;
@@ -66,6 +68,16 @@ class DmfReaderTest {
         assertNull(pattern.entry(1, 1));
         assertTrue(pattern.entry(2, 1).isNoteOff());
         assertNull(pattern.entry(3, 1));
+    }
+
+    @Test
+    void keepsALeadingSpaceAndTurnsAnEmbeddedZeroIntoOne() throws IOException {
+        final byte[] module = TestModules.dmf();
+        final byte[] title = new byte[TITLE_LENGTH];
+        System.arraycopy(" Foo\0Bar".getBytes(StandardCharsets.US_ASCII), 0, title, 0, 8);
+        System.arraycopy(title, 0, module, TITLE_AT, TITLE_LENGTH);
+
+        assertEquals(" Foo Bar", DmfReader.read(module).title());
     }
 
     @Test
