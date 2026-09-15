@@ -20,6 +20,7 @@ class DmfReaderTest {
     private static final int VERSION_AT = 4;
     private static final int TITLE_AT = 13;
     private static final int TITLE_LENGTH = 30;
+    private static final byte NO_BREAK_SPACE_BYTE = (byte) 0xFF;
     private static final int CHUNK_HEADER = 8;
     private static final int TRACKS_IN_PATT = 2;
     private static final int SECOND_ORDER_IN_SEQU = 6;
@@ -78,6 +79,19 @@ class DmfReaderTest {
         System.arraycopy(title, 0, module, TITLE_AT, TITLE_LENGTH);
 
         assertEquals(" Foo Bar", DmfReader.read(module).title());
+    }
+
+    @Test
+    void keepsATrailingByteThatIsNotTheLiteralSpaceTheTrackerPadsWith() throws IOException {
+        final byte[] module = TestModules.dmf();
+        final byte[] title = new byte[TITLE_LENGTH];
+        final byte[] prefix = "Foo".getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(prefix, 0, title, 0, prefix.length);
+        title[prefix.length] = NO_BREAK_SPACE_BYTE;
+        Arrays.fill(title, prefix.length + 1, TITLE_LENGTH, (byte) ' ');
+        System.arraycopy(title, 0, module, TITLE_AT, TITLE_LENGTH);
+
+        assertEquals("Foo ", DmfReader.read(module).title());
     }
 
     @Test

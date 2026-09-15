@@ -29,20 +29,29 @@ import com.adeptum.paula.text.CodePage437;
  */
 final class DmfText {
 
+    private static final byte ZERO = 0;
+    private static final byte SPACE = ' ';
+
     private DmfText() {
     }
 
     /**
-     * The text of a field, its zero bytes read as spaces and the spaces the tracker pads its end with dropped. A
-     * leading space is kept, since the tracker lets an author put one there on purpose.
+     * The text of a field: its zero bytes read as spaces, the literal space bytes the tracker pads its end with
+     * then dropped, and what remains decoded as code page 437. The trimming happens on the raw bytes, before
+     * decoding, so a byte that only happens to decode into something space-like stays. A leading space is kept,
+     * since the tracker lets an author put one there on purpose.
      */
     static String decode(byte[] bytes) {
         final byte[] spaced = bytes.clone();
         for (int at = 0; at < spaced.length; at++) {
-            if (spaced[at] == 0) {
-                spaced[at] = ' ';
+            if (spaced[at] == ZERO) {
+                spaced[at] = SPACE;
             }
         }
-        return new String(spaced, CodePage437.CHARSET).stripTrailing();
+        int end = spaced.length;
+        while (end > 0 && spaced[end - 1] == SPACE) {
+            end--;
+        }
+        return new String(spaced, 0, end, CodePage437.CHARSET);
     }
 }
