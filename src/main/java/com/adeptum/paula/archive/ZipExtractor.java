@@ -22,18 +22,23 @@
 package com.adeptum.paula.archive;
 
 import com.adeptum.paula.text.CodePage437;
-import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 /**
  * Reads zip archives. A name flagged as UTF-8 is read as that; one without the flag is read as code page 437,
  * the way the zippers of the DOS days wrote them and the way other readers take them.
+ * <p>
+ * The archive is read through its central directory rather than streamed, since only the stream checks each
+ * entry against its checksum, and a party archive now and then holds a module whose checksum no longer
+ * matches while it still plays whole; streamed, that one entry refused the entire archive.
  */
 public final class ZipExtractor implements ArchiveExtractor {
 
@@ -46,12 +51,13 @@ public final class ZipExtractor implements ArchiveExtractor {
 
     @Override
     public void extract(Path archive, Path into, Predicate<String> wanted) throws IOException {
-        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(Files.newInputStream(archive)),
-                CodePage437.CHARSET)) {
-            for (ZipEntry entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+        try (ZipFile zip = new ZipFile(archive.toFile(), CodePage437.CHARSET)) {
+            for (final ZipEntry entry : Collections.list(zip.entries())) {
                 final String name = entry.getName().replace('\\', '/');
                 if (!entry.isDirectory() && wanted.test(name)) {
-                    Files.copy(zip, Archives.target(into, name), StandardCopyOption.REPLACE_EXISTING);
+                    try (InputStream content = zip.getInputStream(entry)) {
+                        Files.copy(content, Archives.target(into, name), StandardCopyOption.REPLACE_EXISTING);
+                    }
                 }
             }
         }

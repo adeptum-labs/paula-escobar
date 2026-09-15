@@ -31,13 +31,17 @@ import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
 import com.adeptum.paula.text.CodePage437;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.zip.CRC32;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -79,6 +83,37 @@ class ZipExtractorTest {
         extractor.extract(archive, dir.resolve("out"), wanted -> wanted.endsWith(".xm"));
 
         assertArrayEquals(README, Files.readAllBytes(dir.resolve("out").resolve(name)));
+    }
+
+    /**
+     * A party archive now and then holds a module that no longer matches its checksum and plays all the same,
+     * as Masquerade's entry does in Underground Conference 1995's first music bundle.
+     */
+    @Test
+    void keepsEntriesWhoseChecksumNoLongerMatches(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("damaged.mod", TestModules.proTracker());
+        entries.put("intact.txt", README);
+        final Path archive = Files.write(dir.resolve("a.zip"),
+                withChecksumBroken(TestArchives.zip(entries), TestModules.proTracker()));
+
+        extractor.extract(archive, dir.resolve("out"), name -> true);
+
+        assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(dir.resolve("out/damaged.mod")));
+        assertArrayEquals(README, Files.readAllBytes(dir.resolve("out/intact.txt")));
+    }
+
+    private static byte[] withChecksumBroken(byte[] archive, byte[] content) {
+        final CRC32 crc = new CRC32();
+        crc.update(content);
+        final byte[] checksum = ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt((int) crc.getValue()).array();
+        for (int at = 0; at + checksum.length <= archive.length; at++) {
+            if (Arrays.equals(archive, at, at + checksum.length, checksum, 0, checksum.length)) {
+                archive[at] = (byte) ~archive[at];
+            }
+        }
+        return archive;
     }
 
     @Test
