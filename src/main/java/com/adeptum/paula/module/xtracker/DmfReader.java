@@ -93,6 +93,9 @@ final class DmfReader {
     private static final int SMALLEST_PACKED_BLOCK = 5;
     private static final int BYTE = 0xFF;
     private static final int WORD = 0xFFFF;
+    private static final int BYTE_WIDTH = 1;
+    private static final int HUFFMAN_BYTES_PER_BLOCK_BYTE = 4;
+    private static final long MAX_PATTERN_CELLS = 4_000_000;
 
     private DmfReader() {
     }
@@ -121,8 +124,9 @@ final class DmfReader {
             throw new IOException("more tracks than X-Tracker has, or none");
         }
         final List<DmfPattern> patterns = new ArrayList<>(patternCount);
+        final long[] cellsSoFar = {0};
         for (int number = 0; number < patternCount; number++) {
-            patterns.add(pattern(patternChunk, version, tracks));
+            patterns.add(pattern(patternChunk, version, tracks, cellsSoFar));
         }
         final int[] orders = orders(chunks.get(SEQUENCE), version, patternCount);
         final List<DmfSample> samples = samples(chunks.get(SAMPLE_INFO), chunks.get(SAMPLE_DATA), version);
@@ -179,9 +183,12 @@ final class DmfReader {
 
     /**
      * A pattern's header and its packed rows. A pattern declaring more tracks than the song has is read for the
-     * song's tracks only, as OpenMPT reads it.
+     * song's tracks only, as OpenMPT reads it. {@code cellsSoFar} keeps the rows-by-tracks total of every pattern
+     * read before this one, so a module whose headers claim more cells than any X-Tracker module holds is refused
+     * before its rows are allocated.
      */
-    private static DmfPattern pattern(ByteBuffer chunk, int version, int songTracks) throws IOException {
+    private static DmfPattern pattern(ByteBuffer chunk, int version, int songTracks, long[] cellsSoFar)
+            throws IOException {
         final boolean old = version < FIRST_PLAIN_PATTERN_HEADER_VERSION;
         require(chunk, old ? OLD_PATTERN_HEADER : PATTERN_HEADER);
         final int tracks = Math.min(unsigned(chunk.get()), songTracks);
@@ -193,6 +200,10 @@ final class DmfReader {
             storedBeat = unsigned(chunk.get()) >> BEAT_SHIFT;
         }
         final int rows = Math.max(1, chunk.getShort() & WORD);
+        cellsSoFar[0] += (long) rows * (songTracks + 1);
+        if (cellsSoFar[0] > MAX_PATTERN_CELLS) {
+            throw new IOException("the patterns are larger than any X-Tracker module holds");
+        }
         final long length = Integer.toUnsignedLong(chunk.getInt());
         if (length > chunk.remaining()) {
             throw new IOException("a pattern runs past its chunk");
@@ -295,8 +306,10 @@ final class DmfReader {
         skip(info, (version >= FIRST_LIBRARY_NAME_VERSION ? LIBRARY_NAME_LENGTH : 0)
                 + (version >= FIRST_NAMED_LENGTH_VERSION ? FILLER : FIRST_VERSION_FILLER));
         final boolean sixteenBit = (flags & SIXTEEN_BIT) != 0;
-        final int width = sixteenBit ? Short.BYTES : 1;
-        final short[] sound = sound(stored(block(data), flags, (int) length), sixteenBit, (int) (length / width));
+        final int width = sixteenBit ? Short.BYTES : BYTE_WIDTH;
+        final byte[] block = block(data);
+        final int frames = (int) Math.min(length / width, frameBound(block, flags, width));
+        final short[] sound = sound(stored(block, flags, frames * width), sixteenBit, frames);
         final int end = (flags & LOOPED) != 0 ? (int) Math.min(loopEnd / width, sound.length) : 0;
         final int start = (int) Math.min(loopStart / width, end);
         return new DmfSample(name, sound, start, end, c3Frequency, volume, sixteenBit);
@@ -315,6 +328,21 @@ final class DmfReader {
             throw new IOException("a sample's data runs past its chunk");
         }
         return bytes(data, (int) length);
+    }
+
+    /**
+     * The most frames a sample's block can produce, so a declared length far past what the block actually holds
+     * never drives an allocation: the block's own bytes for plain data, four times that for Huffman-packed data
+     * since every packed byte costs at least a sign bit and a branch bit, and nothing for a block too small to
+     * unpack or a packing X-Tracker 1.03 never writes.
+     */
+    private static int frameBound(byte[] block, int flags, int width) {
+        return switch (flags & PACKING) {
+            case 0 -> block.length / width;
+            case HUFFMAN -> block.length >= SMALLEST_PACKED_BLOCK
+                    ? HUFFMAN_BYTES_PER_BLOCK_BYTE * block.length / width : 0;
+            default -> 0;
+        };
     }
 
     /**

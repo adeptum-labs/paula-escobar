@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.testing.TestModules;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -24,9 +25,14 @@ class DmfReaderTest {
     private static final int CHUNK_HEADER = 8;
     private static final int TRACKS_IN_PATT = 2;
     private static final int SECOND_ORDER_IN_SEQU = 6;
+    private static final int SQUARE_LENGTH_IN_SMPI = 1 + 1 + 6;
     private static final int SQUARE_FLAGS_IN_SMPI = 1 + 1 + 6 + 12 + 2 + 1;
     private static final int SIXTEEN_BIT = 0x02;
     private static final int WIDEN = 8;
+    private static final int HEADER_LENGTH = 66;
+    private static final int OVERSIZED_PATTERNS = 21;
+    private static final int OVERSIZED_PATTERN_TRACKS = 2;
+    private static final int OVERSIZED_PATTERN_ROWS = 0xFFFF;
 
     private static DmfFile fixture() throws IOException {
         return DmfReader.read(TestModules.dmf());
@@ -194,6 +200,59 @@ class DmfReaderTest {
     @Test
     void refusesAFileCutShortInItsHeader() {
         assertThrows(IOException.class, () -> DmfReader.read(Arrays.copyOf(TestModules.dmf(), 40)));
+    }
+
+    @Test
+    void refusesPatternsLargerThanAnyModuleHolds() {
+        assertThrows(IOException.class, () -> DmfReader.read(oversizedPatternsModule()));
+    }
+
+    @Test
+    void boundsASamplesFramesByWhatItsDataBlockCanHold() throws IOException {
+        final byte[] module = TestModules.dmf();
+        ByteBuffer.wrap(module).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(body(module, "SMPI") + SQUARE_LENGTH_IN_SMPI, 0x3FFFFFF);
+
+        final DmfSample square = DmfReader.read(module).sample(1);
+
+        assertEquals(TestModules.DMF_SAMPLE_LENGTH, square.data().length);
+        assertEquals(TestModules.DMF_SAMPLE_LENGTH, square.loopEnd());
+    }
+
+    /**
+     * A module whose PATT chunk declares enough rowless, zero-length patterns to run the running total of rows
+     * over what any real X-Tracker module needs, without allocating anything near that much itself.
+     */
+    private static byte[] oversizedPatternsModule() {
+        final ByteArrayOutputStream patt = new ByteArrayOutputStream();
+        patt.writeBytes(littleEndianShort(OVERSIZED_PATTERNS));
+        patt.write(OVERSIZED_PATTERN_TRACKS);
+        for (int number = 0; number < OVERSIZED_PATTERNS; number++) {
+            patt.write(OVERSIZED_PATTERN_TRACKS);
+            patt.write(0);
+            patt.writeBytes(littleEndianShort(OVERSIZED_PATTERN_ROWS));
+            patt.writeBytes(new byte[Integer.BYTES]);
+        }
+        final ByteArrayOutputStream sequ = new ByteArrayOutputStream();
+        sequ.writeBytes(new byte[2 * Short.BYTES]);
+        sequ.writeBytes(littleEndianShort(0));
+
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes("DDMF".getBytes(StandardCharsets.US_ASCII));
+        file.write(8);
+        file.writeBytes(new byte[HEADER_LENGTH - file.size()]);
+        file.writeBytes(chunk("PATT", patt.toByteArray()));
+        file.writeBytes(chunk("SEQU", sequ.toByteArray()));
+        return file.toByteArray();
+    }
+
+    private static byte[] chunk(String id, byte[] body) {
+        return ByteBuffer.allocate(CHUNK_HEADER + body.length).order(ByteOrder.LITTLE_ENDIAN)
+                .put(id.getBytes(StandardCharsets.US_ASCII)).putInt(body.length).put(body).array();
+    }
+
+    private static byte[] littleEndianShort(int value) {
+        return ByteBuffer.allocate(Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort((short) value).array();
     }
 
     private static int body(byte[] module, String id) {
