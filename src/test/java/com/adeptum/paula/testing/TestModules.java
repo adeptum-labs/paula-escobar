@@ -451,6 +451,24 @@ public final class TestModules {
         pattern[at + 2] = (byte) effect;
     }
 
+    public static final String DMF_TITLE = "Paula DMF";
+    public static final String DMF_COMPOSER = "Adeptum";
+    public static final String DMF_PACKED_NAME = "packed";
+    public static final int DMF_TRACKS = 2;
+    public static final int DMF_FIRST_ROWS = 4;
+    public static final int DMF_SECOND_ROWS = 2;
+    public static final int DMF_BEAT = 8;
+    public static final int DMF_TICK_SPEED = 64;
+    public static final int DMF_NOTE = 37;
+    public static final int DMF_VOLUME = 200;
+    public static final int DMF_BALANCE = 32;
+    public static final int DMF_PORTAMENTO = 16;
+    public static final int DMF_BUFFER_NOTE = 132;
+    public static final int DMF_SAMPLE_LENGTH = 32;
+    public static final int DMF_C3_FREQUENCY = 8363;
+    public static final int DMF_PACKED_VOLUME = 180;
+    public static final int DMF_SQUARE_HIGH = 100;
+
     public static byte[] dmfPackedSample() {
         final BitSet bits = new BitSet();
         int at = 0;
@@ -460,6 +478,106 @@ public final class TestModules {
             }
         }
         return Arrays.copyOf(bits.toByteArray(), (at + Byte.SIZE - 1) / Byte.SIZE);
+    }
+
+    public static Path writeDmf(Path directory) throws IOException {
+        return Files.write(directory.resolve("paula.dmf"), dmf());
+    }
+
+    /**
+     * A minimal X-Tracker module of two tracks. Its first pattern, four rows at a beat of eight, sets a tick
+     * speed of 64 and sounds C-3 on a looping square at volume 200 on track one, sets the balance on track two and
+     * gives that track a note off two rows later, every track passing over rows with its counter. The second
+     * pattern has one track: a buffer note with a portamento up, then the packed sample on its own.
+     */
+    public static byte[] dmf() {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes("DDMF".getBytes(StandardCharsets.US_ASCII));
+        file.write(8);
+        file.writeBytes(padded("XTRACKER", 8));
+        file.writeBytes(padded(DMF_TITLE, 30));
+        file.writeBytes(padded(DMF_COMPOSER, 20));
+        file.writeBytes(bytes(15, 9, 95));
+        file.writeBytes(dmfChunk("CMSG", new byte[41]));
+        file.writeBytes(dmfChunk("SEQU", littleEndian(Short.BYTES, 0, 1, 0, 1)));
+        file.writeBytes(dmfChunk("PATT", dmfPatterns()));
+        file.writeBytes(dmfChunk("SMPI", dmfSampleInfo()));
+        file.writeBytes(dmfChunk("SMPD", dmfSampleData()));
+        file.writeBytes("ENDE".getBytes(StandardCharsets.US_ASCII));
+        return file.toByteArray();
+    }
+
+    private static byte[] dmfPatterns() {
+        final byte[] first = bytes(0x81, 3, DMF_TICK_SPEED, 0xF0, 3, 1, DMF_NOTE, DMF_VOLUME, 0x82, 1, 7, DMF_BALANCE,
+                0xA0, 1, 0xFF);
+        final byte[] second = bytes(0x00, 0x24, DMF_BUFFER_NOTE, 4, DMF_PORTAMENTO, 0x00, 0x40, 2);
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.writeBytes(littleEndian(Short.BYTES, 2));
+        body.write(DMF_TRACKS);
+        body.writeBytes(dmfPatternHeader(DMF_TRACKS, DMF_BEAT << 4, DMF_FIRST_ROWS, first.length));
+        body.writeBytes(first);
+        body.writeBytes(dmfPatternHeader(1, 0, DMF_SECOND_ROWS, second.length));
+        body.writeBytes(second);
+        return body.toByteArray();
+    }
+
+    private static byte[] dmfPatternHeader(int tracks, int beat, int rows, int length) {
+        final ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.writeBytes(bytes(tracks, beat));
+        header.writeBytes(littleEndian(Short.BYTES, rows));
+        header.writeBytes(littleEndian(Integer.BYTES, length));
+        return header.toByteArray();
+    }
+
+    private static byte[] dmfSampleInfo() {
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.write(2);
+        body.writeBytes(dmfSampleHeader(SAMPLE_NAME, DMF_SAMPLE_LENGTH, DMF_SAMPLE_LENGTH, 0, 0x01));
+        body.writeBytes(dmfSampleHeader(DMF_PACKED_NAME, DMF_PACKED.length, 0, DMF_PACKED_VOLUME, 0x04));
+        return body.toByteArray();
+    }
+
+    private static byte[] dmfSampleHeader(String name, int length, int loopEnd, int volume, int flags) {
+        final ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(name.length());
+        header.writeBytes(name.getBytes(StandardCharsets.US_ASCII));
+        header.writeBytes(littleEndian(Integer.BYTES, length, 0, loopEnd));
+        header.writeBytes(littleEndian(Short.BYTES, DMF_C3_FREQUENCY));
+        header.writeBytes(bytes(volume, flags));
+        header.writeBytes(padded("", 8));
+        header.writeBytes(new byte[6]);
+        return header.toByteArray();
+    }
+
+    private static byte[] dmfSampleData() {
+        final byte[] square = new byte[DMF_SAMPLE_LENGTH];
+        for (int at = 0; at < square.length; at++) {
+            square[at] = (byte) (at < square.length / 2 ? DMF_SQUARE_HIGH : -DMF_SQUARE_HIGH);
+        }
+        final byte[] packed = dmfPackedSample();
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.writeBytes(littleEndian(Integer.BYTES, square.length));
+        body.writeBytes(square);
+        body.writeBytes(littleEndian(Integer.BYTES, packed.length));
+        body.writeBytes(packed);
+        return body.toByteArray();
+    }
+
+    private static byte[] dmfChunk(String id, byte[] body) {
+        return ByteBuffer.allocate(2 * Integer.BYTES + body.length).order(ByteOrder.LITTLE_ENDIAN)
+                .put(id.getBytes(StandardCharsets.US_ASCII)).putInt(body.length).put(body).array();
+    }
+
+    private static byte[] littleEndian(int width, int... values) {
+        final ByteBuffer buffer = ByteBuffer.allocate(width * values.length).order(ByteOrder.LITTLE_ENDIAN);
+        for (final int value : values) {
+            if (width == Short.BYTES) {
+                buffer.putShort((short) value);
+            } else {
+                buffer.putInt(value);
+            }
+        }
+        return buffer.array();
     }
 
     public static Path writeMed(Path directory) throws IOException {
