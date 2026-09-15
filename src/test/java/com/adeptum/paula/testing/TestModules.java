@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
@@ -146,6 +147,21 @@ public final class TestModules {
     public static final int C669_SAMPLE_LENGTH = 64;
     public static final int C669_SAMPLE_HIGH = 228;
     public static final int C669_SAMPLE_LOW = 28;
+
+    /**
+     * What the packed fixture sample unpacks to: deltas of +1, +1, +1, -1, 0, -2, -1 and +1 summed from zero.
+     */
+    public static final byte[] DMF_PACKED = {1, 2, 3, 2, 2, 0, -1, 0};
+
+    /**
+     * The packed fixture as value and width pairs, lowest bit first: a root with a leaf of delta 0 on its left
+     * and a leaf of delta 1 on its right, then a sign bit and a branch bit for every byte.
+     */
+    private static final int[][] DMF_PACKED_FIELDS = {
+        {0, 7}, {1, 1}, {1, 1}, {0, 7}, {0, 1}, {0, 1}, {1, 7}, {0, 1}, {0, 1},
+        {0, 1}, {1, 1}, {0, 1}, {1, 1}, {0, 1}, {1, 1}, {1, 1}, {0, 1},
+        {0, 1}, {0, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 1}, {0, 1}, {1, 1},
+    };
 
     private static final int C669_HEADER_LENGTH = 497;
     private static final int C669_MESSAGE_LINE = 36;
@@ -433,6 +449,17 @@ public final class TestModules {
         pattern[at] = (byte) note;
         pattern[at + 1] = (byte) volume;
         pattern[at + 2] = (byte) effect;
+    }
+
+    public static byte[] dmfPackedSample() {
+        final BitSet bits = new BitSet();
+        int at = 0;
+        for (final int[] field : DMF_PACKED_FIELDS) {
+            for (int bit = 0; bit < field[1]; bit++) {
+                bits.set(at++, (field[0] >> bit & 1) != 0);
+            }
+        }
+        return Arrays.copyOf(bits.toByteArray(), (at + Byte.SIZE - 1) / Byte.SIZE);
     }
 
     public static Path writeMed(Path directory) throws IOException {
