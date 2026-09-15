@@ -135,7 +135,9 @@ class ModArchiveHtmlTest {
     void slicesByExtension() {
         final ChartEntry xm = new ChartEntry(1, "a", "A.XM", "");
         final ChartEntry med = new ChartEntry(2, "b", "b.med", "");
+        final ChartEntry dmf = new ChartEntry(3, "c", "C.DMF", "");
         assertEquals(List.of(Slice.ALL, Slice.XM), List.of(Slice.values()).stream().filter(slice -> slice.holds(xm)).toList());
         assertEquals(List.of(Slice.ALL, Slice.OTHER), List.of(Slice.values()).stream().filter(slice -> slice.holds(med)).toList());
+        assertEquals(List.of(Slice.ALL, Slice.DMF), List.of(Slice.values()).stream().filter(slice -> slice.holds(dmf)).toList());
     }
 }

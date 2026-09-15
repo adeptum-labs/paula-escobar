@@ -96,7 +96,7 @@ class BrowserTest {
     private static final ModuleLoaderRegistry LOADERS = ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none());
     private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final int WIDTH = 80;
-    private static final int HEIGHT = 12;
+    private static final int HEIGHT = 13;
     private static final int TALL = 24;
     private static final int THE_PARTY_SERIES = 19;
     private static final Duration DWELL = Duration.ofMillis(500);
@@ -521,7 +521,7 @@ class BrowserTest {
         press(Key.Special.TAB);
         press(Key.Special.DOWN);
         press(Key.Special.ENTER);
-        assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
+        assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "DMF", "Other"), labels());
         assertTrue(render().get(1).contains("Charts › Most Downloads"));
     }
 

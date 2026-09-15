@@ -25,11 +25,12 @@ import java.util.Locale;
 import java.util.stream.Stream;
 
 /**
- * A chart cut by file format; the multichannel trackers each have a slice of their own.
+ * A chart cut by file format: the multichannel trackers each have a slice of their own, and so does X-Tracker,
+ * whose modules the charts would otherwise bury among the rest.
  */
 public enum Slice {
 
-    ALL("All"), MOD("MOD"), XM("XM"), IT("IT"), S3M("S3M"), OTHER("Other");
+    ALL("All"), MOD("MOD"), XM("XM"), IT("IT"), S3M("S3M"), DMF("DMF"), OTHER("Other");
 
     private final String label;
 
@@ -44,7 +45,7 @@ public enum Slice {
     public boolean holds(ChartEntry entry) {
         return switch (this) {
             case ALL -> true;
-            case OTHER -> Stream.of(MOD, XM, IT, S3M).noneMatch(slice -> slice.holds(entry));
+            case OTHER -> Stream.of(MOD, XM, IT, S3M, DMF).noneMatch(slice -> slice.holds(entry));
             default -> name().toLowerCase(Locale.ROOT).equals(entry.extension());
         };
     }
