@@ -22,6 +22,7 @@
 package com.adeptum.paula.module.xtracker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,11 @@ class DmfTempoTest {
     private final DmfTempo tempo = new DmfTempo(SAMPLE_RATE);
 
     private long row(DmfGlobalEntry entry) {
-        final int units = tempo.startRow(entry);
+        return row(entry, 1);
+    }
+
+    private long row(DmfGlobalEntry entry, int span) {
+        final int units = tempo.startRow(entry, span);
         long frames = 0;
         for (int unit = 0; unit < units; unit++) {
             frames += tempo.nextUnitFrames();
@@ -101,17 +106,36 @@ class DmfTempoTest {
 
     @Test
     void holdsARowBackByWholeRowsAndSixteenths() {
-        final int units = tempo.startRow(command(TICK_DELAY, 0x28));
+        final int units = tempo.startRow(command(TICK_DELAY, 0x28), 1);
 
         assertEquals(ROW + 2 * ROW + 8 * ROW / 16, units);
     }
 
     @Test
-    void slidesTheSpeedOnEveryRowUntilTheGlobalTrackSaysSomethingElse() {
-        assertEquals(SAMPLE_RATE * 4 / 40, row(command(SLIDE_UP, 8)));
-        assertEquals(SAMPLE_RATE * 4 / 48, row(null));
+    void spreadsASpeedSlideOverTheRowsToTheNextGlobalEntryAndHoldsIt() {
+        row(command(TICK_SPEED, 40));
+
+        assertEquals(SAMPLE_RATE * 4 / 50, row(command(SLIDE_UP, 20), 2), "half of twenty on the slide's own row");
+        assertEquals(SAMPLE_RATE * 4 / 60, row(null), "the other half on the next");
+        assertEquals(SAMPLE_RATE * 4 / 60, row(null), "and no further once the whole amount is moved");
+    }
+
+    @Test
+    void endsASpeedSlideOnTheNextGlobalEntry() {
+        row(command(TICK_SPEED, 40));
+        row(command(SLIDE_UP, 20), 2);
+
         assertEquals(SAMPLE_RATE * 4 / 32, row(command(TICK_SPEED, 32)));
         assertEquals(SAMPLE_RATE * 4 / 32, row(null));
+    }
+
+    @Test
+    void carriesWhatASpeedSlideCannotShareEvenly() {
+        row(command(TICK_SPEED, 50));
+        row(command(SLIDE_UP, 25), 2);
+        row(null);
+
+        assertTrue(Math.abs(row(null) - SAMPLE_RATE * 4 / 75) <= 1, "twelve then thirteen, twenty-five in all");
     }
 
     @Test
@@ -132,7 +156,7 @@ class DmfTempoTest {
     @Test
     void carriesWhatDoesNotMakeAWholeFrameFromUnitToUnit() {
         final DmfTempo odd = new DmfTempo(44100);
-        odd.startRow(command(TICK_SPEED, 3));
+        odd.startRow(command(TICK_SPEED, 3), 1);
         long frames = 0;
         for (int unit = 0; unit < 3 * ROW; unit++) {
             frames += odd.nextUnitFrames();

@@ -38,4 +38,32 @@ record DmfPattern(int tracks, int beat, DmfGlobalEntry[] global, DmfTrackEntry[]
     DmfTrackEntry entry(int row, int track) {
         return track < tracks ? entries[row][track] : null;
     }
+
+    /**
+     * The rows from {@code row} up to the row of the track's next entry in this pattern, or up to the pattern's
+     * end when no entry follows; always at least one row.
+     */
+    int span(int row, int track) {
+        if (track >= tracks) {
+            return rows() - row;
+        }
+        for (int next = row + 1; next < rows(); next++) {
+            if (entries[next][track] != null) {
+                return next - row;
+            }
+        }
+        return rows() - row;
+    }
+
+    /**
+     * The same span as {@link #span(int, int)}, but to the global track's next entry.
+     */
+    int globalSpan(int row) {
+        for (int next = row + 1; next < rows(); next++) {
+            if (global[next] != null) {
+                return next - row;
+            }
+        }
+        return rows() - row;
+    }
 }

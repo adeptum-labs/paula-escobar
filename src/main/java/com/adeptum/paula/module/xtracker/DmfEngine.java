@@ -154,11 +154,11 @@ final class DmfEngine {
                 channels[track].cut();
             }
         }
-        unitsInRow = tempo.startRow(pattern.global(row));
+        unitsInRow = tempo.startRow(pattern.global(row), pattern.globalSpan(row));
         for (int track = 0; track < pattern.tracks(); track++) {
             final DmfTrackEntry entry = pattern.entry(row, track);
             if (entry != null) {
-                channels[track].entry(entry);
+                channels[track].entry(entry, pattern.span(row, track));
             }
         }
         return true;

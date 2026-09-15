@@ -195,23 +195,23 @@ class DmfEffectsTest {
     }
 
     @Test
-    void slidesDataSixteenthsOfASemitoneARowUntilTheNextEntry() {
+    void slidesDataSixteenthsOfASemitoneOverTheRowsToTheNextEntry() {
         final DmfEngine engine = engine(track(noteEffect(c3(SQUARE), PORTAMENTO_UP, 16), null, empty()));
         rows(engine, 1);
-        assertEquals(C3_PITCH + SEMITONE, engine.channel(0).pitch);
+        assertEquals(C3_PITCH + SEMITONE / 2, engine.channel(0).pitch, "half the slide over the first of its two rows");
         rows(engine, 1);
-        assertEquals(C3_PITCH + 2 * SEMITONE, engine.channel(0).pitch, "a row without an entry carries on");
+        assertEquals(C3_PITCH + SEMITONE, engine.channel(0).pitch, "all of it as the next entry arrives");
         rows(engine, 1);
-        assertEquals(C3_PITCH + 2 * SEMITONE, engine.channel(0).pitch, "an entry ends it");
+        assertEquals(C3_PITCH + SEMITONE, engine.channel(0).pitch, "and the entry ends it");
     }
 
     @Test
     void keepsPortamentosBetweenCZeroAndBEight() {
-        final DmfEngine down = engine(track(noteEffect(note(1, SQUARE), PORTAMENTO_DOWN, 255)));
+        final DmfEngine down = engine(track(noteEffect(note(2, SQUARE), PORTAMENTO_DOWN, 255), empty()));
         rows(down, 1);
         assertEquals(0, down.channel(0).pitch);
 
-        final DmfEngine up = engine(track(noteEffect(note(108, SQUARE), PORTAMENTO_UP, 255)));
+        final DmfEngine up = engine(track(noteEffect(note(107, SQUARE), PORTAMENTO_UP, 255), empty()));
         rows(up, 1);
         assertEquals(107 * SEMITONE, up.channel(0).pitch);
     }
@@ -219,10 +219,10 @@ class DmfEffectsTest {
     @Test
     void slidesTowardsTheBufferNoteAndStopsThere() {
         final int buffered = C3_NOTE + 2 + DmfTrackEntry.BUFFER_OFFSET;
-        final DmfEngine engine = engine(track(c3(SQUARE), noteEffect(note(buffered, NONE), TONE_PORTAMENTO, 16)));
+        final DmfEngine engine = engine(track(c3(SQUARE), noteEffect(note(buffered, NONE), TONE_PORTAMENTO, 64), null, empty()));
         rows(engine, 2);
-        assertEquals(C3_PITCH + SEMITONE, engine.channel(0).pitch);
-        rows(engine, 2);
+        assertEquals(C3_PITCH + 2 * SEMITONE, engine.channel(0).pitch, "half of four semitones is the distance to the target");
+        rows(engine, 1);
         assertEquals(C3_PITCH + 2 * SEMITONE, engine.channel(0).pitch);
     }
 
@@ -235,11 +235,10 @@ class DmfEffectsTest {
     }
 
     @Test
-    void scratchesInWholeSemitonesAndArrivesAtTheEndOfTheRow() {
-        final DmfEngine engine = engine(track(c3(SQUARE), noteEffect(empty(), SCRATCH, 48)));
-        rows(engine, 1);
-        units(engine, 129);
-        assertEquals((36 + 12 * 17 / 32) * SEMITONE, engine.channel(0).pitch, "seventeen of 32 steps along");
+    void scratchesInWholeSemitonesAndArrivesAsTheSpanEnds() {
+        final DmfEngine engine = engine(track(c3(SQUARE), noteEffect(empty(), SCRATCH, 48), null, empty()));
+        rows(engine, 2);
+        assertEquals((36 + 12 * 32 / 64) * SEMITONE, engine.channel(0).pitch, "half way through a span of two rows");
 
         rows(engine, 1);
         assertEquals(48 * SEMITONE, engine.channel(0).pitch);
@@ -289,16 +288,29 @@ class DmfEffectsTest {
     // Volume effects
 
     @Test
-    void slidesTheVolumeByDataARowWithinWhatItCanBe() {
-        final DmfEngine up = engine(track(volumeEffect(withVolume(c3(SQUARE), 100), VOLUME_UP, 33)));
+    void slidesTheVolumeByDataOverTheSpanWithinWhatItCanBe() {
+        final DmfEngine up = engine(track(volumeEffect(withVolume(c3(SQUARE), 100), VOLUME_UP, 33), empty()));
         rows(up, 1);
-        assertEquals(133, up.channel(0).loudness(), "the row's total exact though 33 does not share evenly");
-        rows(up, 5);
-        assertEquals(DmfVoice.FULL, up.channel(0).loudness());
+        assertEquals(133, up.channel(0).loudness(), "the total exact though 33 does not share evenly");
 
-        final DmfEngine down = engine(track(volumeEffect(withVolume(c3(SQUARE), 100), VOLUME_DOWN, 64)));
-        rows(down, 2);
+        final DmfEngine capped = engine(track(volumeEffect(withVolume(c3(SQUARE), 250), VOLUME_UP, 33), empty()));
+        rows(capped, 1);
+        assertEquals(DmfVoice.FULL, capped.channel(0).loudness());
+
+        final DmfEngine down = engine(track(volumeEffect(withVolume(c3(SQUARE), 100), VOLUME_DOWN, 255), empty()));
+        rows(down, 1);
         assertEquals(0, down.channel(0).loudness());
+    }
+
+    @Test
+    void spreadsASlideOverSeveralRowsAndHoldsOnceItHasMovedItsWholeAmount() {
+        final DmfEngine engine = engine(track(volumeEffect(withVolume(c3(SQUARE), 0), VOLUME_UP, 64), null, null, empty()));
+        rows(engine, 1);
+        assertEquals(21, engine.channel(0).loudness(), "a third of 64, the remainder carried");
+        rows(engine, 1);
+        assertEquals(42, engine.channel(0).loudness());
+        rows(engine, 1);
+        assertEquals(64, engine.channel(0).loudness());
     }
 
     @Test
@@ -325,12 +337,12 @@ class DmfEffectsTest {
         set.nextUnit();
         assertEquals(32, set.channel(0).panning());
 
-        final DmfEngine left = engine(track(volumeEffect(c3(SQUARE), BALANCE_LEFT, 64)));
+        final DmfEngine left = engine(track(volumeEffect(c3(SQUARE), BALANCE_LEFT, 64), empty()));
         rows(left, 1);
         assertEquals(DmfVoice.MIDDLE - 64, left.channel(0).panning());
 
-        final DmfEngine right = engine(track(volumeEffect(c3(SQUARE), BALANCE_RIGHT, 64)));
-        rows(right, 3);
+        final DmfEngine right = engine(track(volumeEffect(c3(SQUARE), BALANCE_RIGHT, 255), empty()));
+        rows(right, 1);
         assertEquals(DmfVoice.FULL, right.channel(0).panning());
     }
 
@@ -355,7 +367,7 @@ class DmfEffectsTest {
     void letsAllThreeColumnsActTogether() {
         final DmfTrackEntry all = volumeEffect(noteEffect(instrumentEffect(c3(RAMP), OFFSET, 1), PORTAMENTO_UP, 16),
                 BALANCE_RIGHT, 64);
-        final DmfEngine engine = engine(track(all));
+        final DmfEngine engine = engine(track(all, empty()));
         engine.nextUnit();
         assertEquals(256, engine.channel(0).voice.position, 1e-9);
         units(engine, DmfTempo.UNITS_PER_ROW - 1);

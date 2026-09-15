@@ -27,8 +27,9 @@ import java.util.Arrays;
  * One track of the song while it plays: the voice it sounds through, the note and instrument it last had, its
  * pitch, volume and balance, and the effects its last entry set going. Pitch counts 128ths of a semitone up from
  * C-0, and a sample sounds at its own C-3 frequency on C-3. Timed effects act on the unit they fall on; continuous
- * ones move every eighth unit, a 32nd of a row, sharing out their amount for the row so its total comes out
- * exact. Everything an entry sets going lasts until the track's next entry.
+ * ones move every eighth unit, a 32nd of a row. A slide shares its whole amount out over the steps of the
+ * entry's span to the track's next entry, so the total comes out exact as the span ends and holds from there.
+ * Everything an entry sets going lasts until the track's next entry.
  */
 final class DmfChannel {
 
@@ -99,6 +100,8 @@ final class DmfChannel {
 
     private final DmfFile file;
     private final int[] shared = new int[2];
+    private int spanSteps = STEPS_PER_ROW;
+    private int stepsTaken;
     private DmfTrackEntry pending;
     private boolean touchDue;
     private boolean tuneDue;
@@ -129,8 +132,9 @@ final class DmfChannel {
     /**
      * A new entry on the track: whatever the channel carried ends and a balance is set at once, while the note,
      * instrument and volume wait for the unit a sample delay names and the pitch for the one a note delay names.
+     * {@code spanRows} is the rows to the track's next entry, the span any slide the entry starts moves over.
      */
-    void entry(DmfTrackEntry entry) {
+    void entry(DmfTrackEntry entry, int spanRows) {
         pending = entry;
         instrumentEffect = entry.instrumentEffect();
         instrumentData = entry.instrumentData();
@@ -139,6 +143,8 @@ final class DmfChannel {
         volumeEffect = entry.volumeEffect();
         volumeData = entry.volumeData();
         unitsSinceEntry = 0;
+        spanSteps = Math.max(1, spanRows) * STEPS_PER_ROW;
+        stepsTaken = 0;
         Arrays.fill(shared, 0);
         scratchSteps = 0;
         arpeggio = 0;
@@ -368,15 +374,21 @@ final class DmfChannel {
             default -> {
             }
         }
+        stepsTaken++;
     }
 
     /**
-     * A 32nd of a row's amount, the part that does not divide carried to the next step.
+     * A slide's amount for this step: nothing once the entry's span has taken all its steps, otherwise the part
+     * of {@code total} that does not divide carried to the next step, so the whole amount is spent exactly as
+     * the span ends.
      */
-    private int share(int column, int perRow) {
-        shared[column] += perRow;
-        final int whole = shared[column] / STEPS_PER_ROW;
-        shared[column] %= STEPS_PER_ROW;
+    private int share(int column, int total) {
+        if (stepsTaken >= spanSteps) {
+            return 0;
+        }
+        shared[column] += total;
+        final int whole = shared[column] / spanSteps;
+        shared[column] %= spanSteps;
         return whole;
     }
 
@@ -389,15 +401,15 @@ final class DmfChannel {
     }
 
     /**
-     * Towards note Data1 in whole semitones, as far along as the steps of the row taken so far, so the target is
-     * reached at the row's end and held after.
+     * Towards note Data1 in whole semitones, as far along as the steps of the entry's span taken so far, so the
+     * target is reached as the span ends and held after.
      */
     private void scratch() {
         if (scratchSteps == 0) {
             scratchFrom = pitch / SEMITONE;
         }
-        scratchSteps = Math.min(STEPS_PER_ROW, scratchSteps + 1);
-        pitch = (scratchFrom + (noteData - scratchFrom) * scratchSteps / STEPS_PER_ROW) * SEMITONE;
+        scratchSteps = Math.min(spanSteps, scratchSteps + 1);
+        pitch = (scratchFrom + (noteData - scratchFrom) * scratchSteps / spanSteps) * SEMITONE;
     }
 
     private double phase(int periodRows) {
