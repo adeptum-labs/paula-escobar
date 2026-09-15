@@ -26,6 +26,7 @@ import static com.adeptum.paula.module.xtracker.DmfFiles.C3_NOTE;
 import static com.adeptum.paula.module.xtracker.DmfFiles.ROW_FRAMES;
 import static com.adeptum.paula.module.xtracker.DmfFiles.SAMPLE_RATE;
 import static com.adeptum.paula.module.xtracker.DmfFiles.engine;
+import static com.adeptum.paula.module.xtracker.DmfFiles.instrumentEffect;
 import static com.adeptum.paula.module.xtracker.DmfFiles.instrumentOnly;
 import static com.adeptum.paula.module.xtracker.DmfFiles.note;
 import static com.adeptum.paula.module.xtracker.DmfFiles.noteOff;
@@ -46,6 +47,7 @@ class DmfEngineTest {
     private static final int NONE = DmfTrackEntry.NONE;
     private static final int SQUARE = 1;
     private static final int RAMP = 2;
+    private static final int RETRIG = 5;
     private static final int ROWS_IN_FIXTURE = DmfFiles.ROWS;
     private static final int FRAMES = 1024;
 
@@ -162,6 +164,20 @@ class DmfEngineTest {
         engine.nextUnit();
 
         assertTrue(engine.channel(0).voice.sounding, "the track the pattern has plays on");
+        assertFalse(engine.channel(1).voice.sounding);
+    }
+
+    @Test
+    void letsACutTrackCarryNoEffectIntoSilence() {
+        final DmfTrackEntry retrig = instrumentEffect(note(C3_NOTE, SQUARE), RETRIG, 16);
+        final DmfFile two = tracks(new DmfTrackEntry[] {note(C3_NOTE, SQUARE), retrig});
+        final DmfPattern narrow = new DmfPattern(1, 0, new DmfGlobalEntry[1], new DmfTrackEntry[1][1]);
+        final DmfFile file = new DmfFile(8, "", "", 2, new int[] {0, 1},
+                List.of(two.patterns().getFirst(), narrow), two.samples());
+        final DmfEngine engine = engine(file);
+        rows(engine, ROWS_IN_FIXTURE);
+        rows(engine, 1);
+
         assertFalse(engine.channel(1).voice.sounding);
     }
 

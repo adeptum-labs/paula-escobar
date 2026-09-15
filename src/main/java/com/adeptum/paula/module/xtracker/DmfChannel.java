@@ -136,6 +136,7 @@ final class DmfChannel {
      */
     void entry(DmfTrackEntry entry, int spanRows) {
         pending = entry;
+        resetCarriedEffects();
         instrumentEffect = entry.instrumentEffect();
         instrumentData = entry.instrumentData();
         noteEffect = entry.noteEffect();
@@ -144,15 +145,6 @@ final class DmfChannel {
         volumeData = entry.volumeData();
         unitsSinceEntry = 0;
         spanSteps = Math.max(1, spanRows) * STEPS_PER_ROW;
-        stepsTaken = 0;
-        Arrays.fill(shared, 0);
-        scratchSteps = 0;
-        arpeggio = 0;
-        vibrato = 0;
-        tremolo = 1;
-        balanceSwing = 0;
-        noteSilenced = false;
-        volumeSilenced = false;
         touchAt = instrumentEffect == SAMPLE_DELAY ? instrumentData : 0;
         tuneAt = noteEffect == NOTE_DELAY ? noteData : 0;
         touchDue = true;
@@ -188,9 +180,34 @@ final class DmfChannel {
     void cut() {
         voice.silence();
         pending = null;
+        resetCarriedEffects();
         touchDue = false;
         tuneDue = false;
         held = false;
+    }
+
+    /**
+     * Ends whatever the channel carried: the three effects and their data, the shared slide remainders, the
+     * span and its steps taken, the scratch, arpeggio, vibrato and tremolo, the balance swing, and the note and
+     * volume silencing. A new entry then sets its own effects going over this same clean slate.
+     */
+    private void resetCarriedEffects() {
+        instrumentEffect = NONE;
+        instrumentData = 0;
+        noteEffect = NONE;
+        noteData = 0;
+        volumeEffect = NONE;
+        volumeData = 0;
+        spanSteps = STEPS_PER_ROW;
+        stepsTaken = 0;
+        Arrays.fill(shared, 0);
+        scratchSteps = 0;
+        arpeggio = 0;
+        vibrato = 0;
+        tremolo = 1;
+        balanceSwing = 0;
+        noteSilenced = false;
+        volumeSilenced = false;
     }
 
     /**
