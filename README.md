@@ -132,6 +132,7 @@ view afresh; delete the directory to start over.
 | AHX and HivelyTracker modules | `.ahx` `.thx` `.hvl` |
 | OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
 | Composer 669 and UNIS 669 modules | `.669` |
+| X-Tracker modules | `.dmf` |
 | MO3 compressed modules | `.mo3` |
 | MPEG audio | `.mp1` `.mp2` `.mp3` |
 | FLAC | `.flac` |
@@ -176,7 +177,9 @@ and [HivelyTracker](https://github.com/pete-gordon/hivelytracker) render
 them; OctaMED modules of every kind, following the MED player of
 [libxmp](https://github.com/libxmp/libxmp); Composer 669 and UNIS 669
 modules, following what [OpenMPT](https://openmpt.org) found the original
-to do; and MO3 files, unpacked back into the module the tracker wrote.
+to do; X-Tracker modules, timed in fractions of a row as the tracker's own
+effect descriptions give it; and MO3 files, unpacked back into the module
+the tracker wrote.
 
 ### Casting
 
@@ -250,14 +253,14 @@ under the BSD 3-Clause License reproduced in
 [OPENMPT-LICENSE.txt](OPENMPT-LICENSE.txt); its decompression routines come
 from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
 relicensed with his permission. The Composer 669 replayer follows the same
-project's `Load_669.cpp` and the hertz arithmetic of its player. 7z archives
-are read with Apache Commons Compress over the XZ for Java library, both under
-the Apache License 2.0. RAR archives are read with
+project's `Load_669.cpp` and the hertz arithmetic of its player, and the
+X-Tracker reader its `Load_dmf.cpp` for the file layout and the packed
+samples. 7z archives are read with Apache Commons Compress over the XZ for
+Java library, both under the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
 license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which allows
 unpacking RAR archives and forbids re-creating the RAR compression algorithm;
 Paula Escobar only unpacks. The eight by eight font the release art is drawn
-with on a screen comes from
-[font8x8](https://github.com/dhepper/font8x8) by Daniel Hepper, after Marcel
-Sondaar, placed in the public domain; `tools/generate-code-page-font`
-puts its glyphs in code page order.
+with on a screen comes from [font8x8](https://github.com/dhepper/font8x8) by
+Daniel Hepper, after Marcel Sondaar, placed in the public domain;
+`tools/generate-code-page-font` puts its glyphs in code page order.
