@@ -19,34 +19,17 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.modarchive;
-
-import java.util.Locale;
-import java.util.stream.Stream;
+package com.adeptum.paula.module.xtracker;
 
 /**
- * A chart cut by file format: the multichannel trackers each have a slice of their own, and so does X-Tracker,
- * whose modules the charts would otherwise bury among the rest.
+ * One sample: its name, its sound widened to 16 bits, the loop it sustains on (an end of zero for none), and the
+ * rate it sounds at on C-3 with the volume it starts at, 0 keeping the channel's own, and whether it was stored in
+ * 16 bits, which is what its offsets count bytes of.
  */
-public enum Slice {
+record DmfSample(String name, short[] data, int loopStart, int loopEnd, int c3Frequency, int volume,
+        boolean sixteenBit) {
 
-    ALL("All"), MOD("MOD"), XM("XM"), IT("IT"), S3M("S3M"), DMF("DMF"), OTHER("Other");
-
-    private final String label;
-
-    Slice(String label) {
-        this.label = label;
-    }
-
-    public String label() {
-        return label;
-    }
-
-    public boolean holds(ChartEntry entry) {
-        return switch (this) {
-            case ALL -> true;
-            case OTHER -> Stream.of(MOD, XM, IT, S3M, DMF).noneMatch(slice -> slice.holds(entry));
-            default -> name().toLowerCase(Locale.ROOT).equals(entry.extension());
-        };
+    boolean looped() {
+        return loopEnd > loopStart;
     }
 }

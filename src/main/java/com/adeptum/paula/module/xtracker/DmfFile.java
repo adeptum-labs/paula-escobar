@@ -19,34 +19,22 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.modarchive;
+package com.adeptum.paula.module.xtracker;
 
-import java.util.Locale;
-import java.util.stream.Stream;
+import java.util.List;
 
 /**
- * A chart cut by file format: the multichannel trackers each have a slice of their own, and so does X-Tracker,
- * whose modules the charts would otherwise bury among the rest.
+ * An X-Tracker module as read: the song's text, its number of tracks, the order it plays its patterns in, and
+ * the samples its instruments number from one.
  */
-public enum Slice {
+record DmfFile(int version, String title, String composer, int tracks, int[] orders, List<DmfPattern> patterns,
+        List<DmfSample> samples) {
 
-    ALL("All"), MOD("MOD"), XM("XM"), IT("IT"), S3M("S3M"), DMF("DMF"), OTHER("Other");
-
-    private final String label;
-
-    Slice(String label) {
-        this.label = label;
+    DmfPattern patternAt(int order) {
+        return order < orders.length ? patterns.get(orders[order]) : null;
     }
 
-    public String label() {
-        return label;
-    }
-
-    public boolean holds(ChartEntry entry) {
-        return switch (this) {
-            case ALL -> true;
-            case OTHER -> Stream.of(MOD, XM, IT, S3M, DMF).noneMatch(slice -> slice.holds(entry));
-            default -> name().toLowerCase(Locale.ROOT).equals(entry.extension());
-        };
+    DmfSample sample(int instrument) {
+        return instrument >= 1 && instrument <= samples.size() ? samples.get(instrument - 1) : null;
     }
 }

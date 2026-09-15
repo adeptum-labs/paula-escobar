@@ -93,6 +93,13 @@ class PaulaTest {
     }
 
     @Test
+    void formatsListsXTracker() {
+        assertEquals(0, cli.execute("formats"));
+        assertTrue(out.toString().contains("X-Tracker modules"));
+        assertTrue(out.toString().contains(".dmf"));
+    }
+
+    @Test
     void formatsListsMonkeysAudio() {
         assertEquals(0, cli.execute("formats"));
         assertTrue(out.toString().contains("Monkey's Audio"));

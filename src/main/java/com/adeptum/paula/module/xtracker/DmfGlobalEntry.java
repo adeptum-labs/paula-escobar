@@ -19,34 +19,10 @@
  * Contact: info@adeptum.se
  */
 
-package com.adeptum.paula.modarchive;
-
-import java.util.Locale;
-import java.util.stream.Stream;
+package com.adeptum.paula.module.xtracker;
 
 /**
- * A chart cut by file format: the multichannel trackers each have a slice of their own, and so does X-Tracker,
- * whose modules the charts would otherwise bury among the rest.
+ * A command on the global track, which speaks for the whole song: its speed, its beat and the delays of a row.
  */
-public enum Slice {
-
-    ALL("All"), MOD("MOD"), XM("XM"), IT("IT"), S3M("S3M"), DMF("DMF"), OTHER("Other");
-
-    private final String label;
-
-    Slice(String label) {
-        this.label = label;
-    }
-
-    public String label() {
-        return label;
-    }
-
-    public boolean holds(ChartEntry entry) {
-        return switch (this) {
-            case ALL -> true;
-            case OTHER -> Stream.of(MOD, XM, IT, S3M, DMF).noneMatch(slice -> slice.holds(entry));
-            default -> name().toLowerCase(Locale.ROOT).equals(entry.extension());
-        };
-    }
+record DmfGlobalEntry(int command, int data) {
 }
