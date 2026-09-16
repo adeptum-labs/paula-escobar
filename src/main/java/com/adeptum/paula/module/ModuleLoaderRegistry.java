@@ -37,6 +37,7 @@ import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.module.sap.SapLoader;
 import com.adeptum.paula.module.sid.SidLoader;
 import com.adeptum.paula.module.sid.SongLengths;
+import com.adeptum.paula.module.ult.UltLoader;
 import com.adeptum.paula.module.wav.WavLoader;
 import com.adeptum.paula.module.xtracker.XTrackerLoader;
 import java.io.IOException;
@@ -55,7 +56,7 @@ public final class ModuleLoaderRegistry {
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new SapLoader(),
                 new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Composer669Loader(),
-                new XTrackerLoader(), new AyLoader(), new SoundTrackerLoader(), new ProTrackerLoader(),
+                new XTrackerLoader(), new UltLoader(), new AyLoader(), new SoundTrackerLoader(), new ProTrackerLoader(),
                 new Mo3Loader(),
                 new Mp3Loader(), new FlacLoader(), new WavLoader(), new OggLoader(), new ApeLoader()));
     }
