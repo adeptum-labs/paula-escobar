@@ -134,6 +134,7 @@ view afresh; delete the directory to start over.
 | Composer 669 and UNIS 669 modules | `.669` |
 | X-Tracker modules | `.dmf` |
 | ZX Spectrum SoundTracker modules | `.stc` |
+| ZX Spectrum Pro Tracker 3 and Vortex Tracker II modules | `.pt3` |
 | AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` `.vtx` |
 | MO3 compressed modules | `.mo3` |
 | MPEG audio | `.mp1` `.mp2` `.mp3` |
@@ -261,7 +262,12 @@ project's `Load_669.cpp` and the hertz arithmetic of its player, and the
 X-Tracker reader its `Load_dmf.cpp` for the file layout and the packed
 samples. The AY-3-8910 and YM2149 are emulated by a port of Peter
 Sovietov's [ayumi](https://github.com/true-grue/ayumi), distributed under
-the MIT License. 7z archives are read with Apache Commons Compress over the XZ for
+the MIT License. The SoundTracker and Pro Tracker 3 readers and players
+follow Vitamin's [ZXTune](https://github.com/vitamin-caig/zxtune),
+distributed under the GNU Lesser General Public License version 3, and take
+their note and volume tables from it; a Pro Tracker 3.4 module is tuned the
+way recordings of such modules sound rather than the way ZXTune tunes it.
+7z archives are read with Apache Commons Compress over the XZ for
 Java library, both under the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
 license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which allows
