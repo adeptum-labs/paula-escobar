@@ -521,7 +521,7 @@ class BrowserTest {
         press(Key.Special.TAB);
         press(Key.Special.DOWN);
         press(Key.Special.ENTER);
-        assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "DMF", "Other"), labels());
+        assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
         assertTrue(render().get(1).contains("Charts › Most Downloads"));
     }
 

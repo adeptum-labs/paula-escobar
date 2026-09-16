@@ -138,6 +138,6 @@ class ModArchiveHtmlTest {
         final ChartEntry dmf = new ChartEntry(3, "c", "C.DMF", "");
         assertEquals(List.of(Slice.ALL, Slice.XM), List.of(Slice.values()).stream().filter(slice -> slice.holds(xm)).toList());
         assertEquals(List.of(Slice.ALL, Slice.OTHER), List.of(Slice.values()).stream().filter(slice -> slice.holds(med)).toList());
-        assertEquals(List.of(Slice.ALL, Slice.DMF), List.of(Slice.values()).stream().filter(slice -> slice.holds(dmf)).toList());
+        assertEquals(List.of(Slice.ALL, Slice.OTHER), List.of(Slice.values()).stream().filter(slice -> slice.holds(dmf)).toList());
     }
 }
