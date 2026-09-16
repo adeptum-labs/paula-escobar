@@ -55,6 +55,31 @@ class UltCommandsTest {
         assertEquals(0x40, cell.param());
     }
 
+    /**
+     * Impulse Tracker has no volume in its effect column, so a volume is always written to the volume column.
+     */
+    @Test
+    void putsALoneVolumeInTheColumn() {
+        final UltCell cell = convert(0x0c, 0x80, 0, 0);
+
+        assertEquals(UltCell.COLUMN_VOLUME, cell.volumeEffect());
+        assertEquals(0x20, cell.volumeParam());
+        assertEquals(new Effect(0, 0), effectOf(cell));
+    }
+
+    /**
+     * A volume that does not divide by four would leave the slide beside it the volume column; the two trade
+     * places, the slide going back to the effect it was.
+     */
+    @Test
+    void tradesPlacesWithASlideWhenTheVolumeIsLeftInTheEffectColumn() {
+        final UltCell cell = convert(0x0c, 0x81, 0x0a, 0x40);
+
+        assertEquals(UltCell.COLUMN_VOLUME, cell.volumeEffect());
+        assertEquals(0x21, cell.volumeParam());
+        assertEquals(new Effect(VOLUME_SLIDE, 0x40), effectOf(cell));
+    }
+
     @Test
     void readsTheSpeedCommandAsASpeedOrATempoByItsSize() {
         assertEquals(new Effect(SPEED, 6), effectOf(convert(0x0f, 0x06, 0, 0)));

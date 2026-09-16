@@ -300,11 +300,34 @@ final class UltCommands {
     }
 
     private static UltCell cell(Effect effect, Column column, Effect lost) {
+        if (effect.command() == Command.VOLUME || effect.command() == Command.VOLUME8) {
+            return cell(effectOf(column), column(effect, true), lost);
+        }
         final boolean keyOff = effect.command() == Command.KEY_OFF;
         final Effect kept = keyOff ? Effect.NONE : effect;
         final Effect handedOn = governsTheSong(lost) ? lost : Effect.NONE;
         return new UltCell(kept.command().letter, kept.command().letter == UltCell.NO_EFFECT ? 0 : kept.param(),
                 column.effect(), column.param(), keyOff, handedOn.command().letter, handedOn.param());
+    }
+
+    /**
+     * OpenMPT plays a volume from its effect column, which Impulse Tracker cannot, so there the volume takes
+     * the volume column and what was there goes back to the effect it stands for.
+     */
+    private static Effect effectOf(Column column) {
+        final int param = column.param();
+        return switch (column.effect()) {
+            case UltCell.COLUMN_SLIDE_UP -> new Effect(Command.VOLUME_SLIDE, param << 4);
+            case UltCell.COLUMN_SLIDE_DOWN -> new Effect(Command.VOLUME_SLIDE, param);
+            case UltCell.COLUMN_FINE_UP -> new Effect(Command.VOLUME_SLIDE, param << 4 | 0x0f);
+            case UltCell.COLUMN_FINE_DOWN -> new Effect(Command.VOLUME_SLIDE, 0xf0 | param);
+            case UltCell.COLUMN_PITCH_UP -> new Effect(Command.PORTAMENTO_UP, param * 4);
+            case UltCell.COLUMN_PITCH_DOWN -> new Effect(Command.PORTAMENTO_DOWN, param * 4);
+            case UltCell.COLUMN_TONE_PORTAMENTO -> new Effect(Command.TONE_PORTAMENTO, PORTAMENTO_STEPS[param]);
+            case UltCell.COLUMN_VIBRATO_DEPTH -> new Effect(Command.VIBRATO, param);
+            case UltCell.COLUMN_PANNING -> new Effect(Command.PANNING, param == LOUDEST ? 0xff : param * 4);
+            default -> Effect.NONE;
+        };
     }
 
     private static boolean governsTheSong(Effect effect) {
