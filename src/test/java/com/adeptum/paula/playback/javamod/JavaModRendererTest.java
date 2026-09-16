@@ -25,10 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.javamod.JavaModLoader;
+import com.adeptum.paula.module.ult.UltLoader;
 import com.adeptum.paula.playback.ChannelState;
 import com.adeptum.paula.playback.Renderer;
 import com.adeptum.paula.testing.TestModules;
+import com.adeptum.paula.testing.TestUlts;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
@@ -42,6 +46,9 @@ class JavaModRendererTest {
     private static final int FRAMES = 1024;
     private static final int MAX_BUFFERS = SAMPLE_RATE * 120 / FRAMES;
     private static final int PLAYING_CHANNEL = 1;
+    private static final int SET_VOLUME = 0x0c;
+    private static final int SPECIAL = 0x0e;
+    private static final int CUT_AT_TICK_THREE = 0xc3;
 
     @Test
     void rendersAudioAndEventuallyFinishes(@TempDir Path dir) throws Exception {
@@ -66,6 +73,39 @@ class JavaModRendererTest {
     @Test
     void keepsRenderingWhenAShorterSampleIsSwappedInAtTheLoopEnd(@TempDir Path dir) throws Exception {
         final Renderer renderer = new JavaModLoader().load(TestModules.writeProTrackerSwappingSamples(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        for (int i = 0; i < SAMPLE_RATE / FRAMES; i++) {
+            assertEquals(FRAMES, renderer.render(buffer), "buffer " + i);
+        }
+    }
+
+    /**
+     * A channel that was never given a sample has no frequency to tune a note to.
+     */
+    @Test
+    void keepsRenderingANoteOnAChannelThatNeverHadASample(@TempDir Path dir) throws Exception {
+        final int[][][] channels = {{{TestUlts.NOTE, 0, 0, 0, 0}}};
+
+        assertRendersASecond(new UltLoader().load(Files.write(dir.resolve("unset.ult"), TestUlts.ult(channels, 32))));
+    }
+
+    /**
+     * A silent short sample needs no ramp down when a long one replaces it, and a note cut later in that row
+     * ramps down the long one from where it has got to, far past the end of the short one.
+     */
+    @Test
+    void keepsRenderingANoteCutAfterASampleThatNeededNoRampDown(@TempDir Path dir) throws Exception {
+        final int[][][] channels = {{
+            {TestUlts.NOTE, 1, SET_VOLUME, 0, 0},
+            {TestUlts.NOTE, 2, SPECIAL, CUT_AT_TICK_THREE, 0}
+        }};
+
+        assertRendersASecond(new UltLoader().load(Files.write(dir.resolve("cut.ult"), TestUlts.ult(channels, 32, 20000))));
+    }
+
+    private static void assertRendersASecond(Module module) {
+        final Renderer renderer = module.createRenderer(SAMPLE_RATE);
         final short[] buffer = new short[FRAMES * 2];
 
         for (int i = 0; i < SAMPLE_RATE / FRAMES; i++) {

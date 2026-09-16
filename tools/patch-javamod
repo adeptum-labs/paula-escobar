@@ -38,6 +38,8 @@ trap 'rm -rf "$work"' EXIT
 curl -fsSL -o "$work/javamod.jar" "https://github.com/quippy-git/javamod/releases/download/v$upstream/javamod.jar"
 for patch in "$tools"/javamod-*.patch; do
     for file in $(sed -n 's#^+++ b/##p' "$patch"); do
+        # Two patches may touch the same file, and fetching it again would undo the first
+        [ -f "$work/$file" ] && continue
         mkdir -p "$work/$(dirname "$file")"
         curl -fsSL -o "$work/$file" "https://raw.githubusercontent.com/quippy-git/javamod/v$upstream/$file"
     done

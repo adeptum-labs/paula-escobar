@@ -133,6 +133,7 @@ view afresh; delete the directory to start over.
 | OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
 | Composer 669 and UNIS 669 modules | `.669` |
 | X-Tracker modules | `.dmf` |
+| UltraTracker modules | `.ult` |
 | ZX Spectrum SoundTracker modules | `.stc` |
 | ZX Spectrum Pro Tracker 3 and Vortex Tracker II modules | `.pt3` |
 | AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` `.vtx` |
@@ -260,7 +261,9 @@ from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
 relicensed with his permission. The Composer 669 replayer follows the same
 project's `Load_669.cpp` and the hertz arithmetic of its player, and the
 X-Tracker reader its `Load_dmf.cpp` for the file layout and the packed
-samples. The AY-3-8910 and YM2149 are emulated by a port of Peter
+samples. UltraTracker modules are rewritten as Impulse Tracker ones the way
+OpenMPT's `Load_ult.cpp`, a port of Storlek's reader from Schism Tracker,
+does it. The AY-3-8910 and YM2149 are emulated by a port of Peter
 Sovietov's [ayumi](https://github.com/true-grue/ayumi), distributed under
 the MIT License. The SoundTracker and Pro Tracker 3 readers and players
 follow Vitamin's [ZXTune](https://github.com/vitamin-caig/zxtune),
