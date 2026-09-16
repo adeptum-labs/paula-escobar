@@ -40,6 +40,9 @@ class UltModuleTest {
     private static final String NAME = "test.ult";
     private static final int SAMPLE_RATE = 44100;
     private static final int VOLUME_SLIDE = 'D' - 'A' + 1;
+    private static final int TEMPO = 'T' - 'A' + 1;
+    private static final int BREAK = 'C' - 'A' + 1;
+    private static final int TEMPO_AND_BREAK = 0xdf;
 
     @Test
     void saysWhatUltraTrackerWouldSay() throws IOException {
@@ -87,6 +90,33 @@ class UltModuleTest {
         assertEquals(TestUlts.VOLUME / 4, sample.volume);
         assertEquals(Math.round(TestUlts.SPEED * 2 * Math.pow(2, TestUlts.FINETUNE / (12.0 * 32768))),
                 sample.baseFrequency);
+    }
+
+    /**
+     * A tempo that loses its place to a pattern break on the second channel is written to the free effect of
+     * the first, which has already been read.
+     */
+    @Test
+    void writesADisplacedTempoToAFreeEffectOnTheRow() throws IOException {
+        final int[][][] channels = {{{TestUlts.NOTE, 1, 0, 0, 0}}, {{0, 0, TEMPO_AND_BREAK, 0x80, 0x12}}};
+        final PatternElement first = UltModule.of(NAME, TestUlts.ult(channels, TestUlts.SAMPLE_LENGTH))
+                .getPatternContainer().getPatternElement(0, 0, 0);
+
+        assertEquals(TEMPO, first.getEffekt());
+        assertEquals(0x80, first.getEffektOp());
+    }
+
+    /**
+     * The tracker's conversion writes the displaced command before the event it came from, so on the first
+     * channel it lands where that channel's own event then goes, and is gone.
+     */
+    @Test
+    void losesADisplacedTempoToTheChannelItCameFrom() throws IOException {
+        final int[][][] channels = {{{TestUlts.NOTE, 1, TEMPO_AND_BREAK, 0x80, 0x12}}};
+        final UltModule module = UltModule.of(NAME, TestUlts.ult(channels, TestUlts.SAMPLE_LENGTH));
+
+        assertEquals(BREAK, module.getPatternContainer().getPatternElement(0, 0, 0).getEffekt());
+        assertEquals(0, module.getPatternContainer().getPatternElement(0, 0, 1).getEffekt());
     }
 
     @Test

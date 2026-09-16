@@ -59,6 +59,7 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
     private static final int PANNING_SEPARATION = 128;
     private static final int SPEED = 'A' - 'A' + 1;
     private static final int TEMPO = 'T' - 'A' + 1;
+    private static final int PANNING = 'X' - 'A' + 1;
 
     /**
      * UltraTracker's first note sits two octaves above Impulse Tracker's, and its samples are tuned an octave
@@ -68,6 +69,12 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
     private static final int SPEED_SCALE = 2;
     private static final double FINETUNE_PER_OCTAVE = 12.0 * 32768.0;
     private static final int LOWEST_FREQUENCY = 256;
+
+    /**
+     * OpenMPT mixes a module of a tracker that kept no mixing volume of its own twice as loud as the mixer
+     * here does at Impulse Tracker's lowest pre-amp.
+     */
+    private static final int MIXING_PRE_AMP = ModConstants.MIN_MIXING_PREAMP * 2;
 
     /**
      * An UltraTracker sample volume runs to 255 where Impulse Tracker's runs to 64.
@@ -106,7 +113,7 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
         setTempo(DEFAULT_SPEED);
         setBPMSpeed(DEFAULT_TEMPO);
         setBaseVolume(ModConstants.MAXGLOBALVOLUME);
-        setMixingPreAmp(ModConstants.MIN_MIXING_PREAMP);
+        setMixingPreAmp(MIXING_PRE_AMP);
         setSongRestart(0);
         setSongFlags(ModConstants.SONG_ISSTEREO | ModConstants.SONG_ITOLDEFFECTS | ModConstants.SONG_ITCOMPATMODE);
 
@@ -147,10 +154,10 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
                 for (int row = 0; row < UltFile.ROWS; row++) {
                     final UltEvent event = file.event(pattern, channel, row);
                     final UltCell cell = UltCommands.convert(event, file.version());
-                    placed[pattern][row][channel] = new Placed(event.note(), event.instrument(), cell);
-                    if (cell.lostEffect() != UltCell.NO_EFFECT) {
+                    if (cell.lostEffect() != UltCell.NO_EFFECT && !repeatsTheRowBefore(file, pattern, channel, row)) {
                         placeFromRow(placed[pattern], row, cell.lostEffect(), cell.lostParam());
                     }
+                    placed[pattern][row][channel] = new Placed(event.note(), event.instrument(), cell);
                     speedZero |= cell.effect() == SPEED && cell.param() == 0;
                 }
             }
@@ -170,12 +177,33 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
         return patterns;
     }
 
+    /**
+     * The reader hands out one event for all the rows a repeated event stands for, and the tracker's own
+     * conversion writes a displaced command only on the first of them.
+     */
+    private static boolean repeatsTheRowBefore(UltFile file, int pattern, int channel, int row) {
+        return row > 0 && file.event(pattern, channel, row) == file.event(pattern, channel, row - 1);
+    }
+
+    /**
+     * A row that already carries the command keeps its own; otherwise the command takes the first free effect
+     * column, or failing that pushes a panning into its volume column, and failing both tries the next row.
+     */
     private static void placeFromRow(Placed[][] rows, int from, int effect, int param) {
         for (int row = from; row < rows.length; row++) {
-            for (int channel = 0; channel < rows[row].length; channel++) {
-                final UltCell cell = rows[row][channel].cell();
-                if (cell.effect() == UltCell.NO_EFFECT || cell.effect() == effect && cell.param() == param) {
-                    rows[row][channel] = rows[row][channel].withEffect(effect, param);
+            final Placed[] cells = rows[row];
+            if (Arrays.stream(cells).anyMatch(cell -> cell.cell().effect() == effect)) {
+                return;
+            }
+            for (int channel = 0; channel < cells.length; channel++) {
+                if (cells[channel].hasFreeEffect()) {
+                    cells[channel] = cells[channel].withEffect(effect, param);
+                    return;
+                }
+            }
+            for (int channel = 0; channel < cells.length; channel++) {
+                if (cells[channel].cell().effect() == PANNING) {
+                    cells[channel] = cells[channel].withPanningInColumn().withEffect(effect, param);
                     return;
                 }
             }
@@ -205,6 +233,19 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
         private static final Placed EMPTY = new Placed(0, 0, new UltCell(UltCell.NO_EFFECT, 0, UltCell.COLUMN_NONE,
                 0, false, UltCell.NO_EFFECT, 0));
 
+        /**
+         * A volume or a stopped loop sits in the effect column where the tracker's conversion leaves it, so
+         * that column is only free where neither is on the row.
+         */
+        private boolean hasFreeEffect() {
+            return cell.effect() == UltCell.NO_EFFECT && !cell.keyOff() && cell.volumeEffect() != UltCell.COLUMN_VOLUME;
+        }
+
+        private Placed withPanningInColumn() {
+            return new Placed(note, instrument, new UltCell(cell.effect(), cell.param(), UltCell.COLUMN_PANNING,
+                    (cell.param() + 2) / 4, cell.keyOff(), UltCell.NO_EFFECT, 0));
+        }
+
         private Placed withEffect(int effect, int param) {
             return new Placed(note, instrument, new UltCell(effect, param, cell.volumeEffect(), cell.volumeParam(),
                     cell.keyOff(), UltCell.NO_EFFECT, 0));
@@ -218,8 +259,9 @@ public final class UltModule extends de.quippy.javamod.multimedia.mod.loader.Mod
     private static void fill(PatternElement element, Placed placed) {
         final UltCell cell = placed.cell();
         if (placed.note() > 0) {
-            element.setNoteIndex(placed.note() + NOTE_OFFSET);
-            element.setPeriod(ModConstants.noteValues[placed.note() + NOTE_OFFSET - 1]);
+            final int note = placed.note() + NOTE_OFFSET;
+            element.setNoteIndex(note);
+            element.setPeriod(note <= ModConstants.noteValues.length ? ModConstants.noteValues[note - 1] : 1);
         } else if (cell.keyOff()) {
             element.setNoteIndex(ModConstants.KEY_OFF);
             element.setPeriod(ModConstants.KEY_OFF);
