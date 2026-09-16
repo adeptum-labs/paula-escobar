@@ -62,7 +62,7 @@ class StcReaderTest {
         assertEquals(TestStcs.LEVEL, sample.lines()[0].level());
         assertEquals(TestStcs.NOISE, sample.lines()[0].noise());
         assertFalse(sample.lines()[0].noiseOff());
-        assertTrue(sample.lines()[0].envelopeOff());
+        assertTrue(sample.lines()[0].toneOff());
         assertEquals(-TestStcs.EFFECT, sample.lines()[0].effect(), "the sign bit is clear, so it falls");
         assertEquals(TestStcs.SAMPLE_LOOP, sample.loop());
     }

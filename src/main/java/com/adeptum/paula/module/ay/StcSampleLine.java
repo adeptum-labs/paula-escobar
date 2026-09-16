@@ -23,7 +23,7 @@ package com.adeptum.paula.module.ay;
 
 /**
  * One line of a sample: how loud the channel is, what noise it sits against, and how far the note is bent.
- * The masks say which of the two generators is let through.
+ * One mask keeps the noise out and the other the tone, the tone being what an enveloped line gives up.
  */
-public record StcSampleLine(int level, int noise, boolean noiseOff, boolean envelopeOff, int effect) {
+public record StcSampleLine(int level, int noise, boolean noiseOff, boolean toneOff, int effect) {
 }

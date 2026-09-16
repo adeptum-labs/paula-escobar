@@ -97,8 +97,10 @@ final class StcReader {
             for (int line = 0; line < lines.length; line++) {
                 lines[line] = sampleLine(at + 1 + line * 3);
             }
-            samples[number] = new StcSample(lines, file[at + 1 + StcFile.SAMPLE_LENGTH * 3] & 0xff,
-                    file[at + 2 + StcFile.SAMPLE_LENGTH * 3] & 0xff);
+            final int loop = file[at + 1 + StcFile.SAMPLE_LENGTH * 3] & 0xff;
+            final int length = file[at + 2 + StcFile.SAMPLE_LENGTH * 3] & 0xff;
+            samples[number] = new StcSample(lines, Math.min(loop, StcFile.SAMPLE_LENGTH),
+                    Math.min(loop + length, StcFile.SAMPLE_LENGTH));
         }
         return samples;
     }
@@ -190,8 +192,12 @@ final class StcReader {
             this.at = at;
         }
 
+        /**
+         * A channel still waiting out its count keeps the pattern going, whatever stands at its cursor: the
+         * end mark only ends the pattern once the channel has come back round to reading it.
+         */
         private boolean hasMore() {
-            return at < file.length && (file[at] & 0xff) != END_MARK;
+            return waited > 0 || (at < file.length && (file[at] & 0xff) != END_MARK);
         }
 
         private StcCell next() {
