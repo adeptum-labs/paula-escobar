@@ -52,6 +52,7 @@ public final class TestUlts {
     public static final int FIRST_CHANNEL_PANNING = 3;
     public static final int SECOND_CHANNEL_PANNING = 12;
     public static final int SQUARE_HIGH = 100;
+    public static final int ORDERS_AT = 48 + 32 + 1 + 66;
 
     private static final String SIGNATURE = "MAS_UTrack_V00";
     private static final int NAME_LENGTH = 32;
