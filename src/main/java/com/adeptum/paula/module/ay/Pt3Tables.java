@@ -23,8 +23,13 @@ package com.adeptum.paula.module.ay;
 
 /**
  * The tables Pro Tracker 3 played by: the periods of its five note tables, of which the Pro Tracker, ASM and
- * real tables were retuned in version 3.4, and the two tables that scale a sample's level by the channel's
- * volume, the second of which arrived in version 3.5.
+ * real tables were retuned, and the two tables that scale a sample's level by the channel's volume, the
+ * second of which arrived in version 3.5.
+ *
+ * <p>Version 3.4 came out twice, and the re-release, 3.4r, kept the old tuning while the other took the new,
+ * both writing the same version digit into the module. ZXTune and AY_Emul take a version 4 module for the new
+ * tuning; recordings of four version 4 modules by four different composers all match the old one note for
+ * note, so the new tuning is taken from version 3.5 on.
  */
 final class Pt3Tables {
 
@@ -34,7 +39,7 @@ final class Pt3Tables {
     static final int REAL = 3;
     static final int NATURAL = 4;
 
-    private static final int RETUNED = 4;
+    private static final int RETUNED = 5;
     private static final int LOUDER_VOLUMES = 5;
     private static final int LEVELS = 16;
 

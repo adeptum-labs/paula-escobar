@@ -213,6 +213,9 @@ final class Pt3Reader {
         while (lines.size() < Pt3File.LONGEST_PATTERN && hasLine(channels)) {
             lines.add(line(channels));
         }
+        if (lines.isEmpty()) {
+            lines.add(new Pt3Line(Pt3Line.NO_TEMPO, new Pt3Cell[]{Pt3Cell.EMPTY, Pt3Cell.EMPTY, Pt3Cell.EMPTY}));
+        }
         return new Pt3Pattern(lines.toArray(Pt3Line[]::new));
     }
 

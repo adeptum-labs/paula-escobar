@@ -201,6 +201,22 @@ class Pt3ReaderTest {
         assertEquals(1, read().patterns()[1].length());
     }
 
+    /**
+     * A pattern whose first channel ends before it begins still takes one line, which says nothing.
+     */
+    @Test
+    void readsAPatternThatEndsAtOnceAsOneLineOfNothing() throws IOException {
+        final byte[] bytes = TestPt3s.pt3();
+        final int table = (bytes[103] & 0xff) | (bytes[104] & 0xff) << 8;
+        final int secondPatternFirstChannel = (bytes[table + 6] & 0xff) | (bytes[table + 7] & 0xff) << 8;
+        bytes[secondPatternFirstChannel] = 0;
+
+        final Pt3Pattern pattern = Pt3Reader.read(bytes).patterns()[1];
+
+        assertEquals(1, pattern.length());
+        assertEquals(Pt3Cell.EMPTY, pattern.line(0).cell(A));
+    }
+
     @Test
     void refusesWhatIsNotAPt3() {
         assertThrows(IOException.class, () -> Pt3Reader.read(new byte[300]));
