@@ -45,6 +45,9 @@ class AyRendererTest {
     private static final int ENVELOPE_COARSE = 12;
     private static final int ENVELOPE_SHAPE = 13;
     private static final int SLIDE_DOWN = 8;
+    private static final int TONES_ONLY = 0x38;
+    private static final byte LOUDEST = 15;
+    private static final int PINNED_AT_MOST = 8;
 
     @Test
     void soundsAToneFromARecording() {
@@ -121,6 +124,31 @@ class AyRendererTest {
                 "the envelope should have slid down, was " + later + " against " + opening);
     }
 
+    /**
+     * Three channels at once can carry the mix past what a sample can hold, since each one reaches full scale
+     * on its own. There has to be room for all three rather than a clipped sum.
+     */
+    @Test
+    void leavesRoomForAllThreeChannelsAtOnce() {
+        final AyRenderer renderer = renderer(fullChorus(FRAMES_PER_SECOND));
+        final short[] buffer = new short[BUFFER_FRAMES * 2];
+
+        int pinned = 0;
+        int loudest = 0;
+        for (int at = 0; at < 8; at++) {
+            final int frames = renderer.render(buffer);
+            for (int sample = 0; sample < frames * 2; sample++) {
+                loudest = Math.max(loudest, Math.abs(buffer[sample]));
+                pinned += Math.abs(buffer[sample]) == Short.MAX_VALUE ? 1 : 0;
+            }
+        }
+
+        assertTrue(loudest > AUDIBLE, "all three should be heard, was " + loudest);
+        assertTrue(pinned <= PINNED_AT_MOST,
+                "the mix should reach the top of the scale rather than be flattened against it, " + pinned
+                        + " samples were");
+    }
+
     private static AyRenderer renderer(RegisterFrames frames) {
         return new AyRenderer(new RegisterStream(frames), AyChip.Voicing.AY, SPECTRUM_CLOCK,
                 FRAMES_PER_SECOND, RATE);
@@ -154,6 +182,24 @@ class AyRendererTest {
             values[base + VOLUME_A] = (byte) BY_ENVELOPE;
             values[base + ENVELOPE_COARSE] = 0x20;
             values[base + ENVELOPE_SHAPE] = (byte) (frame == 0 ? SLIDE_DOWN : RegisterFrames.SHAPE_UNTOUCHED);
+        }
+        return new RegisterFrames(values, count, RegisterFrames.SPECTRUM_CLOCK,
+                RegisterFrames.INTERRUPTS_A_SECOND);
+    }
+
+    /**
+     * All three channels sounding a tone at once, each as loud as the chip goes.
+     */
+    private static RegisterFrames fullChorus(int count) {
+        final byte[] values = new byte[count * RegisterFrames.REGISTERS];
+        for (int frame = 0; frame < count; frame++) {
+            final int base = frame * RegisterFrames.REGISTERS;
+            for (int channel = 0; channel < AyChip.CHANNELS; channel++) {
+                values[base + channel * 2] = (byte) (0xfd - channel * 0x30);
+                values[base + VOLUME_A + channel] = LOUDEST;
+            }
+            values[base + MIXER] = (byte) TONES_ONLY;
+            values[base + ENVELOPE_SHAPE] = (byte) RegisterFrames.SHAPE_UNTOUCHED;
         }
         return new RegisterFrames(values, count, RegisterFrames.SPECTRUM_CLOCK,
                 RegisterFrames.INTERRUPTS_A_SECOND);

@@ -45,6 +45,13 @@ public final class AyRenderer implements Renderer {
     private static final double[] SPREAD = {0.15, 0.5, 0.85};
     private static final int MILLIS = 1000;
 
+    /**
+     * Each channel reaches full scale on its own, so three of them at once would carry the mix well past what
+     * a sample holds. The room left is what the loudest side of the spread can add up to, which keeps the
+     * three together inside the scale rather than clipping the sum flat.
+     */
+    private static final double HEADROOM = 1 / weightOfTheLoudestSide();
+
     private final AySource source;
     private final AyChip chip;
     private final int sampleRate;
@@ -140,7 +147,18 @@ public final class AyRenderer implements Renderer {
     }
 
     private static short pcm(double sample) {
-        return (short) Math.clamp(Math.round(sample * Short.MAX_VALUE), Short.MIN_VALUE, Short.MAX_VALUE);
+        return (short) Math.clamp(Math.round(sample * HEADROOM * Short.MAX_VALUE),
+                Short.MIN_VALUE, Short.MAX_VALUE);
+    }
+
+    private static double weightOfTheLoudestSide() {
+        double left = 0;
+        double right = 0;
+        for (final double pan : SPREAD) {
+            left += 1 - pan;
+            right += pan;
+        }
+        return Math.max(left, right);
     }
 
     private void apply() {
