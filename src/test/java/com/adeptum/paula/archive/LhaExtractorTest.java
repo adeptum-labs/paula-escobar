@@ -78,6 +78,40 @@ class LhaExtractorTest {
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(dir.resolve("out/tune.mod")));
     }
 
+    /**
+     * A YM or VTX recording is one file packed into an LHA archive and nothing else, and is wanted in memory
+     * rather than on disk.
+     */
+    @Test
+    void takesTheOneFileOutOfAWrapperWithoutWritingIt() throws IOException {
+        final byte[] content = TestModules.proTracker();
+
+        assertArrayEquals(content, LhaExtractor.only(TestArchives.lha(Map.of("SONG.YM", content), "-lh5-")));
+    }
+
+    @Test
+    void refusesToUnwrapWhatHoldsNothing() {
+        assertThrows(IOException.class, () -> LhaExtractor.only(README));
+    }
+
+    /**
+     * A VTX recording carries its registers packed by the lh5 method with no archive around them at all, so
+     * the size has to be told rather than read off a header.
+     */
+    @Test
+    void unpacksAStreamThatHasNoHeaderOfItsOwn() throws IOException {
+        final byte[] content = TestModules.proTracker();
+
+        assertArrayEquals(content, LhaExtractor.unpackedLh5(TestArchives.lh5Stream(content), content.length));
+    }
+
+    @Test
+    void refusesAStreamThatDoesNotUnpackToTheSizeItPromised() throws IOException {
+        final byte[] packed = TestArchives.lh5Stream(TestModules.proTracker());
+
+        assertThrows(IOException.class, () -> LhaExtractor.unpackedLh5(packed, Integer.MAX_VALUE));
+    }
+
     @Test
     void recognisesLhaMagic() throws IOException {
         assertTrue(extractor.matches(TestArchives.lha(Map.of("a", README), "-lh5-")));

@@ -22,6 +22,7 @@
 package com.adeptum.paula.archive;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -51,6 +52,7 @@ public final class LhaExtractor implements ArchiveExtractor {
     private static final Set<String> METHOD_PREFIXES = Set.of("-lh", "-lz", "-pm");
     private static final char NAME_TERMINATOR = '\0';
     private static final String NAME_ENCODING = StandardCharsets.ISO_8859_1.name();
+    private static final int LOOK_AHEAD = 64;
 
     @Override
     public boolean matches(byte[] head) {
@@ -86,6 +88,55 @@ public final class LhaExtractor implements ArchiveExtractor {
         final String path = header.getPath().replace('\\', '/');
         final int terminator = path.indexOf(NAME_TERMINATOR);
         return terminator < 0 ? path : path.substring(0, terminator);
+    }
+
+    /**
+     * The one file inside an archive that wraps a single entry, taken out in memory rather than onto disk. A
+     * YM or VTX recording is written this way, with the tune packed into an LHA archive of its own.
+     */
+    public static byte[] only(byte[] archive) throws IOException {
+        try (InputStream in = new ByteArrayInputStream(archive)) {
+            final byte[] head = LhaHeader.getFirstHeaderData(in);
+            if (head == null) {
+                throw new IOException("LHA wrapper holds nothing");
+            }
+            final LhaHeader header = new LhaHeader(head, NAME_ENCODING);
+            final byte[] content = decoder(new LimitedInputStream(in, header.getCompressedSize()), header)
+                    .readNBytes((int) header.getOriginalSize());
+            if (content.length != header.getOriginalSize()) {
+                throw new IOException("Truncated LHA wrapper around " + entryName(header));
+            }
+            return content;
+        } catch (RuntimeException e) {
+            throw new IOException("Corrupt LHA wrapper: " + e, e);
+        }
+    }
+
+    /**
+     * A stream packed by the lh5 method and nothing else — no archive, no header, so the unpacked size has to
+     * be told. A VTX recording carries its registers this way.
+     */
+    public static byte[] unpackedLh5(byte[] packed, int size) throws IOException {
+        try (InputStream in = new LzssInputStream(new PreLh5Decoder(padded(packed), CompressMethod.LH5), size)) {
+            final byte[] content = in.readNBytes(size);
+            if (content.length != size) {
+                throw new IOException("Packed stream ran out after " + content.length + " of " + size + " bytes");
+            }
+            return content;
+        } catch (RuntimeException e) {
+            throw new IOException("Corrupt packed stream: " + e, e);
+        }
+    }
+
+    /**
+     * The decoder reads its bits a word at a time and so asks for a little more than the last byte it needs.
+     * Inside an archive the next entry's header answers that; a stream on its own has nothing behind it, so
+     * the slack is supplied here rather than letting the last few hundred bytes go missing.
+     */
+    private static InputStream padded(byte[] packed) {
+        final byte[] slack = new byte[packed.length + LOOK_AHEAD];
+        System.arraycopy(packed, 0, slack, 0, packed.length);
+        return new ByteArrayInputStream(slack);
     }
 
     private static InputStream decoder(InputStream in, LhaHeader header) throws IOException {
