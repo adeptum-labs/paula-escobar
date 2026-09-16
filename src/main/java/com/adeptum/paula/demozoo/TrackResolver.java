@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,6 +71,8 @@ public final class TrackResolver {
     private static final String LEGAL_IN_URI =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
     private static final String EXTRACTED = "extracted";
+    private static final String FORMATS = "formats";
+    private static final String FORMAT_SEPARATOR = ",";
     private static final String UNPACKING = "Unpacking ";
     private static final String DOWNLOADING = "Downloading ";
     private static final String PERCENT_OF = "% of ";
@@ -210,6 +213,30 @@ public final class TrackResolver {
             archive.get().extract(download, extracted, wantedEntry(download.getFileName().toString()));
             unpackNested(extracted);
         }
+        Files.writeString(download.resolveSibling(FORMATS), knownFormats());
+    }
+
+    /**
+     * Only what a loader could read is taken out of an archive, so a tune in a format Paula learned since the
+     * download was made was left behind in it. The formats of the day are noted beside the download, and where
+     * they are no longer the formats of today the archive on disk is unpacked afresh; nothing is fetched again,
+     * so a release that holds nothing playable still costs no more than one visit to the site. A directory
+     * already in the cache is written to here rather than staged and moved in whole, so the entries of a
+     * competition bundle take their turn at it instead of unpacking over one another.
+     */
+    private synchronized void unpackAgainIfTheLoadersHaveChanged(Path download) throws IOException {
+        final Path noted = download.resolveSibling(FORMATS);
+        if (Files.isRegularFile(noted) && knownFormats().equals(Files.readString(noted))) {
+            return;
+        }
+        unpack(download);
+    }
+
+    private String knownFormats() {
+        return loaders.formats().stream()
+                .flatMap(format -> format.extensions().stream())
+                .sorted()
+                .collect(Collectors.joining(FORMAT_SEPARATOR));
     }
 
     /**
@@ -331,6 +358,7 @@ public final class TrackResolver {
         if (download.isEmpty()) {
             return Optional.empty();
         }
+        unpackAgainIfTheLoadersHaveChanged(download.get());
         final boolean loadable = loaders.loaderFor(download.get()).isPresent();
         if (!loadable && Archives.detect(download.get()).isEmpty()) {
             throw new IOException(download.get().getFileName() + " for " + sought.label() + " is not a module or archive");
@@ -341,7 +369,9 @@ public final class TrackResolver {
 
     private static Optional<Path> downloadIn(Path directory) throws IOException {
         try (Stream<Path> files = Files.list(directory)) {
-            return files.filter(Files::isRegularFile).findFirst();
+            return files.filter(Files::isRegularFile)
+                    .filter(file -> !FORMATS.equals(file.getFileName().toString()))
+                    .findFirst();
         }
     }
 
@@ -386,11 +416,9 @@ public final class TrackResolver {
 
     /**
      * Archives are taken out along with the modules, since a disk image or a further archive may hold what is
-     * being looked for, and so is the text art a release was packed with.
-     */
-    /**
-     * Every entry the archive holds is offered here, wanted or not, so counting the offers is the one place
-     * that knows how far along the unpacking is without an extractor having to say.
+     * being looked for, and so is the text art a release was packed with. Every entry the archive holds is
+     * offered here, wanted or not, so counting the offers is the one place that knows how far along the
+     * unpacking is without an extractor having to say.
      */
     private Predicate<String> wantedEntry(String archive) {
         final AtomicInteger seen = new AtomicInteger();

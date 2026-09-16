@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
@@ -64,6 +65,18 @@ class TrackResolverTest {
 
     private TrackResolver resolver(Path dir) {
         return resolver(dir, new Progress());
+    }
+
+    private TrackResolver resolver(Path dir, ModuleLoaderRegistry loaders) {
+        final CacheDirectory cache = new CacheDirectory(dir);
+        return new TrackResolver(new DemozooClient(http, cache), http, cache, loaders, new Progress());
+    }
+
+    /**
+     * Paula as it stood before it could read X-Tracker modules.
+     */
+    private static ModuleLoaderRegistry withoutXTracker() {
+        return new ModuleLoaderRegistry(List.of(new JavaModLoader()));
     }
 
     private TrackResolver resolver(Path dir, Progress progress) {
@@ -233,6 +246,48 @@ class TrackResolverTest {
 
         assertEquals(first, resolver(dir).resolve(ENTRY));
         assertEquals(requests, http.requests());
+    }
+
+    /**
+     * An archive is unpacked through the loaders of the day, so a tune in a format Paula learned later was
+     * never taken out of it. The copy on disk is unpacked afresh rather than fetched again.
+     */
+    @Test
+    void unpacksACachedArchiveAgainForAFormatLearnedSince(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("readme.txt", README, "tune.dmf", TestModules.dmf())), Optional.empty());
+        assertThrows(IOException.class, () -> resolver(dir, withoutXTracker()).resolve(ENTRY));
+        final int requests = http.requests();
+
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/tune.dmf"), resolver(dir).resolve(ENTRY));
+        assertEquals(requests, http.requests(), "the archive already lay in the cache");
+    }
+
+    /**
+     * A competition bundle holds a tune for every entrant, so one that was skipped leaves the entry pointing at
+     * it resolving to somebody else's tune rather than to nothing at all.
+     */
+    @Test
+    void unpacksAgainEvenWhereTheArchiveAlreadyHeldSomethingPlayable(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("theseus.mod", TestModules.proTracker());
+        bundle.put("rival.dmf", TestModules.dmf());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        resolver(dir, withoutXTracker()).resolve(ENTRY);
+
+        resolver(dir).resolve(ENTRY);
+
+        assertTrue(Files.exists(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/rival.dmf")));
+    }
+
+    @Test
+    void leavesAnExtractionAloneWhileTheLoadersAreTheSame(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("tune.mod", TestModules.proTracker())), Optional.empty());
+        Files.delete(resolver(dir).resolve(ENTRY));
+
+        assertThrows(IOException.class, () -> resolver(dir).resolve(ENTRY));
     }
 
     /**
