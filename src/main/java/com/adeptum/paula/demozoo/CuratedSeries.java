@@ -125,5 +125,7 @@ public record CuratedSeries(int id, String name) {
             new CuratedSeries(1388, "Fjälldata"),
             new CuratedSeries(272, "Posadas"),
             new CuratedSeries(173, "Cache"),
-            new CuratedSeries(176, "Flashback"));
+            new CuratedSeries(176, "Flashback"),
+            new CuratedSeries(630, "ArtField"),
+            new CuratedSeries(82, "Doxycon"));
 }

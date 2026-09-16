@@ -696,7 +696,7 @@ class BrowserTest {
     }
 
     /**
-     * Eighty series down one column is three screens of scrolling for a list that fits on one.
+     * Some eighty series down one column is three screens of scrolling for a list that fits on one.
      */
     @Test
     void flowsTheLongListsIntoColumns() {
