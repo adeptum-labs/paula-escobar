@@ -435,22 +435,59 @@ public final class TrackResolver {
 
     /**
      * A download that holds a whole competition names its files after the entrants, so a file named after this
-     * entry comes first; the rest are taken in name order. Archives are skipped so a download that merely looks
-     * like a module by name is never handed to the loaders.
+     * entry comes first. Some parties numbered the files instead, and there the title the module carries inside
+     * it says which entry it is; only then are the modules opened, since that costs a read of every one. The
+     * rest are taken in name order. Archives are skipped so a download that merely looks like a module by name
+     * is never handed to the loaders.
      */
     private Optional<Path> firstPlayable(Path directory, Sought sought) throws IOException {
         if (!Files.isDirectory(directory)) {
             return Optional.empty();
         }
+        final List<Path> candidates;
         try (Stream<Path> files = Files.walk(directory)) {
-            return files.filter(Files::isRegularFile)
+            candidates = files.filter(Files::isRegularFile)
                     .filter(file -> loaders.loaderFor(file).isPresent())
                     .filter(TrackResolver::isPlainFile)
-                    .min(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
-                            .thenComparing(file -> isProgram(file) ? 1 : 0)
-                            .thenComparing(Path::toString));
+                    .toList();
         } catch (UncheckedIOException e) {
             throw e.getCause();
+        }
+        final boolean named = candidates.stream().anyMatch(file -> namesWhatIsSought(file, sought));
+        final Set<Path> titled = named ? Set.of() : titledAsSought(candidates, sought);
+        return candidates.stream()
+                .min(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
+                        .thenComparing(file -> titled.contains(file) ? 0 : 1)
+                        .thenComparing(file -> isProgram(file) ? 1 : 0)
+                        .thenComparing(Path::toString));
+    }
+
+    /**
+     * The modules whose own title names the entry, the one text holding the other since either may be cut
+     * short: a tracker kept twenty characters, so "Expedition On Planet Earth" went into the module as
+     * "expedition on".
+     */
+    private Set<Path> titledAsSought(List<Path> candidates, Sought sought) {
+        final String entry = simplified(sought.label());
+        final Set<Path> titled = new HashSet<>();
+        for (final Path file : candidates) {
+            final String title = simplified(titleOf(file));
+            if (title.length() >= SHORTEST_NAME && !entry.isEmpty() && (entry.contains(title) || title.contains(entry))) {
+                titled.add(file);
+            }
+        }
+        return titled;
+    }
+
+    /**
+     * A module that cannot be read is simply not the one sought, rather than a reason to give up the others.
+     */
+    private String titleOf(Path file) {
+        try {
+            return loaders.load(file).metadata().title();
+        } catch (IOException | RuntimeException e) {
+            log.debug("No title read from {}: {}", file, e.getMessage());
+            return "";
         }
     }
 

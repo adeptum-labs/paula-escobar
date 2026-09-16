@@ -40,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -293,6 +294,59 @@ class TrackResolverTest {
     /**
      * A party hands in a whole competition as one archive, and every entry in it points at that same file.
      */
+    /**
+     * Cache 1994 handed in its music as numbered files, so no file names the entry and the first in name order
+     * is somebody else's tune; the title a module carries inside it is what says which entry it is.
+     */
+    @Test
+    void picksTheModuleWhoseOwnTitleNamesTheEntryWhereNoFileNameDoes(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("1.MOD", titled("eagles_fly_alone"));
+        bundle.put("17.MOD", titled("the amigo"));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        final CompoEntry amigo = new CompoEntry(1, "1", 7, "The Amigo", List.of(new Nick("Gyu", 0, false)), Set.of(29));
+
+        assertEquals("17.MOD", resolver(dir).resolve(amigo).getFileName().toString());
+    }
+
+    /**
+     * A title the tracker cut short still names the entry it began.
+     */
+    @Test
+    void takesATitleCutShortByTheTrackerAsNamingTheEntry(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("1.MOD", titled("eagles_fly_alone"));
+        bundle.put("15.MOD", titled("expedition on"));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        final CompoEntry expedition = new CompoEntry(7, "7", 7, "Expedition On Planet Earth", List.of(), Set.of(29));
+
+        assertEquals("15.MOD", resolver(dir).resolve(expedition).getFileName().toString());
+    }
+
+    /**
+     * A file named after the entry still comes first, however its module is titled inside.
+     */
+    @Test
+    void prefersTheFileNamedAfterTheEntryOverAModuleTitledLikeIt(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("a.mod", titled("funkyeeh"));
+        bundle.put("theseus.mod", titled("untitled"));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+
+        assertEquals("theseus.mod", resolver(dir).resolve(ENTRY).getFileName().toString());
+    }
+
+    private static byte[] titled(String title) {
+        final byte[] module = TestModules.proTracker();
+        final byte[] name = title.getBytes(StandardCharsets.US_ASCII);
+        Arrays.fill(module, 0, 20, (byte) 0);
+        System.arraycopy(name, 0, module, 0, Math.min(name.length, 20));
+        return module;
+    }
+
     @Test
     void fetchesACompetitionBundleOnceForAllItsEntries(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
