@@ -52,6 +52,7 @@ class AyLoaderTest {
     void knowsTheRecordingsByName() {
         assertTrue(loader.supports(Path.of("tune.psg")));
         assertTrue(loader.supports(Path.of("TUNE.YM")));
+        assertTrue(loader.supports(Path.of("tune.vtx")));
         assertTrue(loader.supports(Path.of("ym.beastbusters - 1")));
         assertFalse(loader.supports(Path.of("tune.mod")));
     }
@@ -88,6 +89,16 @@ class AyLoaderTest {
         final Path file = Files.write(dir.resolve("tune.ym"), TestAys.ym());
 
         assertEquals(TestAys.TITLE, loader.load(file).metadata().title());
+    }
+
+    @Test
+    void playsAVtxRecording(@TempDir Path dir) throws IOException {
+        final Path file = Files.write(dir.resolve("tune.vtx"), TestAys.vtx());
+
+        final Module module = loader.load(file);
+
+        assertEquals(TestAys.TITLE, module.metadata().title());
+        assertTrue(module.createRenderer(RATE).render(new short[BUFFER_FRAMES * 2]) > 0);
     }
 
     @Test

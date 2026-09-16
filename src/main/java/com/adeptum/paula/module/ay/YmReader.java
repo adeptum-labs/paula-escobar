@@ -51,6 +51,18 @@ final class YmReader {
         this.file = file;
     }
 
+    /**
+     * A YM block names itself with a mark and a version digit, which is what tells it from a VTX that is also
+     * marked YM.
+     */
+    static boolean marksABlock(byte[] file) {
+        if (file.length < MARK_LENGTH) {
+            return false;
+        }
+        final String mark = new String(file, 0, MARK_LENGTH, StandardCharsets.US_ASCII);
+        return BARE_MARKS.contains(mark) || HEADED_MARKS.contains(mark);
+    }
+
     static RegisterFrames read(byte[] file) throws IOException {
         if (file.length < MARK_LENGTH + CHECK_STRING.length()) {
             throw new IOException("Not a YM recording");

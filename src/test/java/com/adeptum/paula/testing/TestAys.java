@@ -39,6 +39,8 @@ public final class TestAys {
     private static final int TONE_A_ONLY = 0x3e;
     private static final int SHAPE_UNTOUCHED = 0xff;
     private static final int YM_REGISTERS = 16;
+    private static final int AY_REGISTERS = 14;
+    private static final int SPECTRUM_CLOCK = 1773400;
     private static final int ATARI_CLOCK = 2000000;
     private static final int FRAME_MARK = 0xff;
     private static final int END_MARK = 0xfd;
@@ -91,6 +93,39 @@ public final class TestAys {
         }
         file.writeBytes("End!".getBytes(StandardCharsets.US_ASCII));
         return file.toByteArray();
+    }
+
+    /**
+     * The same tune as a VTX: the chip named outright, the registers kept one at a time across the song and
+     * packed with no archive around them.
+     */
+    public static byte[] vtx() throws java.io.IOException {
+        final byte[] registers = new byte[AY_REGISTERS * FRAMES];
+        for (int register = 0; register < AY_REGISTERS; register++) {
+            for (int frame = 0; frame < FRAMES; frame++) {
+                registers[register * FRAMES + frame] = (byte) valueOf(register);
+            }
+        }
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes("ay".getBytes(StandardCharsets.US_ASCII));
+        file.write(0);
+        writeLittleShort(file, 0);
+        writeLittleShort(file, SPECTRUM_CLOCK & 0xffff);
+        writeLittleShort(file, SPECTRUM_CLOCK >>> 16);
+        file.write(50);
+        writeLittleShort(file, 1997);
+        writeLittleShort(file, registers.length & 0xffff);
+        writeLittleShort(file, registers.length >>> 16);
+        file.writeBytes((TITLE + '\0').getBytes(StandardCharsets.US_ASCII));
+        file.writeBytes((AUTHOR + '\0').getBytes(StandardCharsets.US_ASCII));
+        file.writeBytes("Vortex\0Paula\0a test\0".getBytes(StandardCharsets.US_ASCII));
+        file.writeBytes(TestArchives.lh5Stream(registers));
+        return file.toByteArray();
+    }
+
+    private static void writeLittleShort(ByteArrayOutputStream file, int value) {
+        file.write(value);
+        file.write(value >> 8);
     }
 
     private static int valueOf(int register) {

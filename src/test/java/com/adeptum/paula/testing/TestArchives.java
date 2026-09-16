@@ -409,6 +409,19 @@ public final class TestArchives {
         return result;
     }
 
+    /**
+     * The packed bytes on their own, without the archive header that named them, as a VTX recording carries
+     * its registers.
+     */
+    public static byte[] lh5Stream(byte[] content) throws IOException {
+        final byte[] archive = lha(Map.of("x", content), "-lh5-");
+        try (java.io.InputStream in = new java.io.ByteArrayInputStream(archive)) {
+            final LhaHeader header = new LhaHeader(LhaHeader.getFirstHeaderData(in),
+                    StandardCharsets.ISO_8859_1.name());
+            return in.readNBytes((int) header.getCompressedSize());
+        }
+    }
+
     public static byte[] lha(Map<String, byte[]> entries, String method) throws IOException {
         final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (LhaOutputStream lha = new LhaOutputStream(bytes)) {

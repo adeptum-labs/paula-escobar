@@ -27,7 +27,7 @@ package com.adeptum.paula.module.ay;
  * and a player needs the whole picture to start anywhere.
  */
 public record RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond,
-        String title, String author) {
+        String title, String author, AyChip.Voicing voicing) {
 
     public static final int SPECTRUM_CLOCK = 1773400;
     public static final int ATARI_CLOCK = 2000000;
@@ -46,7 +46,19 @@ public record RegisterFrames(byte[] values, int count, int clockRate, int frames
      * A recording that names nothing beyond its registers, as the older marks do.
      */
     RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond) {
-        this(values, count, clockRate, framesPerSecond, "", "");
+        this(values, count, clockRate, framesPerSecond, "", "", chipAt(clockRate));
+    }
+
+    RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond, String title, String author) {
+        this(values, count, clockRate, framesPerSecond, title, author, chipAt(clockRate));
+    }
+
+    /**
+     * Where a recording does not say which of the two chips it came off, the clock tells them apart: the
+     * Yamaha part is the one the Atari ran, and at the Atari's own rate.
+     */
+    private static AyChip.Voicing chipAt(int clockRate) {
+        return clockRate == ATARI_CLOCK ? AyChip.Voicing.YM : AyChip.Voicing.AY;
     }
 
     public int register(int frame, int register) {

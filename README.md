@@ -133,7 +133,7 @@ view afresh; delete the directory to start over.
 | OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
 | Composer 669 and UNIS 669 modules | `.669` |
 | X-Tracker modules | `.dmf` |
-| AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` |
+| AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` `.vtx` |
 | MO3 compressed modules | `.mo3` |
 | MPEG audio | `.mp1` `.mp2` `.mp3` |
 | FLAC | `.flac` |

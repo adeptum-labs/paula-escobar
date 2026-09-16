@@ -38,16 +38,9 @@ public record AyModule(Path source, ModuleMetadata metadata, RegisterFrames fram
         return new AyModule(source, metadata(frames), frames);
     }
 
-    /**
-     * Whichever machine the recording came off, the chip is the same; the clock it ran at is what tells them
-     * apart, and the Atari's is the one the Yamaha part was made for.
-     */
     @Override
     public Renderer createRenderer(int sampleRate) {
-        final AyChip.Voicing voicing = frames.clockRate() == RegisterFrames.ATARI_CLOCK
-                ? AyChip.Voicing.YM
-                : AyChip.Voicing.AY;
-        return new AyRenderer(new RegisterStream(frames), voicing, frames.clockRate(),
+        return new AyRenderer(new RegisterStream(frames), frames.voicing(), frames.clockRate(),
                 frames.framesPerSecond(), sampleRate);
     }
 

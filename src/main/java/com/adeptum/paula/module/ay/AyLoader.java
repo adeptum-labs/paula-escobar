@@ -29,6 +29,7 @@ import com.adeptum.paula.module.UnsupportedModuleException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -39,10 +40,9 @@ import java.util.Set;
 public final class AyLoader implements ModuleLoader {
 
     public static final ModuleFormat FORMAT =
-            new ModuleFormat("ay", "AY register recordings", Set.of("psg", "ym"));
+            new ModuleFormat("ay", "AY register recordings", Set.of("psg", "ym", "vtx"));
 
     private static final String PSG_MARK = "PSG";
-    private static final String YM_MARK = "YM";
 
     @Override
     public ModuleFormat format() {
@@ -64,14 +64,33 @@ public final class AyLoader implements ModuleLoader {
     }
 
     /**
-     * A YM is nearly always packed into an LHA archive of its own, so anything that does not start with a
-     * mark of its own is unwrapped first and read again.
+     * A YM is nearly always packed into an LHA archive of its own, so a file carrying no mark it knows is
+     * unwrapped and offered again.
      */
     private static RegisterFrames framesOf(byte[] file) throws IOException {
-        if (startsWith(file, PSG_MARK)) {
-            return PsgReader.read(file);
+        final Optional<RegisterFrames> plain = byMark(file);
+        if (plain.isPresent()) {
+            return plain.get();
         }
-        return YmReader.read(startsWith(file, YM_MARK) ? file : LhaExtractor.only(file));
+        return byMark(LhaExtractor.only(file))
+                .orElseThrow(() -> new IOException("Nothing the AY ever played is inside the wrapper"));
+    }
+
+    /**
+     * A VTX may be marked YM as well, so the block form is looked for first: it is the one that follows its
+     * mark with a version digit.
+     */
+    private static Optional<RegisterFrames> byMark(byte[] file) throws IOException {
+        if (startsWith(file, PSG_MARK)) {
+            return Optional.of(PsgReader.read(file));
+        }
+        if (YmReader.marksABlock(file)) {
+            return Optional.of(YmReader.read(file));
+        }
+        if (VtxReader.marksARecording(file)) {
+            return Optional.of(VtxReader.read(file));
+        }
+        return Optional.empty();
     }
 
     private static boolean startsWith(byte[] file, String mark) {
