@@ -1,0 +1,44 @@
+--- a/source/de/quippy/javamod/multimedia/mod/mixer/BasicModMixer.java
++++ b/source/de/quippy/javamod/multimedia/mod/mixer/BasicModMixer.java
+@@ -2060,6 +2060,9 @@
+ 			aktMemo.setUpRampDown(); // copy current to rampDownMemory
+ 			calculateVolRampLen(aktMemo.rampDownMemory);
+ 		}
++		// Whether or not there was anything to ramp down, what plays from here on is no longer the sample kept
++		// at the start of the row
++		aktMemo.rampDownPrepared = false;
+ 	}
+ 	/**
+ 	 * Do the Events of a new Row!
+--- a/source/de/quippy/javamod/multimedia/mod/mixer/ChannelMemory.java
++++ b/source/de/quippy/javamod/multimedia/mod/mixer/ChannelMemory.java
+@@ -36,6 +36,7 @@
+ 	public boolean muted, muteWasITforced;
+ 	public boolean isNNA;
+ 	public ChannelMemory rampDownMemory; // will store last seen values for a short ramp down
++	boolean rampDownPrepared; // the sample in rampDownMemory is the one before this row, and no new sample started since
+ 
+ 	public PatternElement currentElement;
+ 
+@@ -286,8 +287,11 @@
+ 
+ //		rampDownMemory.currentElement = currentElement; // DEBUG:where were we set? 
+ 
+-		if (rampDownMemory.currentSample==null) rampDownMemory.currentSample = currentSample;
+-		if (rampDownMemory.assignedInstrument==null) rampDownMemory.assignedInstrument = assignedInstrument;
++		// The sample kept at the start of the row goes with a ramp down only until a new sample starts. A later
++		// one, a note cut after a new note for instance, ramps down the sample playing now at its position.
++		if (rampDownMemory.currentSample==null || !rampDownPrepared) rampDownMemory.currentSample = currentSample;
++		if (rampDownMemory.assignedInstrument==null || !rampDownPrepared) rampDownMemory.assignedInstrument = assignedInstrument;
++		rampDownPrepared = false;
+ 		rampDownMemory.instrumentFinished = instrumentFinished;
+ 		rampDownMemory.muted = muted;
+ 		rampDownMemory.currentTuning = currentTuning;
+@@ -324,6 +328,7 @@
+ 		{
+ 			rampDownMemory.currentSample = currentSample;
+ 			rampDownMemory.assignedInstrument = assignedInstrument;
++			rampDownPrepared = true;
+ 		}
+ 		// Do not mix it (yet!) - for instance because of note delay
+ 		rampDownMemory.instrumentFinished = true;

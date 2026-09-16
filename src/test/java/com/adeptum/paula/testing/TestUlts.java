@@ -101,6 +101,54 @@ public final class TestUlts {
         return file.toByteArray();
     }
 
+    /**
+     * A module whose two channels play the given rows from the top of its one pattern, each row a note, an
+     * instrument, the two effect nibbles packed as the file packs them and their two parameters, over unlooped
+     * square-wave samples of the given lengths played at full volume.
+     */
+    public static byte[] ult(int[][][] channels, int... sampleLengths) {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes(SIGNATURE.getBytes(StandardCharsets.US_ASCII));
+        file.write('4');
+        file.writeBytes(padded(TITLE, NAME_LENGTH));
+        file.write(0);
+        file.write(sampleLengths.length);
+        for (final int length : sampleLengths) {
+            file.writeBytes(padded(SAMPLE_NAME, NAME_LENGTH));
+            file.writeBytes(padded(SAMPLE_FILE, FILE_NAME_LENGTH));
+            writeInt(file, 0);
+            writeInt(file, 0);
+            writeInt(file, 0);
+            writeInt(file, length);
+            file.write(0xff);
+            file.write(0);
+            writeShort(file, SPEED);
+            writeShort(file, 0);
+        }
+        final byte[] orders = new byte[256];
+        orders[1] = (byte) ORDER_END;
+        file.writeBytes(orders);
+        file.write(CHANNELS - 1);
+        file.write(0);
+        file.write(FIRST_CHANNEL_PANNING);
+        file.write(SECOND_CHANNEL_PANNING);
+        for (int channel = 0; channel < CHANNELS; channel++) {
+            final int[][] rows = channel < channels.length ? channels[channel] : new int[0][];
+            for (final int[] row : rows) {
+                for (final int value : row) {
+                    file.write(value);
+                }
+            }
+            file.writeBytes(new byte[]{(byte) REPEAT, (byte) (ROWS - rows.length), 0, 0, 0, 0, 0});
+        }
+        for (final int length : sampleLengths) {
+            for (int frame = 0; frame < length; frame++) {
+                file.write(frame % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? SQUARE_HIGH : -SQUARE_HIGH);
+            }
+        }
+        return file.toByteArray();
+    }
+
     private static void sample(ByteArrayOutputStream file, char version) {
         file.writeBytes(padded(SAMPLE_NAME, NAME_LENGTH));
         file.writeBytes(padded(SAMPLE_FILE, FILE_NAME_LENGTH));
