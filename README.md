@@ -133,6 +133,7 @@ view afresh; delete the directory to start over.
 | OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
 | Composer 669 and UNIS 669 modules | `.669` |
 | X-Tracker modules | `.dmf` |
+| AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` |
 | MO3 compressed modules | `.mo3` |
 | MPEG audio | `.mp1` `.mp2` `.mp3` |
 | FLAC | `.flac` |
@@ -178,8 +179,10 @@ them; OctaMED modules of every kind, following the MED player of
 [libxmp](https://github.com/libxmp/libxmp); Composer 669 and UNIS 669
 modules, following what [OpenMPT](https://openmpt.org) found the original
 to do; X-Tracker modules, timed in fractions of a row as the tracker's own
-effect descriptions give it; and MO3 files, unpacked back into the module
-the tracker wrote.
+effect descriptions give it; MO3 files, unpacked back into the module
+the tracker wrote; and recordings of what a tune wrote to the AY-3-8910,
+taken down at each interrupt of a ZX Spectrum or an Atari ST rather than
+kept as patterns.
 
 ### Casting
 
@@ -255,7 +258,9 @@ from Laurent Clévy's [unmo3](https://github.com/lclevy/unmo3) and were
 relicensed with his permission. The Composer 669 replayer follows the same
 project's `Load_669.cpp` and the hertz arithmetic of its player, and the
 X-Tracker reader its `Load_dmf.cpp` for the file layout and the packed
-samples. 7z archives are read with Apache Commons Compress over the XZ for
+samples. The AY-3-8910 and YM2149 are emulated by a port of Peter
+Sovietov's [ayumi](https://github.com/true-grue/ayumi), distributed under
+the MIT License. 7z archives are read with Apache Commons Compress over the XZ for
 Java library, both under the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
 license reproduced in [UNRAR-LICENSE.txt](UNRAR-LICENSE.txt), which allows

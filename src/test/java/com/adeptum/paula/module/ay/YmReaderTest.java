@@ -92,6 +92,26 @@ class YmReaderTest {
     }
 
     @Test
+    void readsWhatTheRecordingCallsItselfAndWhoMadeIt() throws IOException {
+        final RegisterFrames frames = YmReader.read(ym5(INTERLEAVED));
+
+        assertEquals("Beastbusters", frames.title());
+        assertEquals("4-Mat", frames.author());
+    }
+
+    /**
+     * A YM3 names nothing, so there is nothing to show but the file it came in.
+     */
+    @Test
+    void leavesTheTitleEmptyWhereTheMarkCarriesNone() throws IOException {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes("YM3!".getBytes(StandardCharsets.US_ASCII));
+        file.writeBytes(new byte[RegisterFrames.REGISTERS * FRAMES]);
+
+        assertEquals("", YmReader.read(file.toByteArray()).title());
+    }
+
+    @Test
     void refusesWhatIsNotAYm() {
         assertThrows(IOException.class, () -> YmReader.read("NOPE and then some".getBytes(StandardCharsets.US_ASCII)));
     }

@@ -87,13 +87,16 @@ final class YmReader {
         final int extra = shortValue();
         at += extra;
         skipDigidrums(digidrums);
-        for (int strings = 0; strings < 3; strings++) {
-            skipText();
-        }
+        final String title = name();
+        final String author = name();
+        name();
         if (count < 0 || (long) count * YM_REGISTERS > file.length - at) {
             throw new IOException("YM recording names more frames than it holds");
         }
-        return laidOut(count, YM_REGISTERS, (attributes & INTERLEAVED) != 0, clockRate, framesPerSecond);
+        final RegisterFrames frames =
+                laidOut(count, YM_REGISTERS, (attributes & INTERLEAVED) != 0, clockRate, framesPerSecond);
+        return new RegisterFrames(frames.values(), frames.count(), frames.clockRate(),
+                frames.framesPerSecond(), title, author);
     }
 
     private RegisterFrames laidOut(int count, int stride, boolean interleaved, int clockRate,
@@ -124,13 +127,15 @@ final class YmReader {
         return text;
     }
 
-    private void skipText() throws IOException {
+    private String name() throws IOException {
+        final int from = at;
         while (at < file.length && file[at++] != 0) {
             continue;
         }
         if (at >= file.length) {
             throw new IOException("YM recording ends in the middle of its titles");
         }
+        return new String(file, from, at - from - 1, StandardCharsets.ISO_8859_1);
     }
 
     private long integer() throws IOException {

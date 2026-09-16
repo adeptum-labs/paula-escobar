@@ -78,6 +78,22 @@ class LhaExtractorTest {
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(dir.resolve("out/tune.mod")));
     }
 
+    /**
+     * A YM or VTX recording is one file packed into an LHA archive and nothing else, and is wanted in memory
+     * rather than on disk.
+     */
+    @Test
+    void takesTheOneFileOutOfAWrapperWithoutWritingIt() throws IOException {
+        final byte[] content = TestModules.proTracker();
+
+        assertArrayEquals(content, LhaExtractor.only(TestArchives.lha(Map.of("SONG.YM", content), "-lh5-")));
+    }
+
+    @Test
+    void refusesToUnwrapWhatHoldsNothing() {
+        assertThrows(IOException.class, () -> LhaExtractor.only(README));
+    }
+
     @Test
     void recognisesLhaMagic() throws IOException {
         assertTrue(extractor.matches(TestArchives.lha(Map.of("a", README), "-lh5-")));

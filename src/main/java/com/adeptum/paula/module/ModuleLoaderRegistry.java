@@ -22,6 +22,7 @@
 package com.adeptum.paula.module;
 
 import com.adeptum.paula.module.ape.ApeLoader;
+import com.adeptum.paula.module.ay.AyLoader;
 import com.adeptum.paula.module.composer669.Composer669Loader;
 import com.adeptum.paula.module.digibooster.DigiBoosterLoader;
 import com.adeptum.paula.module.flac.FlacLoader;
@@ -52,7 +53,7 @@ public final class ModuleLoaderRegistry {
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new SapLoader(),
                 new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Composer669Loader(),
-                new XTrackerLoader(), new Mo3Loader(), new Mp3Loader(), new FlacLoader(), new WavLoader(),
+                new XTrackerLoader(), new AyLoader(), new Mo3Loader(), new Mp3Loader(), new FlacLoader(), new WavLoader(),
                 new OggLoader(), new ApeLoader()));
     }
 

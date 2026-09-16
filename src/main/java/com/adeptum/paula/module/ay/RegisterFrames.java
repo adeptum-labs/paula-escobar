@@ -26,7 +26,8 @@ package com.adeptum.paula.module.ay;
  * A recording keeps every frame rather than the writes that made it, since a frame carries only what changed
  * and a player needs the whole picture to start anywhere.
  */
-public record RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond) {
+public record RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond,
+        String title, String author) {
 
     public static final int SPECTRUM_CLOCK = 1773400;
     public static final int ATARI_CLOCK = 2000000;
@@ -40,6 +41,13 @@ public record RegisterFrames(byte[] values, int count, int clockRate, int frames
      * recording formats settled on it.
      */
     public static final int SHAPE_UNTOUCHED = 0xff;
+
+    /**
+     * A recording that names nothing beyond its registers, as the older marks do.
+     */
+    RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond) {
+        this(values, count, clockRate, framesPerSecond, "", "");
+    }
 
     public int register(int frame, int register) {
         return values[frame * REGISTERS + register] & 0xff;

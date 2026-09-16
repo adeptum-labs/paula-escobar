@@ -22,6 +22,7 @@
 package com.adeptum.paula.archive;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -86,6 +87,28 @@ public final class LhaExtractor implements ArchiveExtractor {
         final String path = header.getPath().replace('\\', '/');
         final int terminator = path.indexOf(NAME_TERMINATOR);
         return terminator < 0 ? path : path.substring(0, terminator);
+    }
+
+    /**
+     * The one file inside an archive that wraps a single entry, taken out in memory rather than onto disk. A
+     * YM or VTX recording is written this way, with the tune packed into an LHA archive of its own.
+     */
+    public static byte[] only(byte[] archive) throws IOException {
+        try (InputStream in = new ByteArrayInputStream(archive)) {
+            final byte[] head = LhaHeader.getFirstHeaderData(in);
+            if (head == null) {
+                throw new IOException("LHA wrapper holds nothing");
+            }
+            final LhaHeader header = new LhaHeader(head, NAME_ENCODING);
+            final byte[] content = decoder(new LimitedInputStream(in, header.getCompressedSize()), header)
+                    .readNBytes((int) header.getOriginalSize());
+            if (content.length != header.getOriginalSize()) {
+                throw new IOException("Truncated LHA wrapper around " + entryName(header));
+            }
+            return content;
+        } catch (RuntimeException e) {
+            throw new IOException("Corrupt LHA wrapper: " + e, e);
+        }
     }
 
     private static InputStream decoder(InputStream in, LhaHeader header) throws IOException {
