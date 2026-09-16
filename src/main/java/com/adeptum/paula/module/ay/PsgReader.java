@@ -42,6 +42,7 @@ final class PsgReader {
     private static final int LAST_REGISTER = 15;
     private static final int VERSION_AT = 4;
     private static final int SHAPE_REGISTER = 13;
+    private static final int INTERRUPT_AT = 5;
 
     private PsgReader() {
     }
@@ -55,7 +56,16 @@ final class PsgReader {
                 throw new IOException("Not a PSG recording");
             }
         }
-        return flattened(framesOf(file, headerSizeOf(file)));
+        return flattened(framesOf(file, headerSizeOf(file)), interruptsOf(file));
+    }
+
+    /**
+     * The short header stops before the interrupt rate, so a recording written that way plays at the usual
+     * fifty, as does one that names none.
+     */
+    private static int interruptsOf(byte[] file) {
+        final int named = headerSizeOf(file) == HEADER_SIZE ? file[INTERRUPT_AT] & 0xff : 0;
+        return named == 0 ? RegisterFrames.INTERRUPTS_A_SECOND : named;
     }
 
     /**
@@ -110,12 +120,12 @@ final class PsgReader {
         return frame;
     }
 
-    private static RegisterFrames flattened(List<byte[]> frames) {
+    private static RegisterFrames flattened(List<byte[]> frames, int framesPerSecond) {
         final byte[] values = new byte[frames.size() * RegisterFrames.REGISTERS];
         for (int frame = 0; frame < frames.size(); frame++) {
             System.arraycopy(frames.get(frame), 0, values, frame * RegisterFrames.REGISTERS,
                     RegisterFrames.REGISTERS);
         }
-        return new RegisterFrames(values, frames.size());
+        return new RegisterFrames(values, frames.size(), RegisterFrames.SPECTRUM_CLOCK, framesPerSecond);
     }
 }

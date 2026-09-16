@@ -138,7 +138,8 @@ class AyRendererTest {
             values[base + VOLUME_A] = LOUD;
             values[base + ENVELOPE_SHAPE] = (byte) RegisterFrames.SHAPE_UNTOUCHED;
         }
-        return new RegisterFrames(values, count);
+        return new RegisterFrames(values, count, RegisterFrames.SPECTRUM_CLOCK,
+                RegisterFrames.INTERRUPTS_A_SECOND);
     }
 
     /**
@@ -154,7 +155,8 @@ class AyRendererTest {
             values[base + ENVELOPE_COARSE] = 0x20;
             values[base + ENVELOPE_SHAPE] = (byte) (frame == 0 ? SLIDE_DOWN : RegisterFrames.SHAPE_UNTOUCHED);
         }
-        return new RegisterFrames(values, count);
+        return new RegisterFrames(values, count, RegisterFrames.SPECTRUM_CLOCK,
+                RegisterFrames.INTERRUPTS_A_SECOND);
     }
 
     private static int loudest(AyRenderer renderer) {

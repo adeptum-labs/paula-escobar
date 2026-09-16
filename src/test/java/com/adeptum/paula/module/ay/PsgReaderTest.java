@@ -112,6 +112,27 @@ class PsgReaderTest {
         assertEquals(0x11, frames.register(0, 2));
     }
 
+    /**
+     * A PSG was recorded off a Spectrum, so that is the clock it plays at; the header says how often the
+     * machine interrupted, and nothing there means the usual fifty.
+     */
+    @Test
+    void playsAtTheSpectrumClockAndTheInterruptTheHeaderNames() throws IOException {
+        final byte[] file = psg(PLAIN_VERSION, FRAME, 0x00, 0x11, END);
+        file[5] = 60;
+
+        final RegisterFrames frames = PsgReader.read(file);
+
+        assertEquals(RegisterFrames.SPECTRUM_CLOCK, frames.clockRate());
+        assertEquals(60, frames.framesPerSecond());
+    }
+
+    @Test
+    void takesFiftyInterruptsWhereTheHeaderNamesNone() throws IOException {
+        assertEquals(RegisterFrames.INTERRUPTS_A_SECOND,
+                PsgReader.read(psg(PLAIN_VERSION, FRAME, 0x00, 0x11, END)).framesPerSecond());
+    }
+
     @Test
     void refusesWhatIsNotAPsg() {
         final byte[] file = psg(PLAIN_VERSION, FRAME, 0x02, 0x11, END);

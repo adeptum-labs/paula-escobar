@@ -22,11 +22,15 @@
 package com.adeptum.paula.module.ay;
 
 /**
- * What the fourteen sound registers held at each of a tune's interrupts. A recording keeps every frame rather
- * than the writes that made it, since a frame carries only what changed and a player needs the whole picture
- * to start anywhere.
+ * What the fourteen sound registers held at each of a tune's interrupts, and the machine that was playing it.
+ * A recording keeps every frame rather than the writes that made it, since a frame carries only what changed
+ * and a player needs the whole picture to start anywhere.
  */
-public record RegisterFrames(byte[] values, int count) {
+public record RegisterFrames(byte[] values, int count, int clockRate, int framesPerSecond) {
+
+    public static final int SPECTRUM_CLOCK = 1773400;
+    public static final int ATARI_CLOCK = 2000000;
+    public static final int INTERRUPTS_A_SECOND = 50;
 
     public static final int REGISTERS = 14;
 
