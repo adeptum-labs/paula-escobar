@@ -53,4 +53,11 @@ public interface ReleaseArt {
     default boolean fetching(int productionId) {
         return false;
     }
+
+    /**
+     * Whether the files of a release were brought down and found to hold nothing Paula can play.
+     */
+    default boolean holdsNothingPlayable(int productionId) {
+        return false;
+    }
 }

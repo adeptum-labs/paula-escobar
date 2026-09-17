@@ -102,7 +102,8 @@ parties, a party into its music competitions and a competition into the
 ranked entries, each with its title, its author and whatever is the matter
 with it: dimmed for executable music Paula cannot run, `(no download)` where
 Demozoo has no file, `(no reader)` where the file is a container nothing here
-opens. A chart opens into All, MOD, XM, IT, S3M and Other and is read
+opens, and `(unsupported music format)` once a file has been fetched and
+turned out to hold nothing playable, such as an Amiga executable. A chart opens into All, MOD, XM, IT, S3M and Other and is read
 forty rows at a time as the cursor reaches the end. Playing a line queues the rest
 of its list, so `n` walks on through the results, and `m` opens everything
 else the musician has, on Demozoo for an entry and on ModArchive for a chart

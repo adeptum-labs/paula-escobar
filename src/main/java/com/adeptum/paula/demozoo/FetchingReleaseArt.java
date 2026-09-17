@@ -60,6 +60,11 @@ public final class FetchingReleaseArt implements ReleaseArt {
     }
 
     @Override
+    public boolean holdsNothingPlayable(int productionId) {
+        return resolver.holdsNothingPlayable(productionId);
+    }
+
+    @Override
     public void fetch(CompoEntry entry) {
         if (art.of(entry.productionId()).isPresent() || !fetched.add(entry.productionId())) {
             return;

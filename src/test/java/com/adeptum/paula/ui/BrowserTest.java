@@ -1189,6 +1189,40 @@ class BrowserTest {
     }
 
     /**
+     * Executable music comes down as a zip like any module, so only once its files have been brought down is it
+     * known to hold nothing Paula has a replayer for; from then on the entry says so and is left out of what
+     * playing one queues up.
+     */
+    @Test
+    void marksEntriesWhoseFilesHoldNothingPlayable() {
+        browser = browser(new ReleaseArt() {
+
+            @Override
+            public Optional<List<String>> of(int productionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean holdsNothingPlayable(int productionId) {
+                return productionId == 12;
+            }
+        }, PartyArt.NONE);
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
+        openCompo();
+        browser.tick();
+
+        final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
+        assertTrue(lines.get(3).toString().stripTrailing().endsWith("(unsupported music format)│"), lines.get(3).toString());
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8), "and it is greyed out");
+        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "an entry that plays is left alone");
+
+        press(Key.Special.ENTER);
+        assertEquals(2, browser.takeSelection().orElseThrow().size(), "the entry is not queued");
+    }
+
+    /**
      * A ReBirth song holds knob settings rather than audio, and sits inside an archive where nothing can see
      * it. Demozoo calls it streaming music like any MP3, so the competition's name is the only warning there
      * is, and it has to serve before anything is fetched.

@@ -22,6 +22,7 @@
 package com.adeptum.paula.demozoo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
@@ -71,6 +72,19 @@ class FetchingReleaseArtTest {
         art.fetch(ENTRY);
 
         assertTrue(art.of(ENTRY.productionId()).orElseThrow().contains("| THE PARTY   |"));
+    }
+
+    @Test
+    void tellsOfAReleaseThatHoldsNothingPlayable(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, "{\"id\":7,\"title\":\"Funkyeeh\",\"download_links\":[{\"link_class\":\"ModlandFile\",\"url\":\"" + MODLAND_FILE + "\"}],\"external_links\":[]}");
+        http.put(MODLAND_FILE, TestArchives.zip(Map.of("file_id.diz", BANNER.getBytes(StandardCharsets.ISO_8859_1),
+                "tune.exe", new byte[]{0, 0, 3, (byte) 0xf3})), Optional.empty());
+        final FetchingReleaseArt art = art(dir);
+
+        assertFalse(art.holdsNothingPlayable(ENTRY.productionId()));
+        art.fetch(ENTRY);
+
+        assertTrue(art.holdsNothingPlayable(ENTRY.productionId()));
     }
 
     @Test

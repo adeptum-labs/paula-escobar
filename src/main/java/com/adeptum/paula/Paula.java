@@ -58,6 +58,7 @@ import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FetchingReleaseArt;
 import com.adeptum.paula.demozoo.SceneOrgPartyArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.demozoo.UnplayableReleases;
 import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SidLoader;
@@ -67,6 +68,7 @@ import com.adeptum.paula.playback.Deadline;
 import com.adeptum.paula.playback.Outputs;
 import com.adeptum.paula.playback.PlaybackEngine;
 import com.adeptum.paula.playback.PlayerSession;
+import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.playback.TrackLoader;
 import com.adeptum.paula.playlist.DemozooTrack;
 import com.adeptum.paula.playlist.LocalTrack;
@@ -166,9 +168,10 @@ public final class Paula implements Runnable {
             final DemozooClient demozoo = new DemozooClient(http, cache);
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
-            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress());
+            final UnplayableReleases unplayable = new UnplayableReleases(cache, loaders);
+            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress(), unplayable);
             // Art is fetched behind the browser's back and must not write over what the player is waiting for.
-            final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders);
+            final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders, new Progress(), unplayable);
             final CachedReleaseArt releaseArt = new CachedReleaseArt(cache);
             final SceneOrgPartyArt partyArt = new SceneOrgPartyArt(demozoo, http, cache, fetchingArt);
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,

@@ -169,7 +169,8 @@ public final class Browser {
         }
     }
 
-    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, String> downloads) implements Item {
+    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, String> downloads, ReleaseArt art)
+            implements Item {
 
         @Override
         public String label() {
@@ -183,7 +184,7 @@ public final class Browser {
 
         @Override
         public String trailing() {
-            return compo.compo().unsupportedFormat() ? UNSUPPORTED_FORMAT : downloadMark(entry, downloads);
+            return compo.compo().unsupportedFormat() ? UNSUPPORTED_FORMAT : downloadMark(entry, downloads, art);
         }
 
         String placingText() {
@@ -208,7 +209,8 @@ public final class Browser {
         }
     }
 
-    private record WorkItem(Nick musician, Work work, int index, Map<Integer, String> downloads) implements Item {
+    private record WorkItem(Nick musician, Work work, int index, Map<Integer, String> downloads, ReleaseArt art)
+            implements Item {
 
         @Override
         public String label() {
@@ -223,7 +225,7 @@ public final class Browser {
 
         @Override
         public String trailing() {
-            return downloadMark(work.entry(), downloads);
+            return downloadMark(work.entry(), downloads, art);
         }
 
         @Override
@@ -238,15 +240,19 @@ public final class Browser {
 
     /**
      * What a release says for itself once its files have been looked up: nothing where it can be played,
-     * otherwise that Demozoo knows no file for it, or that the one file it names is a container Paula cannot
-     * open, an Amiga disk image most often, so there is nothing to be had from asking for it.
+     * otherwise that Demozoo knows no file for it, that the one file it names is a container Paula cannot
+     * open, an Amiga disk image most often, or that its files were brought down and hold music in a format
+     * Paula has no replayer for, executable music most often, so there is nothing to be had from asking for it.
      */
-    private static String downloadMark(CompoEntry entry, Map<Integer, String> downloads) {
+    private static String downloadMark(CompoEntry entry, Map<Integer, String> downloads, ReleaseArt art) {
         final String download = downloads.get(entry.productionId());
         if (NO_FILE.equals(download)) {
             return NO_DOWNLOAD;
         }
-        return download != null && Archives.hasNoReader(download) ? NO_READER : "";
+        if (download != null && Archives.hasNoReader(download)) {
+            return NO_READER;
+        }
+        return art.holdsNothingPlayable(entry.productionId()) ? UNSUPPORTED_FORMAT : "";
     }
 
     private record ChartItem(Chart chart) implements Item {
@@ -876,7 +882,7 @@ public final class Browser {
     private List<Item> workItems(Nick musician) throws IOException {
         final List<Work> works = demozoo.works(musician.releaserId());
         final List<Item> items = IntStream.range(0, works.size())
-                .<Item>mapToObj(i -> new WorkItem(musician, works.get(i), i, downloads)).toList();
+                .<Item>mapToObj(i -> new WorkItem(musician, works.get(i), i, downloads, art)).toList();
         CompletableFuture.runAsync(() -> lookUpDownloads(works.stream().map(Work::entry).toList()), executor);
         return items;
     }
@@ -1004,7 +1010,7 @@ public final class Browser {
      */
     private void openCompo(CompoItem compo) {
         final List<CompoEntry> entries = compo.compo().entries();
-        final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads)).toList();
+        final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads, art)).toList();
         final Level level = new Level(compo.compoLabel(), NOTHING_HERE, items);
         level.partyId = compo.party().id();
         level.compoId = compo.compo().id();
