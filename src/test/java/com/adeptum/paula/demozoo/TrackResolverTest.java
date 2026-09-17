@@ -23,6 +23,7 @@ package com.adeptum.paula.demozoo;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -280,6 +281,49 @@ class TrackResolverTest {
         resolver(dir).resolve(ENTRY);
 
         assertTrue(Files.exists(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/rival.dmf")));
+    }
+
+    /**
+     * A release handed in as executable music comes down whole and holds nothing a loader takes, which is worth
+     * remembering across restarts so the browser can say so.
+     */
+    @Test
+    void notesAReleaseWhoseDownloadHoldsNothingPlayable(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("readme.txt", README, "tune.exe", README)), Optional.empty());
+
+        assertThrows(NothingPlayableException.class, () -> resolver(dir).resolve(ENTRY));
+
+        assertTrue(resolver(dir).holdsNothingPlayable(ENTRY.productionId()));
+    }
+
+    @Test
+    void doesNotNoteAReleaseThatCouldNotBeBroughtDown(@TempDir Path dir) {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final TrackResolver resolver = resolver(dir);
+
+        assertThrows(IOException.class, () -> resolver.resolve(ENTRY));
+
+        assertFalse(resolver.holdsNothingPlayable(ENTRY.productionId()));
+    }
+
+    /**
+     * A note taken while Paula knew fewer formats says nothing about the formats of today, and a release that
+     * plays after all is no longer noted.
+     */
+    @Test
+    void forgetsTheNoteOnceTheReleasePlays(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("readme.txt", README, "tune.dmf", TestModules.dmf())), Optional.empty());
+        final TrackResolver before = resolver(dir, withoutXTracker());
+        assertThrows(NothingPlayableException.class, () -> before.resolve(ENTRY));
+        assertTrue(before.holdsNothingPlayable(ENTRY.productionId()));
+
+        final TrackResolver after = resolver(dir);
+        assertFalse(after.holdsNothingPlayable(ENTRY.productionId()));
+        after.resolve(ENTRY);
+
+        assertFalse(resolver(dir, withoutXTracker()).holdsNothingPlayable(ENTRY.productionId()));
     }
 
     @Test

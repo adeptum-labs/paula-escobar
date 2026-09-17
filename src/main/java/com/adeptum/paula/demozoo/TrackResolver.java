@@ -94,6 +94,7 @@ public final class TrackResolver {
     private final DownloadCache downloads;
     private final ModuleLoaderRegistry loaders;
     private final Progress progress;
+    private final UnplayableReleases unplayable;
 
     public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders) {
         this(demozoo, http, cache, loaders, new Progress());
@@ -101,14 +102,39 @@ public final class TrackResolver {
 
     public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders,
             Progress progress) {
+        this(demozoo, http, cache, loaders, progress, new UnplayableReleases(cache, loaders));
+    }
+
+    public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders,
+            Progress progress, UnplayableReleases unplayable) {
         this.progress = progress;
         this.demozoo = demozoo;
         this.http = http;
         this.downloads = new DownloadCache(cache);
         this.loaders = loaders;
+        this.unplayable = unplayable;
     }
 
+    /**
+     * An entry whose downloads all turn out to hold nothing playable is noted as such, and the note is dropped
+     * again should it play after all.
+     */
     public Path resolve(CompoEntry entry) throws IOException {
+        try {
+            final Path resolved = resolveEntry(entry);
+            unplayable.remove(entry.productionId());
+            return resolved;
+        } catch (NothingPlayableException e) {
+            unplayable.add(entry.productionId());
+            throw e;
+        }
+    }
+
+    public boolean holdsNothingPlayable(int productionId) {
+        return unplayable.contains(productionId);
+    }
+
+    private Path resolveEntry(CompoEntry entry) throws IOException {
         final Sought sought = new Sought(String.valueOf(entry.productionId()), entry.title(),
                 List.of(entry.author(), entry.title()));
         final Optional<Path> cached = remembered(sought);
@@ -153,6 +179,7 @@ public final class TrackResolver {
      */
     private Path resolve(Sought sought, List<URI> uris) throws IOException {
         IOException failure = null;
+        boolean allHeldNothingPlayable = true;
         Path program = null;
         for (final URI uri : uris) {
             try {
@@ -163,13 +190,15 @@ public final class TrackResolver {
                 program = program == null ? playable : program;
             } catch (IOException e) {
                 log.info("Nothing playable from {} for {}: {}", uri, sought.label(), e.getMessage());
+                allHeldNothingPlayable &= e instanceof NothingPlayableException;
                 failure = e;
             }
         }
         if (program != null) {
             return program;
         }
-        throw failure;
+        throw allHeldNothingPlayable || !(failure instanceof NothingPlayableException)
+                ? failure : new IOException(failure.getMessage(), failure);
     }
 
     private Optional<Path> remembered(Sought sought) throws IOException {
@@ -183,7 +212,8 @@ public final class TrackResolver {
             fetch(uri, directory);
         }
         final Path playable = playableFile(directory, sought)
-                .orElseThrow(() -> new IOException("No playable file in " + lastSegment(uri) + " for " + sought.label()));
+                .orElseThrow(() -> new NothingPlayableException(
+                        "No playable file in " + lastSegment(uri) + " for " + sought.label()));
         downloads.remember(sought.key(), directory);
         return playable;
     }
@@ -213,7 +243,7 @@ public final class TrackResolver {
             archive.get().extract(download, extracted, wantedEntry(download.getFileName().toString()));
             unpackNested(extracted);
         }
-        Files.writeString(download.resolveSibling(FORMATS), knownFormats());
+        Files.writeString(download.resolveSibling(FORMATS), knownFormats(loaders));
     }
 
     /**
@@ -226,13 +256,13 @@ public final class TrackResolver {
      */
     private synchronized void unpackAgainIfTheLoadersHaveChanged(Path download) throws IOException {
         final Path noted = download.resolveSibling(FORMATS);
-        if (Files.isRegularFile(noted) && knownFormats().equals(Files.readString(noted))) {
+        if (Files.isRegularFile(noted) && knownFormats(loaders).equals(Files.readString(noted))) {
             return;
         }
         unpack(download);
     }
 
-    private String knownFormats() {
+    static String knownFormats(ModuleLoaderRegistry loaders) {
         return loaders.formats().stream()
                 .flatMap(format -> format.extensions().stream())
                 .sorted()
@@ -361,7 +391,8 @@ public final class TrackResolver {
         unpackAgainIfTheLoadersHaveChanged(download.get());
         final boolean loadable = loaders.loaderFor(download.get()).isPresent();
         if (!loadable && Archives.detect(download.get()).isEmpty()) {
-            throw new IOException(download.get().getFileName() + " for " + sought.label() + " is not a module or archive");
+            throw new NothingPlayableException(
+                    download.get().getFileName() + " for " + sought.label() + " is not a module or archive");
         }
         final Optional<Path> playable = firstPlayable(directory, sought);
         return playable.isEmpty() && loadable ? download : playable;
