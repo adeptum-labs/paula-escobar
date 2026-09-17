@@ -12,6 +12,29 @@ year and played on the spot. Everything happens in the terminal, and the build
 produces a native executable with GraalVM, so there is no JVM to start and no
 jar to carry around.
 
+## Features
+
+- Tracker modules, chip music and streamed audio of the Amiga, the PC, the
+  Commodore 64, the Atari 8-bit, ST and Falcon and the ZX Spectrum, every
+  format listed on the
+  [Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page.
+- The music competitions of eighty-two party series on Demozoo and the
+  ModArchive charts, browsed year by year, played on the spot and kept for
+  offline use once fetched.
+- Archives, crunched modules, Unreal packages and Commodore disk and tape
+  images opened for what they hold, as deep as they go.
+- Screens that fill the terminal in 24-bit colour: a spectrum analyser,
+  waterfall and vectorscope, VU meters and an oscilloscope per channel, each
+  muted or soloed with the mouse.
+- Sound through WASAPI, CoreAudio, PulseAudio, ALSA or JACK, recorded to a
+  wave file, or played over ssh, as the
+  [Audio output](https://github.com/adeptum-labs/paula-escobar/wiki/Audio-output)
+  page describes.
+- Casting to a Google Cast device on the network and back again without
+  stopping, described on the
+  [Casting](https://github.com/adeptum-labs/paula-escobar/wiki/Casting) page.
+- A native executable built with GraalVM: no JVM to start, no jar to carry.
+
 ## The screens
 
 ![The player, with the song details and the message the musician left in the module on the left, and the spectrum analyser and one oscilloscope per channel on the right](docs/player-screen.png)
