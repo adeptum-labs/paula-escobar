@@ -121,74 +121,24 @@ view afresh; delete the directory to start over.
 
 ### Formats
 
-`paula formats` prints what plays; a file named the way Modland names them,
-`MOD.tune`, counts as well.
+`paula formats` prints what plays, and a file named the way Modland names
+them, `MOD.tune`, counts as well.
 
-| Music | Extensions |
+| Machine | Music |
 |---|---|
-| Tracker modules of ProTracker, Fast Tracker, Scream Tracker, Impulse Tracker, MultiTracker and Farandole | `.mod` `.stk` `.nst` `.wow` `.flx` `.xm` `.s3m` `.stm` `.stx` `.sts` `.it` `.mptm` `.mtm` `.far` |
-| Commodore 64 SID tunes and programs | `.sid` `.psid` `.rsid` `.prg` `.p00` `.c64` |
-| Atari 8-bit tunes | `.sap` `.cmc` `.cm3` `.cmr` `.cms` `.dmc` `.dlt` `.mpt` `.mpd` `.rmt` `.tmc` `.tm2` `.tm8` `.fc` `.d8` `.d15` `.md1` `.md2` |
-| DigiBooster Pro modules | `.dbm` |
-| AHX and HivelyTracker modules | `.ahx` `.thx` `.hvl` |
-| OctaMED modules | `.med` `.mmd` `.mmd0` `.mmd1` `.mmd2` `.mmd3` `.mmdc` |
-| Composer 669 and UNIS 669 modules | `.669` |
-| X-Tracker modules | `.dmf` |
-| UltraTracker modules | `.ult` |
-| ZX Spectrum SoundTracker modules | `.stc` |
-| ZX Spectrum Pro Tracker 2 modules | `.pt2` |
-| ZX Spectrum Pro Tracker 3 and Vortex Tracker II modules | `.pt3` |
-| ZX Spectrum Pro Sound Creator modules | `.psc` |
-| AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` `.vtx` |
-| MO3 compressed modules | `.mo3` |
-| MPEG audio | `.mp1` `.mp2` `.mp3` |
-| FLAC | `.flac` |
-| Ogg Vorbis | `.ogg` `.oga` |
-| Monkey's Audio | `.ape` `.apl` `.mac` |
-| Wave, AIFF and AU | `.wav` `.wave` `.aif` `.aiff` `.aifc` `.au` `.snd` |
+| Amiga | ProTracker, OctaMED, DigiBooster Pro, AHX and HivelyTracker modules |
+| PC | Fast Tracker, Scream Tracker, Impulse Tracker, MultiTracker, Farandole, Composer 669, X-Tracker and UltraTracker modules, and MO3 files |
+| Commodore 64 | SID tunes and programs |
+| Atari 8-bit | SAP tunes and the native trackers' modules |
+| Atari ST and Falcon | FlexTrax modules and YM recordings |
+| ZX Spectrum | SoundTracker, Pro Tracker 2 and 3 and Pro Sound Creator modules, and AY recordings |
+| Any | MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave, AIFF and AU |
 
-Archives are opened by what they hold rather than what they are called, and
-a module crunched with XPK or PowerPacker keeps its own name.
-
-| Archive | Extensions |
-|---|---|
-| Zip | `.zip` |
-| 7z | `.7z` |
-| RAR | `.rar` |
-| LHA | `.lha` `.lzh` |
-| LZX | `.lzx` |
-| gzip | `.gz` |
-| PowerPacker crunched modules | `.pp` or the module's own |
-| XPK crunched modules | the module's own |
-| Unreal music packages | `.umx` |
-| Commodore 1541 disk and tape images | `.d64` `.t64` |
-
-Tracker modules and Commodore 64 SID tunes play through
-[JavaMod](https://github.com/quippy-git/javamod), Daniel Becker's pure-Java
-player with its libsidplay2 port, vendored under `lib/` with the fixes in
-`tools/javamod-*.patch`. A SID tune plays for the length in the High Voltage
-SID Collection's database, fetched on first use, or three minutes when
-unlisted. Atari 8-bit tunes play through [ASAP](https://asap.sourceforge.net),
-Piotr Fusik's POKEY and 6502 emulation, for the length their TIME tag gives.
-MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave, AIFF and AU files are
-decoded by JLayer, jFLAC, jOrbis and jMAC and resampled to the engine's rate;
-`--rate 44100` hands a CD-rate file through untouched.
-
-The rest is played by replayers written for Paula, each with a scope and
-muting per voice: the Atari Falcon's FlexTrax modules with the reverb and
-delay of the Falcon's DSP, described in
-[docs/flextrax-format.md](docs/flextrax-format.md); DigiBooster Pro and AHX
-and HivelyTracker modules, sample for sample as
-[libdigibooster3](https://github.com/grzegorz-kraszewski/libdigibooster3)
-and [HivelyTracker](https://github.com/pete-gordon/hivelytracker) render
-them; OctaMED modules of every kind, following the MED player of
-[libxmp](https://github.com/libxmp/libxmp); Composer 669 and UNIS 669
-modules, following what [OpenMPT](https://openmpt.org) found the original
-to do; X-Tracker modules, timed in fractions of a row as the tracker's own
-effect descriptions give it; MO3 files, unpacked back into the module
-the tracker wrote; and recordings of what a tune wrote to the AY-3-8910,
-taken down at each interrupt of a ZX Spectrum or an Atari ST rather than
-kept as patterns.
+Zip, 7z, RAR, LHA, LZX and gzip archives, PowerPacker and XPK crunched
+modules, Unreal music packages and Commodore 1541 disk and tape images are
+opened for what they hold. The
+[Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page
+of the wiki lists every format with its extensions and says what plays it.
 
 ### Casting
 
