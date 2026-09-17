@@ -23,6 +23,7 @@ package com.adeptum.paula.module;
 
 import com.adeptum.paula.module.ape.ApeLoader;
 import com.adeptum.paula.module.ay.AyLoader;
+import com.adeptum.paula.module.ay.ProSoundCreatorLoader;
 import com.adeptum.paula.module.ay.ProTracker2Loader;
 import com.adeptum.paula.module.ay.ProTrackerLoader;
 import com.adeptum.paula.module.ay.SoundTrackerLoader;
@@ -58,7 +59,7 @@ public final class ModuleLoaderRegistry {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new SapLoader(),
                 new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Composer669Loader(),
                 new XTrackerLoader(), new UltLoader(), new AyLoader(), new SoundTrackerLoader(),
-                new ProTracker2Loader(), new ProTrackerLoader(), new Mo3Loader(),
+                new ProTracker2Loader(), new ProTrackerLoader(), new ProSoundCreatorLoader(), new Mo3Loader(),
                 new Mp3Loader(), new FlacLoader(), new WavLoader(), new OggLoader(), new ApeLoader()));
     }
 

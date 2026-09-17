@@ -137,6 +137,7 @@ view afresh; delete the directory to start over.
 | ZX Spectrum SoundTracker modules | `.stc` |
 | ZX Spectrum Pro Tracker 2 modules | `.pt2` |
 | ZX Spectrum Pro Tracker 3 and Vortex Tracker II modules | `.pt3` |
+| ZX Spectrum Pro Sound Creator modules | `.psc` |
 | AY-3-8910 register recordings of the ZX Spectrum and Atari ST | `.psg` `.ym` `.vtx` |
 | MO3 compressed modules | `.mo3` |
 | MPEG audio | `.mp1` `.mp2` `.mp3` |
@@ -266,12 +267,15 @@ samples. UltraTracker modules are rewritten as Impulse Tracker ones the way
 OpenMPT's `Load_ult.cpp`, a port of Storlek's reader from Schism Tracker,
 does it. The AY-3-8910 and YM2149 are emulated by a port of Peter
 Sovietov's [ayumi](https://github.com/true-grue/ayumi), distributed under
-the MIT License. The SoundTracker, Pro Tracker 2 and Pro Tracker 3 readers
-and players follow Vitamin's [ZXTune](https://github.com/vitamin-caig/zxtune),
-distributed under the GNU Lesser General Public License version 3, and take
-their note and volume tables from it; a Pro Tracker 3.4 module is tuned, and
-a Pro Tracker 2 module's volumes scaled, the way recordings of such modules
-sound rather than the way ZXTune works them out.
+the MIT License. The SoundTracker, Pro Tracker 2, Pro Tracker 3 and Pro
+Sound Creator readers and players follow Vitamin's
+[ZXTune](https://github.com/vitamin-caig/zxtune), distributed under the GNU
+Lesser General Public License version 3, and take their note and volume
+tables from it; a Pro Tracker 3.4 module is tuned, and a Pro Tracker 2
+module's volumes scaled, the way recordings of such modules sound rather
+than the way ZXTune works them out, and a Pro Sound Creator module glides,
+rests and breaks out of its loops the way Sergey Bulba's AY Emulator plays
+it.
 7z archives are read with Apache Commons Compress over the XZ for
 Java library, both under the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR
