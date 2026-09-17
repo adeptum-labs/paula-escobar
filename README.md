@@ -269,8 +269,9 @@ Sovietov's [ayumi](https://github.com/true-grue/ayumi), distributed under
 the MIT License. The SoundTracker, Pro Tracker 2 and Pro Tracker 3 readers
 and players follow Vitamin's [ZXTune](https://github.com/vitamin-caig/zxtune),
 distributed under the GNU Lesser General Public License version 3, and take
-their note and volume tables from it; a Pro Tracker 3.4 module is tuned the
-way recordings of such modules sound rather than the way ZXTune tunes it.
+their note and volume tables from it; a Pro Tracker 3.4 module is tuned, and
+a Pro Tracker 2 module's volumes scaled, the way recordings of such modules
+sound rather than the way ZXTune works them out.
 7z archives are read with Apache Commons Compress over the XZ for
 Java library, both under the Apache License 2.0. RAR archives are read with
 [junrar](https://github.com/junrar/junrar), distributed under the UnRAR

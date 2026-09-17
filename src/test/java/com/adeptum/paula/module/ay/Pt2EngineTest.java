@@ -68,12 +68,14 @@ class Pt2EngineTest {
     }
 
     /**
-     * The level is the sample's scaled by the channel volume as the player's own sum does it.
+     * The level is the sample's scaled by the channel volume through the table recordings of Pro Tracker 2
+     * follow, the one Pro Tracker 3.5 brought in, rather than the sum ZXTune works it out by, which falls a
+     * step short for some of them.
      */
     @Test
     void scalesTheSampleLevelByTheChannelVolume() throws IOException {
-        assertEquals((TestPt2s.VOLUME * 17 + 1) * TestPt2s.LEVEL / 256, frame(0)[VOLUME_A]);
-        assertEquals((TestPt2s.VOLUME * 17 + 1) * TestPt2s.SECOND_LEVEL / 256, frame(1)[VOLUME_A]);
+        assertEquals(Pt3Tables.level(Pt2Engine.VOLUMES_OF_VERSION, TestPt2s.VOLUME, TestPt2s.LEVEL), frame(0)[VOLUME_A]);
+        assertEquals(Pt3Tables.level(Pt2Engine.VOLUMES_OF_VERSION, TestPt2s.VOLUME, TestPt2s.SECOND_LEVEL), frame(1)[VOLUME_A]);
         assertEquals(0, frame(0)[VOLUME_C], "the third channel rests");
     }
 

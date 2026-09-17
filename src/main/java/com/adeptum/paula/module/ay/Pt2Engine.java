@@ -44,6 +44,12 @@ final class Pt2Engine implements AySource {
             0x01d, 0x01c, 0x01a, 0x019, 0x017, 0x016, 0x015, 0x013, 0x012, 0x011, 0x010, 0x00f
     };
 
+    /**
+     * Recordings of Pro Tracker 2 playing scale a sample's level by the channel volume through the table Pro
+     * Tracker 3.5 brought in, where ZXTune works it out by a sum that falls a step short for many of them.
+     */
+    static final int VOLUMES_OF_VERSION = 5;
+
     private static final int NO_TARGET = -1;
     private static final int LOUDEST = 15;
     private static final int TONE_MASK = 0xfff;
@@ -260,7 +266,7 @@ final class Pt2Engine implements AySource {
                 registers[MIXER_REGISTER] |= TONE_A_OFF << channel;
             }
             registers[FIRST_VOLUME + channel] =
-                    Math.clamp(level(volume, sounding.level()), 0, LOUDEST) | (envelope ? BY_ENVELOPE : 0);
+                    Pt3Tables.level(VOLUMES_OF_VERSION, volume, sounding.level()) | (envelope ? BY_ENVELOPE : 0);
             if (sounding.noiseOff()) {
                 registers[MIXER_REGISTER] |= NOISE_A_OFF << channel;
             } else {
@@ -290,11 +296,5 @@ final class Pt2Engine implements AySource {
             sliding += glissade;
         }
 
-        /**
-         * The player's own sum for scaling a sample level by the channel volume.
-         */
-        private static int level(int volume, int level) {
-            return (volume * 17 + (volume > 7 ? 1 : 0)) * level / 256;
-        }
     }
 }
