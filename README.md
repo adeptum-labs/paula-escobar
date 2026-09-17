@@ -161,25 +161,6 @@ The sound is served on port 7373, or the one `--cast-port` names, from the
 address the device was reached through; a firewall between the two must let
 the device fetch from that port.
 
-### Audio output
-
-The native executable plays sound itself through
-[miniaudio](https://miniaud.io), since a native image finds no Java Sound
-mixers, picking the first backend that answers (WASAPI, CoreAudio,
-PulseAudio, ALSA, JACK) or the one named with `--output`; `--output null`
-plays into nothing at the right speed and the runnable jar uses Java Sound.
-`--record FILE` keeps a wave file of everything played and
-`--quit-after SECONDS` stops Paula without a terminal, which is how the
-build proves the sound on every platform. Logging goes to `paula.log` in the
-working directory.
-
-Over ssh, `tools/paula-sound` plays out of the machine you sit at: that
-machine serves PulseAudio on its loopback with
-`pactl load-module module-native-protocol-tcp listen=127.0.0.1` and carries
-a reverse tunnel with `RemoteForward 4713 127.0.0.1:4713` in its
-`~/.ssh/config`; the script points `PULSE_SERVER` at the tunnel and says
-what is missing when nothing answers.
-
 ## License
 
 Copyright © 2026 Adam Waldenberg, Adeptum AB. Licensed under the GNU General Public License,
