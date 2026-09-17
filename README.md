@@ -140,27 +140,6 @@ opened for what they hold. The
 [Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page
 of the wiki lists every format with its extensions.
 
-### Casting
-
-Press `c` in the player, or click `cast` in the footer, and Paula lists this
-machine and every Google Cast device on the network. Choose one and the song
-moves there without stopping; choose this machine to bring it back.
-`--output cast` plays there from the start and `--cast NAME` says which
-device, by the name it was given or its address.
-
-A Cast device fetches the sound rather than being sent it, so Paula serves it
-an endless wave file, paced so the device runs some four seconds behind;
-`--cast-lag SECONDS` asks for less, down to what the device keeps of its own.
-That lag is measured from where the device says it is, and the spectrum, the
-scopes and the position follow the sound being heard rather than the sound
-being sent. Screens show a card with the song, the musician and a picture
-from Demozoo, the release's `file_id.diz` or the party's logo. Seeking hands
-the song to the device again from where the player stands.
-
-The sound is served on port 7373, or the one `--cast-port` names, from the
-address the device was reached through; a firewall between the two must let
-the device fetch from that port.
-
 ## License
 
 Copyright © 2026 Adam Waldenberg, Adeptum AB. Licensed under the GNU General Public License,
