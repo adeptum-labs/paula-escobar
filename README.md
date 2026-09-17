@@ -237,4 +237,4 @@ version 3 or later. See [LICENSE](LICENSE), and
 [LICENSE.addendum](LICENSE.addendum) for the additional permission that
 covers linking the RAR reader. The libraries Paula Escobar is built on and
 the projects its readers and replayers follow are credited, with their
-licences, in [docs/licenses.md](docs/licenses.md).
+licences, in the [Licenses](https://github.com/adeptum-labs/paula-escobar/wiki/Licenses) page of the wiki.
