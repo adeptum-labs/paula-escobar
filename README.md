@@ -33,7 +33,6 @@ jar to carry around.
 - Casting to a Google Cast device on the network and back again without
   stopping, described on the
   [Casting](https://github.com/adeptum-labs/paula-escobar/wiki/Casting) page.
-- A native executable built with GraalVM: no JVM to start, no jar to carry.
 
 ## The screens
 
