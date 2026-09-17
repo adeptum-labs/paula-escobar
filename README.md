@@ -80,40 +80,9 @@ paula formats                list supported formats
 paula --help
 ```
 
-Keys while playing:
-
-| Key     | Action                  |
-|---------|-------------------------|
-| `space` | pause / resume          |
-| `←` `→` | seek five seconds       |
-| `n`     | next track              |
-| `p`     | previous track          |
-| `b`     | switch to the browser   |
-| `v`     | next visualiser         |
-| `c`     | cast to a device        |
-| `?`     | show the keys           |
-| `q`     | quit                    |
-
-The mouse works the panels: a click on the upper one turns to the next
-visualiser, a click on a scope silences that channel until clicked again,
-and a shift-click or double click leaves that channel sounding alone.
-
-Keys while browsing:
-
-| Key                 | Action                                   |
-|---------------------|------------------------------------------|
-| `↑` `↓`             | move the cursor                          |
-| `PgUp` `PgDn`       | move ten lines                           |
-| `Home` `End`        | jump to the first or last line           |
-| `tab`               | switch between the parties and the charts |
-| `enter` `→`         | open the line, or play an entry          |
-| `m`                 | more by the musician                     |
-| `backspace` `←` `esc` | go back one level (`esc` at the top quits) |
-| `b`                 | switch to the player                     |
-| `r`                 | fetch this list and its logo afresh      |
-| `?`                 | show the keys                            |
-| `space`             | pause / resume what is playing           |
-| `q`                 | quit                                     |
+`?` shows the keys on either screen, and the
+[Keys](https://github.com/adeptum-labs/paula-escobar/wiki/Keys) page of the
+wiki lists them all, with what the mouse does.
 
 ### Browsing
 
