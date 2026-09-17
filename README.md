@@ -138,7 +138,7 @@ Zip, 7z, RAR, LHA, LZX and gzip archives, PowerPacker and XPK crunched
 modules, Unreal music packages and Commodore 1541 disk and tape images are
 opened for what they hold. The
 [Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page
-of the wiki lists every format with its extensions and says what plays it.
+of the wiki lists every format with its extensions.
 
 ### Casting
 
