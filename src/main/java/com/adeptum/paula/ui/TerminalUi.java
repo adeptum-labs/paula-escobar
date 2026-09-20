@@ -48,6 +48,8 @@ public final class TerminalUi implements AutoCloseable {
     private final Terminal terminal;
     private final Display display;
     private final boolean keyboardless;
+    private int drawnWidth;
+    private int drawnHeight;
 
     /**
      * A dumb terminal is accepted only when the caller can do without keys, since it has none to give.
@@ -131,8 +133,19 @@ public final class TerminalUi implements AutoCloseable {
         return terminal.getHeight() > 0 ? terminal.getHeight() : FALLBACK_HEIGHT;
     }
 
+    /**
+     * JLine writes only what differs from the screen it last drew, and a resize leaves that record lining up
+     * with a screen the terminal has since reflowed, so the new size is painted from scratch.
+     */
     public void draw(List<AttributedString> lines) {
-        display.resize(height(), width());
+        final int width = width();
+        final int height = height();
+        if (width != drawnWidth || height != drawnHeight) {
+            display.clear();
+            drawnWidth = width;
+            drawnHeight = height;
+        }
+        display.resize(height, width);
         display.update(lines, 0);
     }
 
