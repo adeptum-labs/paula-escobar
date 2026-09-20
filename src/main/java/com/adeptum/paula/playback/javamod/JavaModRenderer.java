@@ -26,6 +26,7 @@ import com.adeptum.paula.playback.Renderer;
 import de.quippy.javamod.multimedia.mod.ModConstants;
 import de.quippy.javamod.multimedia.mod.loader.Module;
 import de.quippy.javamod.multimedia.mod.loader.instrument.Sample;
+import de.quippy.javamod.multimedia.mod.midi.ModMidiMixer;
 import de.quippy.javamod.multimedia.mod.mixer.BasicModMixer;
 import de.quippy.javamod.multimedia.mod.mixer.ChannelMemory;
 import java.time.Duration;
@@ -62,10 +63,15 @@ public final class JavaModRenderer implements Renderer {
     private long[] right = new long[0];
     private long renderedFrames;
 
+    /**
+     * An instrument with no sample of its own and a MIDI channel named on it is sounded by a synth, not by the
+     * mixer, which needs a MIDI mixer to hand those notes to. Paula opens no device, so it stays silent.
+     */
     public JavaModRenderer(Module tracker, int sampleRate) {
         this.sampleRate = sampleRate;
         this.mixer = tracker.getModMixer(sampleRate, ModConstants.INTERPOLATION_WINDOWSFIR,
                 ModConstants.AMIGAEMULATION_NONE, ModConstants.PLAYER_LOOP_FADEOUT, MAX_NNA_CHANNELS);
+        mixer.setModMidiMixer(new ModMidiMixer(null, null, tracker.getNChannels()));
         mixer.setFireUpdates(false);
         this.channelCount = tracker.getNChannels();
         this.length = Duration.ofMillis(mixer.getLengthInMilliseconds());

@@ -106,6 +106,15 @@ class JavaModRendererTest {
     }
 
     /**
+     * A tracker writes an instrument with no sample of its own and a MIDI channel for an outboard synth to
+     * sound; JavaMod hands those notes to a MIDI mixer, and the player has to give it one to hand them to.
+     */
+    @Test
+    void keepsRenderingAnInstrumentThatAsksForMidi(@TempDir Path dir) throws Exception {
+        assertRendersASecond(new JavaModLoader().load(TestModules.writeXmWithMidiInstrument(dir)));
+    }
+
+    /**
      * A retrigger whose parameter names no speed repeats the note on every tick instead of dividing by it.
      */
     @Test

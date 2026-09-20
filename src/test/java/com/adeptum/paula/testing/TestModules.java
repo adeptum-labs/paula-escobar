@@ -130,6 +130,41 @@ public final class TestModules {
     public static final int MO3_ORDERS_AT = MO3_CHANNELS_AT + 1;
     public static final int MO3_RESTART_AT = MO3_ORDERS_AT + Short.BYTES;
 
+    public static final String XM_TITLE = "Paula XM";
+    public static final String XM_MIDI_NAME = "midi horn";
+    public static final int XM_CHANNELS = 2;
+    public static final int XM_MIDI_CHANNEL = 1;
+    public static final int XM_MIDI_PROGRAM = 1;
+
+    private static final String XM_MARK = "Extended Module: ";
+    private static final String XM_TRACKER = "FastTracker v2.00";
+    private static final int XM_NAME_LENGTH = 20;
+    private static final int XM_END_OF_NAME = 0x1a;
+    private static final int XM_VERSION = 0x0104;
+    private static final int XM_HEADER_LENGTH = 276;
+    private static final int XM_ORDERS_LENGTH = 256;
+    private static final int XM_LINEAR_FREQUENCIES = 1;
+    private static final int XM_SPEED = 6;
+    private static final int XM_TEMPO = 125;
+    private static final int XM_PATTERN_HEADER_LENGTH = 9;
+    private static final int XM_EVENT_LENGTH = 5;
+    private static final byte XM_NOTE = 49;
+    private static final int XM_INSTRUMENT_HEADER_LENGTH = 263;
+    private static final int XM_SAMPLE_HEADER_LENGTH = 40;
+    private static final int XM_SQUARE_HIGH = 100;
+    private static final int XM_FULL_VOLUME = 64;
+    private static final int XM_SAMPLE_LOOPS = 1;
+    private static final int XM_CENTRE_PANNING = 128;
+    private static final int XM_PITCH_WHEEL_DEPTH = 2;
+    private static final int XM_WITH_MIDI = 1;
+    private static final int XM_WITHOUT_MIDI = 0;
+
+    /**
+     * The note map, the two envelopes and their points, the envelope types, the vibrato and the fade out, all
+     * of which the fixture leaves at zero, between the sample header size and the MIDI block.
+     */
+    private static final int XM_INSTRUMENT_SETTINGS_LENGTH = 96 + 48 + 48 + 8 + 2 + 4 + 2;
+
     public static final String C669_TITLE = "Paula 669";
     public static final String C669_CREDIT = "by Adeptum";
     public static final int C669_PATTERNS = 2;
@@ -926,6 +961,109 @@ public final class TestModules {
             block.put(FLEX_MARK.length() + FLEX_EFFECTS_AT[effect] + FLEX_VALUE_IN_RECORD, (byte) effects[effect]);
         }
         return block.array();
+    }
+
+    public static Path writeXmWithMidiInstrument(Path directory) throws IOException {
+        return Files.write(directory.resolve("midi.xm"), xmWithMidiInstrument());
+    }
+
+    /**
+     * An Extended Module of two channels, one sounding a square and the other an instrument that carries no
+     * sample at all and names a MIDI channel and program instead, as a tracker writes for an outboard synth.
+     */
+    public static byte[] xmWithMidiInstrument() {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes(XM_MARK.getBytes(StandardCharsets.US_ASCII));
+        file.writeBytes(padded(XM_TITLE, XM_NAME_LENGTH));
+        file.write(XM_END_OF_NAME);
+        file.writeBytes(padded(XM_TRACKER, XM_NAME_LENGTH));
+        word(file, XM_VERSION);
+        dword(file, XM_HEADER_LENGTH);
+        word(file, 1);
+        word(file, 0);
+        word(file, XM_CHANNELS);
+        word(file, 1);
+        word(file, 2);
+        word(file, XM_LINEAR_FREQUENCIES);
+        word(file, XM_SPEED);
+        word(file, XM_TEMPO);
+        file.writeBytes(new byte[XM_ORDERS_LENGTH]);
+        xmPattern(file);
+        xmSquareInstrument(file);
+        xmMidiInstrument(file);
+        return file.toByteArray();
+    }
+
+    /**
+     * Unpacked events, the first row a note on each channel with the instrument of that channel's number and
+     * every row after it empty.
+     */
+    private static void xmPattern(ByteArrayOutputStream file) {
+        final byte[] events = new byte[ROWS * XM_CHANNELS * XM_EVENT_LENGTH];
+        for (int channel = 0; channel < XM_CHANNELS; channel++) {
+            events[channel * XM_EVENT_LENGTH] = XM_NOTE;
+            events[channel * XM_EVENT_LENGTH + 1] = (byte) (channel + 1);
+        }
+        dword(file, XM_PATTERN_HEADER_LENGTH);
+        file.write(0);
+        word(file, ROWS);
+        word(file, events.length);
+        file.writeBytes(events);
+    }
+
+    private static void xmSquareInstrument(ByteArrayOutputStream file) {
+        xmInstrumentHeader(file, SAMPLE_NAME, 1, XM_WITHOUT_MIDI);
+        dword(file, SAMPLE_LENGTH);
+        dword(file, 0);
+        dword(file, SAMPLE_LENGTH);
+        file.write(XM_FULL_VOLUME);
+        file.write(0);
+        file.write(XM_SAMPLE_LOOPS);
+        file.write(XM_CENTRE_PANNING);
+        file.write(0);
+        file.write(0);
+        file.writeBytes(padded(SAMPLE_NAME, 22));
+        int previous = 0;
+        for (int frame = 0; frame < SAMPLE_LENGTH; frame++) {
+            final int value = frame < SAMPLE_LENGTH / 2 ? XM_SQUARE_HIGH : -XM_SQUARE_HIGH;
+            file.write(value - previous);
+            previous = value;
+        }
+    }
+
+    private static void xmMidiInstrument(ByteArrayOutputStream file) {
+        xmInstrumentHeader(file, XM_MIDI_NAME, 0, XM_WITH_MIDI);
+    }
+
+    /**
+     * The note map, both envelopes and the vibrato are all left at zero; what matters is the MIDI block after
+     * them, which the loader counts as valid only where the instrument has no sample of its own.
+     */
+    private static void xmInstrumentHeader(ByteArrayOutputStream file, String name, int samples, int midi) {
+        final ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.writeBytes(padded(name, 22));
+        header.write(0);
+        word(header, samples);
+        dword(header, XM_SAMPLE_HEADER_LENGTH);
+        header.writeBytes(new byte[XM_INSTRUMENT_SETTINGS_LENGTH]);
+        header.write(midi);
+        header.write(XM_MIDI_CHANNEL - 1);
+        word(header, XM_MIDI_PROGRAM - 1);
+        word(header, XM_PITCH_WHEEL_DEPTH);
+        header.write(0);
+        dword(file, XM_INSTRUMENT_HEADER_LENGTH);
+        file.writeBytes(header.toByteArray());
+        file.writeBytes(new byte[XM_INSTRUMENT_HEADER_LENGTH - Integer.BYTES - header.size()]);
+    }
+
+    private static void word(ByteArrayOutputStream file, int value) {
+        file.write(value);
+        file.write(value >> 8);
+    }
+
+    private static void dword(ByteArrayOutputStream file, int value) {
+        word(file, value);
+        word(file, value >> 16);
     }
 
     private static byte[] padded(String text, int length) {
