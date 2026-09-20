@@ -101,6 +101,34 @@ public final class Screen {
         }
     }
 
+    /**
+     * Where the panels land for a terminal of this size: the rows the details take when they are stacked above
+     * the rest, the rows the two panels take and the grid the scopes are drawn on.
+     */
+    private record Layout(List<AttributedString> details, int detailRows, Panels panels, Scopes grid) {
+
+        static Layout of(PlayerView view, int width, int height) {
+            final int body = Math.max(0, height - 2);
+            final boolean wide = width >= WIDE_LAYOUT_WIDTH;
+            final List<AttributedString> details = detailLines(view, (wide ? DETAILS_WIDTH : width) - 2);
+            final int stacked = wide ? 0 : stackedRows(details, body);
+            final Panels panels = Panels.of(body - stacked);
+            final int left = wide ? DETAILS_WIDTH : 0;
+            final int inner = width - left - 2;
+            final int channels = Math.max(1, view.channels().size());
+            if (!panels.hasScopes()) {
+                return new Layout(details, stacked, panels, Scopes.NONE);
+            }
+            final Scopes measured = Scopes.grid(0, left + 1, inner, panels.scopes() - 2, channels);
+            final int spare = panels.hasSpectrum()
+                    ? Math.max(0, panels.scopes() - 2 - measured.rows() * measured.cellHeight()) : 0;
+            final int wanted = Math.clamp(details.size() + 2 - stacked, 0, wide ? 0 : spare);
+            final Panels fitted = new Panels(panels.spectrum() + spare - wanted, panels.scopes() - spare);
+            return new Layout(details, stacked + wanted, fitted, Scopes.grid(1 + stacked + wanted + fitted.spectrum() + 1,
+                    left + 1, inner, fitted.scopes() - 2, channels));
+        }
+    }
+
     public static List<Frame.Key> keys() {
         return ALL_KEYS;
     }
@@ -109,7 +137,7 @@ public final class Screen {
         final int body = Math.max(0, height - 2);
         final List<AttributedString> lines = new ArrayList<>(height);
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
-        lines.addAll(view.module() == null ? idle(view, width, body) : playing(view, scopes(view, width, height), width, body));
+        lines.addAll(view.module() == null ? idle(view, width, body) : playing(view, Layout.of(view, width, height), width, body));
         lines.add(Frame.footer(view.canCast() ? withCast(KEYS) : KEYS, width));
         return fit(lines, width, height);
     }
@@ -139,13 +167,10 @@ public final class Screen {
         if (view.module() == null) {
             return false;
         }
-        final int body = Math.max(0, height - 2);
-        final boolean wide = width >= WIDE_LAYOUT_WIDTH;
-        final int detailRows = wide ? 0 : detailRows(detailLines(view, width - 2), body);
-        final Panels panels = Panels.of(body - detailRows);
-        final int left = wide ? DETAILS_WIDTH : 0;
-        final int top = 1 + detailRows;
-        return panels.hasSpectrum() && column >= left && row >= top && row < top + panels.spectrum();
+        final Layout layout = Layout.of(view, width, height);
+        final int left = width >= WIDE_LAYOUT_WIDTH ? DETAILS_WIDTH : 0;
+        final int top = 1 + layout.detailRows();
+        return layout.panels().hasSpectrum() && column >= left && row >= top && row < top + layout.panels().spectrum();
     }
 
     /**
@@ -153,19 +178,7 @@ public final class Screen {
      * measured against. A format without channels of its own still gets a grid, for its one scope of the mix.
      */
     static Scopes scopes(PlayerView view, int width, int height) {
-        if (view.module() == null) {
-            return Scopes.NONE;
-        }
-        final int body = Math.max(0, height - 2);
-        final boolean wide = width >= WIDE_LAYOUT_WIDTH;
-        final int detailRows = wide ? 0 : detailRows(detailLines(view, width - 2), body);
-        final Panels panels = Panels.of(body - detailRows);
-        if (!panels.hasScopes()) {
-            return Scopes.NONE;
-        }
-        final int left = wide ? DETAILS_WIDTH : 0;
-        return Scopes.grid(1 + detailRows + panels.spectrum() + 1, left + 1,
-                width - left - 2, panels.scopes() - 2, Math.max(1, view.channels().size()));
+        return view.module() == null ? Scopes.NONE : Layout.of(view, width, height).grid();
     }
 
     static String clock(Duration position) {
@@ -210,18 +223,16 @@ public final class Screen {
         return lines.subList(0, height);
     }
 
-    private static List<AttributedString> playing(PlayerView view, Scopes grid, int width, int height) {
-        final List<AttributedString> detailLines = detailLines(view, (width >= WIDE_LAYOUT_WIDTH ? DETAILS_WIDTH : width) - 2);
+    private static List<AttributedString> playing(PlayerView view, Layout layout, int width, int height) {
         if (width >= WIDE_LAYOUT_WIDTH) {
-            return Frame.sideBySide(Frame.box(DETAILS_TITLE, detailLines, DETAILS_WIDTH, height), visuals(view, grid, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
+            return Frame.sideBySide(Frame.box(DETAILS_TITLE, layout.details(), DETAILS_WIDTH, height), visuals(view, layout, width - DETAILS_WIDTH, height), DETAILS_WIDTH, width);
         }
-        final int detailRows = detailRows(detailLines, height);
-        final List<AttributedString> lines = new ArrayList<>(Frame.box(DETAILS_TITLE, detailLines, width, detailRows));
-        lines.addAll(visuals(view, grid, width, height - detailRows));
+        final List<AttributedString> lines = new ArrayList<>(Frame.box(DETAILS_TITLE, layout.details(), width, layout.detailRows()));
+        lines.addAll(visuals(view, layout, width, height - layout.detailRows()));
         return lines;
     }
 
-    private static int detailRows(List<AttributedString> detailLines, int height) {
+    private static int stackedRows(List<AttributedString> detailLines, int height) {
         return Math.min(height, Math.max(MIN_BOX_ROWS, Math.min(detailLines.size() + 2, height / 2)));
     }
 
@@ -253,17 +264,17 @@ public final class Screen {
         return lines;
     }
 
-    private static List<AttributedString> visuals(PlayerView view, Scopes grid, int width, int height) {
+    private static List<AttributedString> visuals(PlayerView view, Layout layout, int width, int height) {
         final List<AttributedString> lines = new ArrayList<>();
         if (height <= 0) {
             return lines;
         }
-        final Panels panels = Panels.of(height);
+        final Panels panels = layout.panels();
         if (panels.hasSpectrum()) {
             lines.addAll(Frame.box(view.visual().title(), chosen(view, width - 2, panels.spectrum() - 2), width, panels.spectrum()));
         }
         if (panels.hasScopes()) {
-            lines.addAll(Frame.box("Channels", scopeCells(view, grid, panels.scopes() - 2), width, panels.scopes()));
+            lines.addAll(Frame.box("Channels", scopeCells(view, layout.grid(), panels.scopes() - 2), width, panels.scopes()));
         }
         lines.add(meters(view, width));
         return lines;

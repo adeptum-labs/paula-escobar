@@ -38,6 +38,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.stream.IntStream;
 import org.jline.utils.AttributedString;
 import org.junit.jupiter.api.Test;
 
@@ -114,6 +115,51 @@ class ScreenTest {
         for (int channel = 1; channel <= 4; channel++) {
             assertTrue(all.matches("(?s).*[│ \\u2800-\\u28ff]" + channel + " {2}[\\u2800-\\u28ff].*"), "channel " + channel + " is labelled before its scope");
         }
+    }
+
+    /**
+     * A grid of many channels rarely divides into its box evenly, and the rows left over would sit blank under
+     * the scopes; the visualiser above takes them instead.
+     */
+    @Test
+    void leavesNoBlankRowsUnderTheScopes() {
+        final PlayerView many = playing.channels(channels(36)).build();
+        final Scopes grid = Screen.scopes(many, WIDTH, HEIGHT);
+        final List<AttributedString> lines = Screen.render(many, WIDTH, HEIGHT);
+
+        assertTrue(lines.get(grid.top() + grid.rows() * grid.cellHeight()).toString().contains("┘"),
+                "the last scope row is the last row of the box");
+        assertEquals(OptionalInt.of(36), Screen.channelAt(many, WIDTH, HEIGHT,
+                grid.left() + (36 - 1) % grid.columns() * grid.cellWidth(),
+                grid.top() + (36 - 1) / grid.columns() * grid.cellHeight()), "and the last channel is still clickable");
+    }
+
+    /**
+     * Stacked on a narrow terminal the details are cut at half the screen, so the rows the scopes do not use
+     * go to them before the visualiser.
+     */
+    @Test
+    void givesTheRowsTheScopesSpareToTheDetailsWhenTheyAreCut() {
+        final PlayerView many = playing.module(new TestModule(Path.of("dir", "space.mod"), ModuleMetadata.builder()
+                        .title("Space Debris")
+                        .format(new ModuleFormat("mod", "ProTracker", Set.of("mod")))
+                        .channels(36)
+                        .songLength(42)
+                        .instruments(IntStream.rangeClosed(1, 30).mapToObj("i%02d"::formatted).toList())
+                        .build()))
+                .channels(channels(36))
+                .build();
+
+        final String all = String.join("\n", text(Screen.render(many, 80, 40)));
+
+        assertTrue(all.contains("i10"), "the details fill their half of the screen");
+        assertTrue(all.contains("i11"), "and go on into the rows the scopes spared");
+    }
+
+    private static List<ChannelState> channels(int count) {
+        return IntStream.rangeClosed(1, count)
+                .mapToObj(number -> new ChannelState(number, 1, 0.5, new double[] {0, 1, 0, -1}, false))
+                .toList();
     }
 
     @Test
