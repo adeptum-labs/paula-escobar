@@ -49,6 +49,7 @@ class JavaModRendererTest {
     private static final int SET_VOLUME = 0x0c;
     private static final int SPECIAL = 0x0e;
     private static final int CUT_AT_TICK_THREE = 0xc3;
+    private static final int RETRIG_WITHOUT_SPEED = 0x90;
 
     @Test
     void rendersAudioAndEventuallyFinishes(@TempDir Path dir) throws Exception {
@@ -102,6 +103,16 @@ class JavaModRendererTest {
         }};
 
         assertRendersASecond(new UltLoader().load(Files.write(dir.resolve("cut.ult"), TestUlts.ult(channels, 32, 20000))));
+    }
+
+    /**
+     * A retrigger whose parameter names no speed repeats the note on every tick instead of dividing by it.
+     */
+    @Test
+    void keepsRenderingARetriggerGivenNoSpeed(@TempDir Path dir) throws Exception {
+        final int[][][] channels = {{{TestUlts.NOTE, 1, SPECIAL, RETRIG_WITHOUT_SPEED, 0}}};
+
+        assertRendersASecond(new UltLoader().load(Files.write(dir.resolve("retrig.ult"), TestUlts.ult(channels, 32))));
     }
 
     private static void assertRendersASecond(Module module) {

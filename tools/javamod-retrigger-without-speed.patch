@@ -1,0 +1,22 @@
+--- a/source/de/quippy/javamod/multimedia/mod/mixer/ScreamTrackerMixer.java
++++ b/source/de/quippy/javamod/multimedia/mod/mixer/ScreamTrackerMixer.java
+@@ -1029,7 +1029,7 @@
+ 					doPanningSlideEffekt(aktMemo);
+ 				break;
+ 			case 0x11:			// Retrig Note
+-				if ((aktMemo.assignedEffektParam&0xF)!=0)
++				if (aktMemo.assignedEffektParam!=0)
+ 				{
+ 					aktMemo.retrigMemo = aktMemo.assignedEffektParam&0xF;
+ 					aktMemo.retrigVolSlide = aktMemo.assignedEffektParam>>4;
+@@ -1961,7 +1961,9 @@
+ 	 */
+ 	protected void doRetrigNote(final ChannelMemory aktMemo, final boolean inTick)
+ 	{
+-		if (((currentTempo - currentTick) % aktMemo.retrigMemo) == 0 && inTick)
++		// Qx0 names no speed, and Impulse Tracker then retriggers the note on every tick
++		final int retrigSpeed = (aktMemo.retrigMemo==0)?1:aktMemo.retrigMemo;
++		if (((currentTempo - currentTick) % retrigSpeed) == 0 && inTick)
+ 		{
+ 			aktMemo.retrigCount = aktMemo.retrigMemo;
+ 
