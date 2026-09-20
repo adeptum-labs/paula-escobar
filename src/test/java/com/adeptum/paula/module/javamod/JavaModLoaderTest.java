@@ -70,6 +70,17 @@ class JavaModLoaderTest {
         assertEquals(TestModules.TITLE, loader.load(flextrax).metadata().title());
     }
 
+    /**
+     * A ModPlug ADPCM sample takes half the bytes its header names, plus the table of deltas it is packed
+     * against; a reader that skips the length in the header lands short of everything after it.
+     */
+    @Test
+    void readsOnPastASamplePackedAsAdpcm(@TempDir Path dir) throws Exception {
+        final Module module = loader.load(TestModules.writeXmWithPackedSample(dir));
+
+        assertEquals(List.of(TestModules.XM_PACKED_NAME, TestModules.XM_PLAIN_NAME), module.metadata().instruments());
+    }
+
     @Test
     void reportsGarbageAsUnsupported(@TempDir Path dir) throws Exception {
         final Path garbage = Files.write(dir.resolve("garbage.mod"), new byte[100]);

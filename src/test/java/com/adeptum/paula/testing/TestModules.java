@@ -132,6 +132,8 @@ public final class TestModules {
 
     public static final String XM_TITLE = "Paula XM";
     public static final String XM_MIDI_NAME = "midi horn";
+    public static final String XM_PACKED_NAME = "packed square";
+    public static final String XM_PLAIN_NAME = "plain square";
     public static final int XM_CHANNELS = 2;
     public static final int XM_MIDI_CHANNEL = 1;
     public static final int XM_MIDI_PROGRAM = 1;
@@ -158,6 +160,13 @@ public final class TestModules {
     private static final int XM_PITCH_WHEEL_DEPTH = 2;
     private static final int XM_WITH_MIDI = 1;
     private static final int XM_WITHOUT_MIDI = 0;
+
+    /**
+     * ModPlug marks a packed sample in the byte a sample header otherwise reserves, and packs it into a table
+     * of sixteen deltas and a nibble a point while the header goes on naming the unpacked length.
+     */
+    private static final int XM_ADPCM = 0xad;
+    private static final int XM_ADPCM_TABLE_LENGTH = 16;
 
     /**
      * The note map, the two envelopes and their points, the envelope types, the vibrato and the fade out, all
@@ -973,6 +982,33 @@ public final class TestModules {
      */
     public static byte[] xmWithMidiInstrument() {
         final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        xmHeader(file);
+        xmPattern(file);
+        xmSquareInstrument(file, SAMPLE_NAME, 0);
+        xmInstrumentHeader(file, XM_MIDI_NAME, 0, XM_WITH_MIDI);
+        return file.toByteArray();
+    }
+
+    public static Path writeXmWithPackedSample(Path directory) throws IOException {
+        return Files.write(directory.resolve("packed.xm"), xmWithPackedSample());
+    }
+
+    /**
+     * An Extended Module whose first instrument carries a ModPlug ADPCM sample and whose second carries a
+     * plain one; a reader that skips the length the header names lands short of the second instrument.
+     */
+    public static byte[] xmWithPackedSample() {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        xmHeader(file);
+        xmPattern(file);
+        xmInstrumentHeader(file, XM_PACKED_NAME, 1, XM_WITHOUT_MIDI);
+        xmSampleHeader(file, XM_PACKED_NAME, XM_ADPCM);
+        file.writeBytes(new byte[XM_ADPCM_TABLE_LENGTH + (SAMPLE_LENGTH + 1) / 2]);
+        xmSquareInstrument(file, XM_PLAIN_NAME, 0);
+        return file.toByteArray();
+    }
+
+    private static void xmHeader(ByteArrayOutputStream file) {
         file.writeBytes(XM_MARK.getBytes(StandardCharsets.US_ASCII));
         file.writeBytes(padded(XM_TITLE, XM_NAME_LENGTH));
         file.write(XM_END_OF_NAME);
@@ -988,10 +1024,6 @@ public final class TestModules {
         word(file, XM_SPEED);
         word(file, XM_TEMPO);
         file.writeBytes(new byte[XM_ORDERS_LENGTH]);
-        xmPattern(file);
-        xmSquareInstrument(file);
-        xmMidiInstrument(file);
-        return file.toByteArray();
     }
 
     /**
@@ -1011,18 +1043,12 @@ public final class TestModules {
         file.writeBytes(events);
     }
 
-    private static void xmSquareInstrument(ByteArrayOutputStream file) {
-        xmInstrumentHeader(file, SAMPLE_NAME, 1, XM_WITHOUT_MIDI);
-        dword(file, SAMPLE_LENGTH);
-        dword(file, 0);
-        dword(file, SAMPLE_LENGTH);
-        file.write(XM_FULL_VOLUME);
-        file.write(0);
-        file.write(XM_SAMPLE_LOOPS);
-        file.write(XM_CENTRE_PANNING);
-        file.write(0);
-        file.write(0);
-        file.writeBytes(padded(SAMPLE_NAME, 22));
+    /**
+     * A square written as the deltas a plain XM sample is kept in.
+     */
+    private static void xmSquareInstrument(ByteArrayOutputStream file, String name, int reserved) {
+        xmInstrumentHeader(file, name, 1, XM_WITHOUT_MIDI);
+        xmSampleHeader(file, name, reserved);
         int previous = 0;
         for (int frame = 0; frame < SAMPLE_LENGTH; frame++) {
             final int value = frame < SAMPLE_LENGTH / 2 ? XM_SQUARE_HIGH : -XM_SQUARE_HIGH;
@@ -1031,8 +1057,17 @@ public final class TestModules {
         }
     }
 
-    private static void xmMidiInstrument(ByteArrayOutputStream file) {
-        xmInstrumentHeader(file, XM_MIDI_NAME, 0, XM_WITH_MIDI);
+    private static void xmSampleHeader(ByteArrayOutputStream file, String name, int reserved) {
+        dword(file, SAMPLE_LENGTH);
+        dword(file, 0);
+        dword(file, SAMPLE_LENGTH);
+        file.write(XM_FULL_VOLUME);
+        file.write(0);
+        file.write(XM_SAMPLE_LOOPS);
+        file.write(XM_CENTRE_PANNING);
+        file.write(0);
+        file.write(reserved);
+        file.writeBytes(padded(name, 22));
     }
 
     /**
