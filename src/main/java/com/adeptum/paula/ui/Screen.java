@@ -72,6 +72,7 @@ public final class Screen {
             new Frame.Key("b", "switch to the browser"),
             new Frame.Key("v", "next visualiser: spectrum, waterfall, vectorscope"),
             new Frame.Key("c", "cast to a device on the network"),
+            new Frame.Key("f", "add or remove the playing song from your favourites"),
             new Frame.Key("?", "close these keys"),
             new Frame.Key("click", "next visualiser, or mute the channel clicked"),
             new Frame.Key("shift/double click", "solo a channel"),

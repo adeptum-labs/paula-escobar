@@ -22,7 +22,7 @@
 package com.adeptum.paula.ui;
 
 public enum Action {
-    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD, BROWSE, CYCLE_VISUAL, CAST;
+    NONE, QUIT, TOGGLE_PAUSE, NEXT, PREVIOUS, SEEK_BACKWARD, SEEK_FORWARD, BROWSE, CYCLE_VISUAL, CAST, FAVOURITE;
 
     public static Action of(Key key) {
         return switch (key.special()) {
@@ -43,6 +43,7 @@ public enum Action {
             case 'b' -> BROWSE;
             case 'v' -> CYCLE_VISUAL;
             case 'c' -> CAST;
+            case 'f' -> FAVOURITE;
             default -> NONE;
         };
     }

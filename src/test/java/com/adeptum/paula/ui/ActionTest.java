@@ -42,6 +42,8 @@ class ActionTest {
         assertEquals(Action.BROWSE, Action.of(Key.of('B')));
         assertEquals(Action.CYCLE_VISUAL, Action.of(Key.of('v')));
         assertEquals(Action.CYCLE_VISUAL, Action.of(Key.of('V')));
+        assertEquals(Action.FAVOURITE, Action.of(Key.of('f')));
+        assertEquals(Action.FAVOURITE, Action.of(Key.of('F')));
     }
 
     @Test

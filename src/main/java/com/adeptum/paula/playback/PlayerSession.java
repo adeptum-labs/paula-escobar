@@ -31,6 +31,7 @@ import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastDevice;
 import com.adeptum.paula.cast.CastDiscovery;
 import com.adeptum.paula.cast.CastSink;
+import com.adeptum.paula.favourites.Favourites;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.DemozooTrack;
@@ -74,6 +75,8 @@ public final class PlayerSession {
     private static final String CASTING = "Casting to ";
     private static final String NOTHING_LOADED = "None of the playlist entries could be loaded, see paula.log";
     private static final short[] NO_AUDIO = new short[0];
+    private static final String ADDED_TO_FAVOURITES = "Added to your favourites";
+    private static final String REMOVED_FROM_FAVOURITES = "Removed from your favourites";
 
     private final ModuleLoaderRegistry loaders;
     private final PlaybackEngine engine;
@@ -81,6 +84,7 @@ public final class PlayerSession {
     private final TrackLoader loader;
     private final TrackLoader.Resolver resolver;
     private final Browser browser;
+    private final Favourites favourites;
     private final Deadline deadline;
     private boolean showingKeys;
     private final boolean exitWhenDone;
@@ -108,6 +112,12 @@ public final class PlayerSession {
     public PlayerSession(Optional<Playlist> playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui,
             TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, CastDiscovery discovery,
             Outputs outputs, Deadline deadline) {
+        this(playlist, loaders, engine, ui, loader, resolver, browser, Favourites.NONE, discovery, outputs, deadline);
+    }
+
+    public PlayerSession(Optional<Playlist> playlist, ModuleLoaderRegistry loaders, PlaybackEngine engine, TerminalUi ui,
+            TrackLoader loader, TrackLoader.Resolver resolver, Browser browser, Favourites favourites,
+            CastDiscovery discovery, Outputs outputs, Deadline deadline) {
         this.playlist = playlist.orElse(null);
         this.exitWhenDone = playlist.isPresent();
         this.browsing = playlist.isEmpty();
@@ -117,6 +127,7 @@ public final class PlayerSession {
         this.loader = loader;
         this.resolver = resolver;
         this.browser = browser;
+        this.favourites = favourites;
         this.discovery = discovery;
         this.outputs = outputs;
         this.deadline = deadline;
@@ -185,10 +196,26 @@ public final class PlayerSession {
                 castPopup.open();
                 discovery.scan();
             }
+            case FAVOURITE -> favourite();
             case NONE -> {
             }
         }
         return true;
+    }
+
+    /**
+     * The song playing is added to the favourites if it was not already kept, or dropped if it was; nothing
+     * happens where nothing is playing.
+     */
+    private void favourite() {
+        if (playlist == null) {
+            return;
+        }
+        try {
+            status = favourites.toggle(playlist.current()) ? ADDED_TO_FAVOURITES : REMOVED_FROM_FAVOURITES;
+        } catch (IOException e) {
+            status = e.getMessage();
+        }
     }
 
     /**
