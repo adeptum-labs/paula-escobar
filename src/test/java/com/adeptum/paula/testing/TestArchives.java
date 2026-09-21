@@ -100,6 +100,9 @@ public final class TestArchives {
     private static final int ADF_OFS_HEADER_LENGTH = 24;
     private static final int ADF_OFS_DATA_MAX = ADF_BLOCK - ADF_OFS_HEADER_LENGTH;
 
+    private static final byte[] DMS_MAGIC = {'D', 'M', 'S', '!'};
+    private static final int DMS_FILE_HEADER_LENGTH = 56;
+
     private TestArchives() {
     }
 
@@ -243,6 +246,53 @@ public final class TestArchives {
             at += T64_ENTRY_LENGTH;
         }
         return image;
+    }
+
+    public static byte[] dms(byte[] diskContent) {
+        return dms(diskContent, null);
+    }
+
+    /**
+     * A DMS archive made only of NOCOMP tracks, the one compression mode a test can write without a real
+     * cruncher: the given bytes become track 0, and the file_id.diz a disk may carry becomes track 80.
+     */
+    public static byte[] dms(byte[] diskContent, byte[] fileId) {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes(DMS_MAGIC);
+        file.writeBytes(new byte[DMS_FILE_HEADER_LENGTH - DMS_MAGIC.length]);
+        dmsTrack(file, 0, 0, diskContent);
+        if (fileId != null) {
+            dmsTrack(file, 80, 0, fileId);
+        }
+        return file.toByteArray();
+    }
+
+    public static void dmsTrack(ByteArrayOutputStream file, int track, int mode, byte[] content) {
+        file.writeBytes(new byte[] {'T', 'R'});
+        writeShort(file, track);
+        writeShort(file, 0);
+        writeShort(file, content.length);
+        writeShort(file, 0);
+        writeShort(file, content.length);
+        file.write(0);
+        file.write(mode);
+        writeShort(file, dmsChecksum(content));
+        writeShort(file, 0);
+        writeShort(file, 0);
+        file.writeBytes(content);
+    }
+
+    private static int dmsChecksum(byte[] bytes) {
+        int sum = 0;
+        for (final byte value : bytes) {
+            sum = (sum + (value & 0xFF)) & 0xFFFF;
+        }
+        return sum;
+    }
+
+    private static void writeShort(ByteArrayOutputStream file, int value) {
+        file.write(value >> 8);
+        file.write(value);
     }
 
     /**

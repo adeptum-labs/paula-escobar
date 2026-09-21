@@ -22,6 +22,7 @@
 package com.adeptum.paula.archive;
 
 import com.adeptum.paula.archive.adf.AdfExtractor;
+import com.adeptum.paula.archive.dms.DmsExtractor;
 import com.adeptum.paula.archive.lzx.LzxExtractor;
 import com.adeptum.paula.archive.xpk.XpkExtractor;
 import java.io.IOException;
@@ -40,12 +41,12 @@ import java.util.Set;
 public final class Archives {
 
     private static final int HEAD_LENGTH = 16;
-    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64", "t64", "umx", "7z", "rar", "gz", "pp", "adf");
-    private static final Set<String> UNREADABLE_EXTENSIONS = Set.of("dms", "arj", "ace");
+    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "lha", "lzh", "lzx", "d64", "t64", "umx", "7z", "rar", "gz", "pp", "adf", "dms");
+    private static final Set<String> UNREADABLE_EXTENSIONS = Set.of("arj", "ace");
     private static final List<ArchiveExtractor> EXTRACTORS =
             List.of(new ZipExtractor(), new LhaExtractor(), new LzxExtractor(), new XpkExtractor(),
                     new SevenZipExtractor(), new RarExtractor(), new GzipExtractor(), new PowerPackerExtractor(),
-                    new UmxExtractor(), new T64Extractor(), new D64Extractor(), new AdfExtractor());
+                    new UmxExtractor(), new DmsExtractor(), new T64Extractor(), new D64Extractor(), new AdfExtractor());
 
     private Archives() {
     }
