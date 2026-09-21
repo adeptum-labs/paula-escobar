@@ -597,9 +597,23 @@ class BrowserTest {
         openFavourites(Slice.ALL);
         final List<String> lines = render();
         assertTrue(lines.get(1).contains("Top Favourites › All"));
-        assertTrue(lines.get(2).startsWith("│> UnreaL ][ / PM") && lines.get(2).contains("2nd_pm.s3m") && lines.get(2).contains("438 favourites"));
+        assertTrue(lines.get(2).startsWith("│>   UnreaL ][ / PM") && lines.get(2).contains("2nd_pm.s3m") && lines.get(2).contains("438 favourites"));
         assertTrue(lines.get(4).contains("odd one") && lines.get(4).contains("(no reader)"), "nothing reads .abc");
         assertEquals(1, http.requests());
+    }
+
+    @Test
+    void aFavouritedTuneShowsAStarAndAnUnfavouritedOneDoesNot(@TempDir Path dataDir) throws IOException {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        favourites.toggle(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS));
+        browser = browser(favourites);
+
+        openFavourites(Slice.ALL);
+        final List<String> lines = render();
+
+        assertTrue(lines.get(2).startsWith("│>   UnreaL"), "not favourited, no star: " + lines.get(2));
+        assertTrue(lines.get(3).startsWith("│  ★ space_debris"), "favourited, starred: " + lines.get(3));
     }
 
     @Test
@@ -626,7 +640,7 @@ class BrowserTest {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
         http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());
         openFavourites(Slice.XM);
-        assertTrue(render().get(2).startsWith("│> Deadlock"), "read on to the second page for the first XM");
+        assertTrue(render().get(2).startsWith("│>   Deadlock"), "read on to the second page for the first XM");
         assertEquals(2, http.requests());
     }
 
@@ -741,7 +755,7 @@ class BrowserTest {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
         openFavourites(Slice.ALL);
         browser.nowPlaying(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS), new double[0]);
-        assertTrue(render().get(3).startsWith("│♪ space_debris"));
+        assertTrue(render().get(3).startsWith("│♪   space_debris"));
         press(Key.Special.BACKSPACE);
         assertTrue(render().get(2).startsWith("│♪ All"));
         press(Key.Special.BACKSPACE);
@@ -756,7 +770,7 @@ class BrowserTest {
         browser.tick();
         browser.tick();
         assertEquals(2, http.requests());
-        assertTrue(render().get(2).startsWith("│> UnreaL"));
+        assertTrue(render().get(2).startsWith("│>   UnreaL"));
     }
 
     @Test
@@ -813,7 +827,7 @@ class BrowserTest {
     private List<String> labels() {
         return render().stream()
                 .filter(line -> line.startsWith("│") && !line.contains("─"))
-                .map(line -> line.substring(1).replaceFirst("^(> |  |♪ )", ""))
+                .map(line -> line.substring(1).replaceFirst("^(> |  |♪ )(★ |  )?", ""))
                 .map(line -> line.split(" {2,}")[0])
                 .filter(label -> !label.isEmpty())
                 .toList();
@@ -846,13 +860,13 @@ class BrowserTest {
     void enterOnACompetitionListsRankedEntriesAndDimsUnplayableOnes() {
         openCompo();
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), lines.get(2).toString());
+        assertTrue(lines.get(2).toString().startsWith("│>     1  First"), lines.get(2).toString());
         assertTrue(lines.get(2).toString().contains("A"), "the author has a column of its own");
-        assertTrue(lines.get(4).toString().startsWith("│    3  Exe"), lines.get(4).toString());
-        assertEquals(Palette.DIMMED, lines.get(4).styleAt(8), "dimmed title");
-        assertEquals(Palette.VALUE, lines.get(3).styleAt(8));
-        assertEquals(Palette.SILVER, lines.get(3).styleAt(5), "second place is silver");
-        assertEquals(Palette.BRONZE, lines.get(4).styleAt(5), "third place is bronze");
+        assertTrue(lines.get(4).toString().startsWith("│      3  Exe"), lines.get(4).toString());
+        assertEquals(Palette.DIMMED, lines.get(4).styleAt(10), "dimmed title");
+        assertEquals(Palette.VALUE, lines.get(3).styleAt(10));
+        assertEquals(Palette.SILVER, lines.get(3).styleAt(7), "second place is silver");
+        assertEquals(Palette.BRONZE, lines.get(4).styleAt(7), "third place is bronze");
         assertEquals(Palette.SELECTED, lines.get(2).styleAt(1), "the cursor row is highlighted from edge to edge");
         assertEquals(Palette.SELECTED, lines.get(2).styleAt(WIDTH - 2));
     }
@@ -924,7 +938,7 @@ class BrowserTest {
         browser.tick();
 
         assertTrue(render().stream().anyMatch(line -> line.contains("No musician is named for this entry")));
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   3  Exe")), "the competition stays in view");
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>     3  Exe")), "the competition stays in view");
     }
 
     @Test
@@ -957,7 +971,7 @@ class BrowserTest {
 
         press(Key.Special.BACKSPACE);
 
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│    1  First")), "back among the entries");
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│      1  First")), "back among the entries");
         assertTrue(breadcrumb().endsWith("› The Party 1995 · Multichannel Music"), breadcrumb());
     }
 
@@ -990,7 +1004,7 @@ class BrowserTest {
         press(Key.Special.ENTER);
         browser.nowPlaying(browser.takeSelection().orElseThrow().current(), new double[0]);
 
-        assertTrue(render().get(2).startsWith("│♪ Cyberpunk"), render().get(2));
+        assertTrue(render().get(2).startsWith("│♪   Cyberpunk"), render().get(2));
 
         press(Key.Special.BACKSPACE);
         final List<String> musicians = render();
@@ -1013,7 +1027,7 @@ class BrowserTest {
 
         final List<String> lines = render();
         assertTrue(lines.get(1).contains("Purple Motion"), "the artist's list is titled after them: " + lines.get(1));
-        assertTrue(lines.get(2).startsWith("│> Future Brain") && lines.get(2).contains("9 / 10"), lines.get(2));
+        assertTrue(lines.get(2).startsWith("│>   Future Brain") && lines.get(2).contains("9 / 10"), lines.get(2));
         assertTrue(lines.get(3).contains("UnreaL"), lines.get(3));
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
@@ -1090,16 +1104,16 @@ class BrowserTest {
     void cursorClampsAndPagesWithinTheList() {
         openCompo();
         press(Key.Special.UP);
-        assertTrue(render().get(2).startsWith("│>   1"));
+        assertTrue(render().get(2).startsWith("│>     1"));
         press(Key.Special.END);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>     4")));
         press(Key.Special.DOWN);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")));
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>     4")));
         press(Key.Special.HOME);
         press(Key.Special.PAGE_DOWN);
-        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>   4")), "ten lines down stops at the last of four");
+        assertTrue(render().stream().anyMatch(line -> line.startsWith("│>     4")), "ten lines down stops at the last of four");
         press(Key.Special.PAGE_UP);
-        assertTrue(render().get(2).startsWith("│>   1"));
+        assertTrue(render().get(2).startsWith("│>     1"));
     }
 
     @Test
@@ -1119,7 +1133,7 @@ class BrowserTest {
         final List<String> tall = browser.render(WIDTH, 8).stream().map(AttributedString::toString).toList();
         assertEquals(2, tall.stream().filter(line -> line.matches("│[> ] +\\d.*")).count(), "eight rows leave two for the list");
         press(Key.Special.END);
-        assertTrue(browser.render(WIDTH, 8).stream().map(AttributedString::toString).anyMatch(line -> line.startsWith("│>   4")));
+        assertTrue(browser.render(WIDTH, 8).stream().map(AttributedString::toString).anyMatch(line -> line.startsWith("│>     4")));
     }
 
     @Test
@@ -1228,11 +1242,11 @@ class BrowserTest {
         browser.tick();
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(3).toString().startsWith("│    2  Second"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().startsWith("│      2  Second"), lines.get(3).toString());
         assertTrue(lines.get(3).toString().stripTrailing().endsWith("(no download)│"), lines.get(3).toString());
-        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8));
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "known downloads are not annotated");
-        assertTrue(lines.get(4).toString().startsWith("│    3  Exe"), "an entry Demozoo cannot describe is left alone");
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(10));
+        assertTrue(lines.get(2).toString().startsWith("│>     1  First"), "known downloads are not annotated");
+        assertTrue(lines.get(4).toString().startsWith("│      3  Exe"), "an entry Demozoo cannot describe is left alone");
 
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
@@ -1252,10 +1266,10 @@ class BrowserTest {
         browser.tick();
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
-        assertTrue(lines.get(3).toString().startsWith("│    2  Second"), lines.get(3).toString());
+        assertTrue(lines.get(3).toString().startsWith("│      2  Second"), lines.get(3).toString());
         assertTrue(lines.get(3).toString().stripTrailing().endsWith("(no reader)│"), lines.get(3).toString());
-        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8), "and it is greyed out");
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "a zip is left alone");
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(10), "and it is greyed out");
+        assertTrue(lines.get(2).toString().startsWith("│>     1  First"), "a zip is left alone");
 
         press(Key.Special.ENTER);
         assertEquals(2, browser.takeSelection().orElseThrow().size(), "the disk image is not queued");
@@ -1288,8 +1302,8 @@ class BrowserTest {
 
         final List<AttributedString> lines = browser.render(WIDTH, HEIGHT);
         assertTrue(lines.get(3).toString().stripTrailing().endsWith("(unsupported music format)│"), lines.get(3).toString());
-        assertEquals(Palette.DIMMED, lines.get(3).styleAt(8), "and it is greyed out");
-        assertTrue(lines.get(2).toString().startsWith("│>   1  First"), "an entry that plays is left alone");
+        assertEquals(Palette.DIMMED, lines.get(3).styleAt(10), "and it is greyed out");
+        assertTrue(lines.get(2).toString().startsWith("│>     1  First"), "an entry that plays is left alone");
 
         press(Key.Special.ENTER);
         assertEquals(2, browser.takeSelection().orElseThrow().size(), "the entry is not queued");
@@ -1364,9 +1378,9 @@ class BrowserTest {
         browser.nowPlaying(secondPlace(), new double[0]);
 
         final List<String> lines = render();
-        assertTrue(lines.get(3).startsWith("│♪   2  Second"), lines.get(3));
+        assertTrue(lines.get(3).startsWith("│♪     2  Second"), lines.get(3));
         assertFalse(lines.get(4).contains("♪"), "and only that one: " + lines.get(4));
-        assertTrue(lines.get(2).startsWith("│>   1  First"), "the cursor keeps its own mark: " + lines.get(2));
+        assertTrue(lines.get(2).startsWith("│>     1  First"), "the cursor keeps its own mark: " + lines.get(2));
     }
 
     @Test

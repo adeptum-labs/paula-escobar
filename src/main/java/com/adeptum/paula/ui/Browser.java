@@ -408,7 +408,7 @@ public final class Browser {
      * How a level is laid out: the columns it flows into, and how a cell divides its width between the name,
      * the second field and whatever is set against the right edge.
      */
-    private record Layout(int columns, int rows, int cellWidth, int label, int detail, int trailing) {
+    private record Layout(int columns, int rows, int cellWidth, int label, int detail, int trailing, boolean stars) {
 
         private int page() {
             return columns * rows;
@@ -501,6 +501,9 @@ public final class Browser {
     private static final String CRUMB_SEPARATOR = " › ";
     private static final String CURSOR = "> ";
     private static final String NO_CURSOR = "  ";
+    private static final String STAR = "★ ";
+    private static final String NO_STAR = "  ";
+    private static final int STAR_WIDTH = 2;
     private static final String NO_DOWNLOAD = "(no download)";
     private static final String NO_READER = "(no reader)";
     private static final String UNSUPPORTED_FORMAT = "(unsupported music format)";
@@ -1232,15 +1235,17 @@ public final class Browser {
      */
     private Layout layoutOf(Level level, int width, int rows) {
         final int trailing = level.widest(Item::trailing);
+        final boolean stars = !level.items.isEmpty() && level.items.get(0).starred();
+        final int marks = NO_CURSOR.length() + (stars ? STAR_WIDTH : 0);
         if (level.items.stream().noneMatch(Item::flows)) {
             final int label = level.widest(Item::label);
-            final int room = Math.max(LEAST_DETAIL, width - label - NO_CURSOR.length() - COLUMN_GAP);
+            final int room = Math.max(LEAST_DETAIL, width - label - marks - COLUMN_GAP);
             final int detail = Math.min(level.widest(Item::detail), room);
-            return new Layout(1, rows, width, label, detail, trailing);
+            return new Layout(1, rows, width, label, detail, trailing, stars);
         }
-        final int cell = level.widest(Item::label) + trailing + NO_CURSOR.length() + COLUMN_GAP * 2;
+        final int cell = level.widest(Item::label) + trailing + marks + COLUMN_GAP * 2;
         final int columns = Math.clamp(width / Math.max(1, cell), 1, MOST_COLUMNS);
-        return new Layout(columns, rows, width / columns, level.widest(Item::label), 0, trailing);
+        return new Layout(columns, rows, width / columns, level.widest(Item::label), 0, trailing, stars);
     }
 
     private AttributedString rowOf(Level level, Layout layout, int row, boolean active) {
@@ -1250,7 +1255,8 @@ public final class Browser {
             if (index < level.items.size()) {
                 line.append(cell(level.items.get(index), active && index == level.cursor, layout, ticker(level.items.get(index))));
             } else if (index == level.items.size() && moreBelow(level)) {
-                line.style(Palette.DIMMED).append(NO_CURSOR).append(filling == level ? FETCHING_MORE : MORE_BELOW);
+                line.style(Palette.DIMMED).append(NO_CURSOR).append(layout.stars() ? NO_STAR : "")
+                        .append(filling == level ? FETCHING_MORE : MORE_BELOW);
             }
         }
         return line.toAttributedString();
@@ -1269,6 +1275,11 @@ public final class Browser {
         line.style(selected ? Palette.SELECTED : Palette.ACCENT)
                 .append(playing ? NOW_PLAYING_MARK : selected ? CURSOR : NO_CURSOR);
         int written = NO_CURSOR.length();
+        if (layout.stars()) {
+            line.style(selected ? Palette.SELECTED : Palette.GOLD)
+                    .append(item.track().filter(favourites::holds).isPresent() ? STAR : NO_STAR);
+            written += STAR_WIDTH;
+        }
         if (item instanceof EntryItem entry) {
             line.style(selected ? Palette.SELECTED : medal(entry.entry().placing(), text)).append(entry.placingText());
             written += entry.placingText().length() + COLUMN_GAP;
@@ -1276,7 +1287,7 @@ public final class Browser {
         }
         final int room = layout.cellWidth() - written - ticker.length();
         final int spare = Math.max(room / 4, room - layout.label() - layout.trailing() - COLUMN_GAP * 2);
-        final int detail = item.detail().isEmpty() ? 0 : Math.min(layout.detail(), spare);
+        final int detail = item.detail().isEmpty() ? 0 : Math.max(0, Math.min(layout.detail(), spare));
         final int trailing = Math.min(layout.trailing(), Math.max(0, room - detail - COLUMN_GAP));
         final int gaps = (detail > 0 ? COLUMN_GAP : 0) + (trailing > 0 ? COLUMN_GAP : 0);
         final int label = Math.max(1, Math.min(layout.label(), room - gaps - detail - trailing));
