@@ -1,0 +1,79 @@
+/*
+ * Paula Escobar is a terminal music player for demoscene and chip music.
+ * Copyright © 2026 Adam Waldenberg, Adeptum AB, Org.nr 559494-1824.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Website: https://www.adeptum.se
+ * Contact: info@adeptum.se
+ */
+
+package com.adeptum.paula.favourites;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Map;
+
+/**
+ * Paula's data root following the XDG base directory convention: what a user made rather than what was
+ * fetched, so it is never lost when the cache is deleted to start over.
+ */
+public final class DataDirectory {
+
+    private static final String XDG_DATA_HOME = "XDG_DATA_HOME";
+    private static final String DOT_LOCAL_SHARE = ".local/share";
+    private static final String APPLICATION = "paula";
+    private static final String PART_SUFFIX = ".part";
+
+    private final Path root;
+
+    public DataDirectory(Path root) {
+        this.root = root;
+    }
+
+    public static DataDirectory resolve() {
+        return resolve(System.getenv(), Path.of(System.getProperty("user.home")));
+    }
+
+    static DataDirectory resolve(Map<String, String> environment, Path home) {
+        final String xdg = environment.get(XDG_DATA_HOME);
+        final Path base = xdg != null && Path.of(xdg).isAbsolute() ? Path.of(xdg) : home.resolve(DOT_LOCAL_SHARE);
+        return new DataDirectory(base.resolve(APPLICATION));
+    }
+
+    public Path root() {
+        return root;
+    }
+
+    public Path file(String... segments) throws IOException {
+        Path path = root;
+        for (final String segment : segments) {
+            path = path.resolve(segment);
+        }
+        Files.createDirectories(path.getParent());
+        return path;
+    }
+
+    /**
+     * Writes next to the target and moves into place so an interrupted write can never be mistaken for a
+     * saved file.
+     */
+    public void writeAtomically(Path file, byte[] content) throws IOException {
+        final Path part = Files.createTempFile(file.getParent(), file.getFileName().toString(), PART_SUFFIX);
+        Files.write(part, content);
+        Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+}
