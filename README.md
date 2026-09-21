@@ -20,7 +20,7 @@ jar to carry around.
   [Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page.
 - The music competitions of eighty-two party series on Demozoo and the
   ModArchive charts, browsed year by year, played on the spot and kept for
-  offline use once fetched.
+  offline use once fetched, with a favourite of any song a key away.
 - Archives, crunched modules, Unreal packages, Amiga disk images, plain
   or DMS-crunched, and Commodore disk and tape images opened for what
   they hold, as deep as they go.
@@ -100,7 +100,9 @@ executable. A chart opens into All, MOD, XM, IT, S3M and Other and is read
 forty rows at a time as the cursor reaches the end. Playing a line queues
 the rest of its list, so `n` walks on through the results, and `m` opens
 everything else the musician has, on Demozoo for an entry and on
-ModArchive for a chart tune.
+ModArchive for a chart tune. `f` keeps or drops the song under the cursor,
+or the one playing, as a favourite, marked with a star where a row can
+carry one; Your Favourites, above the charts, opens what has been kept.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
@@ -111,7 +113,9 @@ played, with the art of its `file_id.diz` or the party's own logo shown
 above the list. Everything fetched is kept under `~/.cache/paula` (or
 `$XDG_CACHE_HOME/paula`): Demozoo answers a week and chart pages a day,
 both still used offline, downloaded modules for good. `r` fetches the
-list in view afresh; delete the directory to start over.
+list in view afresh; delete the directory to start over. Favourites are
+kept apart from it, under `~/.local/share/paula` (or
+`$XDG_DATA_HOME/paula`), and are untouched by that.
 
 ### Formats
 

@@ -58,6 +58,9 @@ import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FetchingReleaseArt;
 import com.adeptum.paula.demozoo.SceneOrgPartyArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.favourites.DataDirectory;
+import com.adeptum.paula.favourites.Favourites;
+import com.adeptum.paula.favourites.JsonFavourites;
 import com.adeptum.paula.demozoo.UnplayableReleases;
 import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -174,11 +177,12 @@ public final class Paula implements Runnable {
             final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders, new Progress(), unplayable);
             final CachedReleaseArt releaseArt = new CachedReleaseArt(cache);
             final SceneOrgPartyArt partyArt = new SceneOrgPartyArt(demozoo, http, cache, fetchingArt);
+            final Favourites favourites = new JsonFavourites(DataDirectory.resolve());
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
-                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt);
+                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt, favourites);
             new PlayerSession(playlist, loaders, engine, ui, loader,
                     tracks(resolver, loaders, sidLengths, demozoo, releaseArt, partyArt),
-                    browser, discovery, outputs(), deadline()).run();
+                    browser, favourites, discovery, outputs(), deadline()).run();
         } catch (AudioException | IOException e) {
             throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
         } finally {
