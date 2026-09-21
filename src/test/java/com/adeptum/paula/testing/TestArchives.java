@@ -29,6 +29,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.GZIPOutputStream;
@@ -74,6 +75,30 @@ public final class TestArchives {
     private static final int D64_LENGTH = 174848;
     private static final int D64_DIRECTORY_TRACK = 18;
     private static final int D64_BLOCK_DATA = 254;
+
+    private static final int ADF_BLOCK = 512;
+    private static final int ADF_DD_BLOCKS = 1760;
+    private static final int ADF_ROOT = ADF_DD_BLOCKS / 2;
+    private static final int ADF_TYPE_AT = 0;
+    private static final int ADF_TYPE_HEADER = 2;
+    private static final int ADF_TYPE_LIST = 16;
+    private static final int ADF_TYPE_DATA = 8;
+    private static final int ADF_HIGH_SEQ_AT = 8;
+    private static final int ADF_DATA_BLOCKS_AT = 24;
+    private static final int ADF_DATA_BLOCKS_COUNT = 72;
+    private static final int ADF_HASH_TABLE_AT = 24;
+    private static final int ADF_HASH_TABLE_SIZE = 72;
+    private static final int ADF_HASH_CHAIN_AT = ADF_BLOCK - 16;
+    private static final int ADF_BYTE_SIZE_AT = ADF_BLOCK - 188;
+    private static final int ADF_NAME_LENGTH_AT = ADF_BLOCK - 80;
+    private static final int ADF_PARENT_AT = ADF_BLOCK - 12;
+    private static final int ADF_EXTENSION_AT = ADF_BLOCK - 8;
+    private static final int ADF_SEC_TYPE_AT = ADF_BLOCK - 4;
+    private static final int ADF_ST_ROOT = 1;
+    private static final int ADF_ST_USERDIR = 2;
+    private static final int ADF_ST_FILE = -3;
+    private static final int ADF_OFS_HEADER_LENGTH = 24;
+    private static final int ADF_OFS_DATA_MAX = ADF_BLOCK - ADF_OFS_HEADER_LENGTH;
 
     private TestArchives() {
     }
@@ -218,6 +243,144 @@ public final class TestArchives {
             at += T64_ENTRY_LENGTH;
         }
         return image;
+    }
+
+    /**
+     * An 880 KiB Amiga floppy image holding the given files, keys nested with a slash read as directories, laid
+     * out under either filesystem: OFS data blocks carry their own header, FFS ones are raw. Names are hashed
+     * into their directory's table the way AmigaDOS itself would, so a real Amiga tool reads the disk back too,
+     * though this reader has no need of the hash itself.
+     */
+    public static byte[] adf(Map<String, byte[]> files, boolean fastFileSystem) {
+        final byte[] image = new byte[ADF_DD_BLOCKS * ADF_BLOCK];
+        image[0] = 'D';
+        image[1] = 'O';
+        image[2] = 'S';
+        image[3] = (byte) (fastFileSystem ? 1 : 0);
+        writeAdfInt(image, ADF_ROOT, ADF_TYPE_AT, ADF_TYPE_HEADER);
+        writeAdfInt(image, ADF_ROOT, ADF_SEC_TYPE_AT, ADF_ST_ROOT);
+        final Map<String, Integer> directories = new HashMap<>();
+        directories.put("", ADF_ROOT);
+        final int[] next = {2};
+        for (final Map.Entry<String, byte[]> file : files.entrySet()) {
+            final int slash = file.getKey().lastIndexOf('/');
+            final String directory = slash < 0 ? "" : file.getKey().substring(0, slash);
+            final String name = slash < 0 ? file.getKey() : file.getKey().substring(slash + 1);
+            final int dirBlock = adfDirectory(image, directories, directory, next);
+            adfFile(image, dirBlock, name, file.getValue(), next, fastFileSystem);
+        }
+        return image;
+    }
+
+    private static int adfDirectory(byte[] image, Map<String, Integer> directories, String path, int[] next) {
+        final Integer existing = directories.get(path);
+        if (existing != null) {
+            return existing;
+        }
+        final int slash = path.lastIndexOf('/');
+        final String parentPath = slash < 0 ? "" : path.substring(0, slash);
+        final String name = slash < 0 ? path : path.substring(slash + 1);
+        final int parent = adfDirectory(image, directories, parentPath, next);
+        final int block = next[0]++;
+        writeAdfInt(image, block, ADF_TYPE_AT, ADF_TYPE_HEADER);
+        writeAdfInt(image, block, ADF_SEC_TYPE_AT, ADF_ST_USERDIR);
+        writeAdfInt(image, block, ADF_PARENT_AT, parent);
+        writeAdfName(image, block, name);
+        adfLink(image, parent, block, name);
+        directories.put(path, block);
+        return block;
+    }
+
+    private static void adfFile(byte[] image, int directory, String name, byte[] content, int[] next, boolean ffs) {
+        final int header = next[0]++;
+        writeAdfInt(image, header, ADF_TYPE_AT, ADF_TYPE_HEADER);
+        writeAdfInt(image, header, ADF_SEC_TYPE_AT, ADF_ST_FILE);
+        writeAdfInt(image, header, ADF_PARENT_AT, directory);
+        writeAdfInt(image, header, ADF_BYTE_SIZE_AT, content.length);
+        writeAdfName(image, header, name);
+        adfDataBlocks(image, header, content, next, ffs);
+        adfLink(image, directory, header, name);
+    }
+
+    /**
+     * A header holds at most 72 data block pointers, in reverse order; a longer file spills into an extension
+     * block of the same shape, chained off the one before it.
+     */
+    private static void adfDataBlocks(byte[] image, int header, byte[] content, int[] next, boolean ffs) {
+        final int perBlock = ffs ? ADF_BLOCK : ADF_OFS_DATA_MAX;
+        final int blocks = content.length == 0 ? 0 : (content.length + perBlock - 1) / perBlock;
+        int currentHeader = header;
+        int countInCurrent = 0;
+        int written = 0;
+        for (int seq = 1; seq <= blocks; seq++) {
+            if (countInCurrent == ADF_DATA_BLOCKS_COUNT) {
+                writeAdfInt(image, currentHeader, ADF_HIGH_SEQ_AT, countInCurrent);
+                final int extension = next[0]++;
+                writeAdfInt(image, currentHeader, ADF_EXTENSION_AT, extension);
+                writeAdfInt(image, extension, ADF_TYPE_AT, ADF_TYPE_LIST);
+                writeAdfInt(image, extension, ADF_SEC_TYPE_AT, ADF_ST_FILE);
+                writeAdfInt(image, extension, ADF_PARENT_AT, header);
+                currentHeader = extension;
+                countInCurrent = 0;
+            }
+            final int dataBlock = next[0]++;
+            final int chunk = Math.min(perBlock, content.length - written);
+            final int payloadAt = ffs ? dataBlock * ADF_BLOCK : dataBlock * ADF_BLOCK + ADF_OFS_HEADER_LENGTH;
+            System.arraycopy(content, written, image, payloadAt, chunk);
+            if (!ffs) {
+                writeAdfInt(image, dataBlock, ADF_TYPE_AT, ADF_TYPE_DATA);
+                writeAdfInt(image, dataBlock, 4, header);
+                writeAdfInt(image, dataBlock, 8, seq);
+                writeAdfInt(image, dataBlock, 12, chunk);
+            }
+            written += chunk;
+            final int slot = ADF_DATA_BLOCKS_COUNT - 1 - countInCurrent;
+            writeAdfInt(image, currentHeader, ADF_DATA_BLOCKS_AT + slot * Integer.BYTES, dataBlock);
+            countInCurrent++;
+        }
+        writeAdfInt(image, currentHeader, ADF_HIGH_SEQ_AT, countInCurrent);
+    }
+
+    private static void writeAdfName(byte[] image, int block, String name) {
+        final byte[] bytes = name.getBytes(StandardCharsets.ISO_8859_1);
+        final int at = block * ADF_BLOCK + ADF_NAME_LENGTH_AT;
+        image[at] = (byte) bytes.length;
+        System.arraycopy(bytes, 0, image, at + 1, bytes.length);
+    }
+
+    /**
+     * A directory keeps its entries in a hash table of 72 chains; a new entry is put at the head of its chain,
+     * which is simpler to write than AmigaDOS's own tail-appending and reads back exactly the same.
+     */
+    private static void adfLink(byte[] image, int directory, int entry, String name) {
+        final int hash = adfHash(name);
+        final int slotAt = ADF_HASH_TABLE_AT + hash * Integer.BYTES;
+        final int existing = readAdfInt(image, directory, slotAt);
+        writeAdfInt(image, entry, ADF_HASH_CHAIN_AT, existing);
+        writeAdfInt(image, directory, slotAt, entry);
+    }
+
+    private static int adfHash(String name) {
+        int hash = name.length();
+        for (int index = 0; index < name.length(); index++) {
+            hash = hash * 13 + Character.toUpperCase(name.charAt(index));
+            hash &= 0x7FF;
+        }
+        return hash % ADF_HASH_TABLE_SIZE;
+    }
+
+    private static void writeAdfInt(byte[] image, int block, int offset, int value) {
+        final int at = block * ADF_BLOCK + offset;
+        image[at] = (byte) (value >>> 24);
+        image[at + 1] = (byte) (value >>> 16);
+        image[at + 2] = (byte) (value >>> 8);
+        image[at + 3] = (byte) value;
+    }
+
+    private static int readAdfInt(byte[] image, int block, int offset) {
+        final int at = block * ADF_BLOCK + offset;
+        return (image[at] & 0xFF) << 24 | (image[at + 1] & 0xFF) << 16
+                | (image[at + 2] & 0xFF) << 8 | image[at + 3] & 0xFF;
     }
 
     /**

@@ -132,7 +132,7 @@ class BrowserTest {
             """;
     private static final String EMPTY_PARTY = "{\"id\":5,\"name\":\"The Party 1995\",\"competitions\":[]}";
     private static final String PRODUCTION_WITH_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/x.zip\"}],\"external_links\":[]}";
-    private static final String PRODUCTION_AS_DISK_IMAGE = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/tune.adf\"}],\"external_links\":[]}";
+    private static final String PRODUCTION_AS_UNREADABLE_ARCHIVE = "{\"id\":0,\"title\":\"x\",\"download_links\":[{\"link_class\":\"SceneOrgFile\",\"url\":\"https://files.scene.org/view/tune.arj\"}],\"external_links\":[]}";
     private static final String PRODUCTION_WITHOUT_DOWNLOAD = "{\"id\":0,\"title\":\"x\",\"download_links\":[],\"external_links\":[{\"link_class\":\"PouetProduction\",\"url\":\"https://www.pouet.net/prod.php?which=1\"}]}";
 
     private static final String FAVOURITES_ONE = favouritesPage(1);
@@ -1167,13 +1167,13 @@ class BrowserTest {
     }
 
     /**
-     * An Amiga disk image is a container Paula has no reader for, so the entry says so and is left out of what
+     * An ARJ archive is a container Paula has no reader for, so the entry says so and is left out of what
      * playing one queues up.
      */
     @Test
     void marksEntriesWhoseOnlyDownloadCannotBeOpened() {
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
-        http.put(productionUrl(12), PRODUCTION_AS_DISK_IMAGE);
+        http.put(productionUrl(12), PRODUCTION_AS_UNREADABLE_ARCHIVE);
         http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
         openCompo();
         browser.tick();

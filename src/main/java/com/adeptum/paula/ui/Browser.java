@@ -241,7 +241,7 @@ public final class Browser {
     /**
      * What a release says for itself once its files have been looked up: nothing where it can be played,
      * otherwise that Demozoo knows no file for it, that the one file it names is a container Paula cannot
-     * open, an Amiga disk image most often, or that its files were brought down and hold music in a format
+     * open, an ARJ or ACE archive most often, or that its files were brought down and hold music in a format
      * Paula has no replayer for, executable music most often, so there is nothing to be had from asking for it.
      */
     private static String downloadMark(CompoEntry entry, Map<Integer, String> downloads, ReleaseArt art) {
