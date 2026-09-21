@@ -837,18 +837,22 @@ class BrowserTest {
 
     /**
      * Walking down runs to the foot of a column and on to the head of the next, so the cursor keys mean the
-     * same thing they always did whatever the list is laid out as.
+     * same thing they always did whatever the list is laid out as. Rendered a little wider than the usual
+     * fixture width, since the charts pane's own width now leaves the party pane too narrow at WIDTH for the
+     * series to flow into more than one column.
      */
     @Test
     void theCursorWalksDownAColumnAndOnToTheNext() {
-        final int rows = (int) render().stream().filter(l -> l.startsWith("│") && !l.contains("─")).count();
+        final int wide = WIDTH + 10;
+        final List<String> lines = browser.render(wide, HEIGHT).stream().map(AttributedString::toString).toList();
+        final int rows = (int) lines.stream().filter(l -> l.startsWith("│") && !l.contains("─")).count();
         for (int i = 0; i < rows; i++) {
             press(Key.Special.DOWN);
         }
 
-        final List<String> lines = render();
-        assertTrue(lines.get(2).contains("> "), "the cursor is back at the top row");
-        assertFalse(lines.get(2).startsWith("│> "), "but in the second column now: " + lines.get(2));
+        final List<String> after = browser.render(wide, HEIGHT).stream().map(AttributedString::toString).toList();
+        assertTrue(after.get(2).contains("> "), "the cursor is back at the top row");
+        assertFalse(after.get(2).startsWith("│> "), "but in the second column now: " + after.get(2));
     }
 
     @Test

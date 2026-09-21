@@ -913,7 +913,7 @@ public final class Browser {
     private List<AttributedString> renderFirstPage(int width, int height) {
         final int listRows = Math.max(1, height - CHROME_LINES);
         final int chartsWidth = charts.widest(Item::label) + charts.widest(Item::trailing)
-                + NO_CURSOR.length() + COLUMN_GAP + BOX_EDGES;
+                + NO_CURSOR.length() + COLUMN_GAP + 1 + BOX_EDGES;
         final int partiesWidth = width - chartsWidth;
         final List<AttributedString> lines = new ArrayList<>();
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
