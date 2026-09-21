@@ -21,8 +21,9 @@ jar to carry around.
 - The music competitions of eighty-two party series on Demozoo and the
   ModArchive charts, browsed year by year, played on the spot and kept for
   offline use once fetched.
-- Archives, crunched modules, Unreal packages and Commodore disk and tape
-  images opened for what they hold, as deep as they go.
+- Archives, crunched modules, Unreal packages, DMS-crunched Amiga disk
+  images and Commodore disk and tape images opened for what they hold, as
+  deep as they go.
 - Screens that fill the terminal in 24-bit colour: a spectrum analyser,
   waterfall and vectorscope, VU meters and an oscilloscope per channel, each
   muted or soloed with the mouse.
@@ -102,10 +103,11 @@ tune.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
-and PowerPacker crunched modules, Unreal music packages and 1541 disk and
-tape images are unpacked as deep as they go, and the file named after the
-entry is played, with the art of its `file_id.diz` or the party's own logo
-shown above the list. Everything fetched is kept under `~/.cache/paula` (or
+and PowerPacker crunched modules, Unreal music packages, DMS-crunched
+Amiga disk images and Commodore 1541 disk and tape images are unpacked as
+deep as they go, and the file named after the entry is played, with the
+art of its `file_id.diz` or the party's own logo shown above the list.
+Everything fetched is kept under `~/.cache/paula` (or
 `$XDG_CACHE_HOME/paula`): Demozoo answers a week and chart pages a day, both
 still used offline, downloaded modules for good. `r` fetches the list in
 view afresh; delete the directory to start over.
@@ -126,8 +128,8 @@ them, `MOD.tune`, counts as well.
 | Any | MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave, AIFF and AU |
 
 Zip, 7z, RAR, LHA, LZX and gzip archives, PowerPacker and XPK crunched
-modules, Unreal music packages and Commodore 1541 disk and tape images are
-opened for what they hold. The
+modules, Unreal music packages, DMS-crunched Amiga disk images and
+Commodore 1541 disk and tape images are opened for what they hold. The
 [Formats](https://github.com/adeptum-labs/paula-escobar/wiki/Formats) page
 of the wiki lists every format with its extensions.
 
