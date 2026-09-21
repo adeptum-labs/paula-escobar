@@ -617,6 +617,46 @@ class BrowserTest {
     }
 
     @Test
+    void fPressedOnATuneTogglesItAsAFavourite(@TempDir Path dataDir) throws IOException {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        browser = browser(favourites);
+        openFavourites(Slice.ALL);
+        press(Key.Special.DOWN);
+
+        press('f');
+        assertTrue(render().get(3).startsWith("│> ★ space_debris"), render().get(3));
+        assertTrue(favourites.holds(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS)));
+        assertTrue(render().stream().anyMatch(line -> line.contains("Added to your favourites")), String.join("\n", render()));
+
+        press('f');
+        assertTrue(render().get(3).startsWith("│>   space_debris"), render().get(3));
+        assertFalse(favourites.holds(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS)));
+    }
+
+    @Test
+    void fPressedOnAPartyRowDoesNothing() {
+        press('f');
+        assertTrue(render().stream().noneMatch(line -> line.contains("Added to your favourites")
+                || line.contains("Removed from your favourites")), String.join("\n", render()));
+    }
+
+    @Test
+    void fPressedInYourFavouritesDropsTheRowAtOnce(@TempDir Path dataDir) throws IOException {
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        favourites.toggle(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS));
+        browser = browser(favourites);
+
+        press(Key.Special.TAB);
+        press(Key.Special.ENTER);
+        assertTrue(labels().contains("space_debris"));
+
+        press('f');
+        assertFalse(labels().contains("space_debris"), "dropped from view without a reload");
+        assertFalse(favourites.holds(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS)));
+    }
+
+    @Test
     void fetchesTheNextPageWhenTheCursorReachesTheEnd() {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 2, UNREAL, DEBRIS), Optional.empty());
         http.put(FAVOURITES_TWO, ModArchivePages.page(Chart.TOP_FAVOURITES, 2, 2, DEADLOCK), Optional.empty());

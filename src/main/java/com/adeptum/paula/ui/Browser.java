@@ -520,6 +520,9 @@ public final class Browser {
     private static final String NOW_PLAYING_MARK = "♪ ";
     private static final char RELOAD = 'r';
     private static final char MUSICIAN = 'm';
+    private static final char FAVOURITE = 'f';
+    private static final String ADDED_TO_FAVOURITES = "Added to your favourites";
+    private static final String REMOVED_FROM_FAVOURITES = "Removed from your favourites";
     private static final int STRIP_BANDS = 16;
     private static final int PLACING_WIDTH = 3;
     private static final int CHROME_LINES = 6;
@@ -547,6 +550,7 @@ public final class Browser {
             new Frame.Key("tab", "switch between the parties and the charts"),
             new Frame.Key("enter →", "open, or play an entry"),
             new Frame.Key("m", "more by the musician"),
+            new Frame.Key("f", "add or remove from your favourites"),
             new Frame.Key("backspace", "go back one level"),
             new Frame.Key("← esc", "go back, or quit at the top"),
             new Frame.Key("r", "fetch this list and its logo afresh"),
@@ -651,7 +655,7 @@ public final class Browser {
             case TAB -> atRoot();
             case NONE -> {
                 final char character = Character.toLowerCase(key.character());
-                yield character == RELOAD || character == MUSICIAN;
+                yield character == RELOAD || character == MUSICIAN || character == FAVOURITE;
             }
             default -> false;
         };
@@ -682,9 +686,33 @@ public final class Browser {
         switch (Character.toLowerCase(key.character())) {
             case RELOAD -> reload();
             case MUSICIAN -> moreByTheMusician(current());
+            case FAVOURITE -> favourite(current());
             default -> {
             }
         }
+    }
+
+    /**
+     * The row under the cursor is added to the favourites if it was not already kept, or dropped if it was;
+     * a navigational row has no song to keep and is left alone. Toggling one away while browsing the
+     * favourites list itself drops the row from view at once, rather than waiting for a reload.
+     */
+    private void favourite(Level level) {
+        level.selected().flatMap(Item::track).ifPresent(track -> {
+            final boolean added;
+            try {
+                added = favourites.toggle(track);
+            } catch (IOException e) {
+                error = e.getMessage();
+                return;
+            }
+            error = added ? ADDED_TO_FAVOURITES : REMOVED_FROM_FAVOURITES;
+            if (level.favourites) {
+                final String key = FavouriteKey.of(track);
+                level.items.removeIf(item -> item instanceof FavouriteItem favourite && FavouriteKey.of(favourite.song()).equals(key));
+                level.move(0);
+            }
+        });
     }
 
     public void tick() {
