@@ -343,6 +343,7 @@ public final class Browser {
         private int nextPage = 1;
         private int lastPage = Integer.MAX_VALUE;
         private boolean restingAtTheEnd;
+        private Instant lastGrown;
         private final Set<Integer> seen = new HashSet<>();
 
         private Level(String title, String emptyText, List<Item> items) {
@@ -465,7 +466,6 @@ public final class Browser {
     private CompletableFuture<Level> pending;
     private CompletableFuture<Grown> more;
     private Level filling;
-    private Instant lastGrown;
     private String error;
     private Playlist selection;
     private int restingOn;
@@ -594,13 +594,14 @@ public final class Browser {
      * thousands costs nothing until it is walked. A slice as narrow as one format reads on for a few pages at
      * once, until it has a few rows to show or the whole of a page; a run that turned up nothing then waits
      * for the next step of the cursor, rather than reading a format the chart never held to its last page, and
-     * runs are held a dwell apart so that a key left on the mat does not empty the site.
+     * a list's own runs are held a dwell apart so that a key left on the mat does not empty the site; stepping
+     * into another list is not held by the one left behind.
      */
     private void growAtTheEndOfTheList() {
         final Level level = levels.peek();
         if (more != null || pending != null || level.listing == null || level.restingAtTheEnd
                 || level.nextPage > level.lastPage || level.cursor < level.items.size() - 1
-                || (lastGrown != null && lastGrown.plus(dwell).isAfter(clock.instant()))) {
+                || (level.lastGrown != null && level.lastGrown.plus(dwell).isAfter(clock.instant()))) {
             return;
         }
         filling = level;
@@ -674,7 +675,7 @@ public final class Browser {
             level.lastPage = 0;
             level.nextPage = 1;
         }
-        lastGrown = clock.instant();
+        level.lastGrown = clock.instant();
         more = null;
         filling = null;
     }
@@ -918,7 +919,6 @@ public final class Browser {
             modarchive.forget(level.listing);
             more = null;
             filling = null;
-            lastGrown = null;
             levels.pop();
             if (level.listing instanceof Artist artist) {
                 levels.push(artistLevel(artist));

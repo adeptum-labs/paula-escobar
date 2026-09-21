@@ -654,6 +654,22 @@ class BrowserTest {
         assertEquals(2, http.requests());
     }
 
+    /**
+     * The dwell belongs to the list being read, so stepping into another slice fills it at once rather than
+     * waiting out a run the one left behind had just made.
+     */
+    @Test
+    void anotherSliceFillsWithoutWaitingOutTheDwellOfTheLast() {
+        http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, DEBRIS), Optional.empty());
+        openFavourites(Slice.ALL);
+        press(Key.Special.BACKSPACE);
+        press(Key.Special.DOWN);
+        press(Key.Special.ENTER);
+        browser.tick();
+        browser.tick();
+        assertTrue(labels().contains("space_debris"), "the MOD slice read its first page at once");
+    }
+
     @Test
     void enterOnATuneQueuesItAndTheRestOfTheList() {
         http.put(FAVOURITES_ONE, ModArchivePages.page(Chart.TOP_FAVOURITES, 1, 1, UNREAL, ODD, DEBRIS), Optional.empty());
