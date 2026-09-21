@@ -114,6 +114,20 @@ public final class Browser {
         default boolean dimmed() {
             return false;
         }
+
+        /**
+         * The song this row is, for a row that is one; empty for a row that only leads to other rows.
+         */
+        default Optional<Track> track() {
+            return Optional.empty();
+        }
+
+        /**
+         * Whether this row's level marks each row with whether it is already kept as a favourite.
+         */
+        default boolean starred() {
+            return false;
+        }
     }
 
     private record SeriesItem(CuratedSeries series) implements Item {
@@ -196,6 +210,16 @@ public final class Browser {
             return !playable();
         }
 
+        @Override
+        public Optional<Track> track() {
+            return Optional.of(new DemozooTrack(entry, compo.party(), compo.compo()));
+        }
+
+        @Override
+        public boolean starred() {
+            return true;
+        }
+
         boolean playable() {
             return entry.likelyPlayable() && !compo.compo().unsupportedFormat() && trailing().isEmpty();
         }
@@ -231,6 +255,16 @@ public final class Browser {
         @Override
         public boolean dimmed() {
             return !work.entry().likelyPlayable();
+        }
+
+        @Override
+        public Optional<Track> track() {
+            return Optional.of(new MusicianTrack(musician, work));
+        }
+
+        @Override
+        public boolean starred() {
+            return true;
         }
 
         boolean playable() {
@@ -299,6 +333,16 @@ public final class Browser {
         @Override
         public boolean dimmed() {
             return !readable;
+        }
+
+        @Override
+        public Optional<Track> track() {
+            return Optional.of(new ModArchiveTrack(listing, entry));
+        }
+
+        @Override
+        public boolean starred() {
+            return true;
         }
     }
 
@@ -1048,7 +1092,7 @@ public final class Browser {
         final List<Track> tracks = level.items.subList(chosen.index(), level.items.size()).stream()
                 .map(EntryItem.class::cast)
                 .filter(item -> item == chosen || item.playable())
-                .<Track>map(item -> new DemozooTrack(item.entry(), item.compo().party(), item.compo().compo()))
+                .flatMap(item -> item.track().stream())
                 .toList();
         return new Playlist(tracks);
     }
@@ -1061,7 +1105,7 @@ public final class Browser {
         final List<Track> tracks = level.items.subList(chosen.index(), level.items.size()).stream()
                 .map(WorkItem.class::cast)
                 .filter(item -> item == chosen || item.playable())
-                .<Track>map(item -> new MusicianTrack(item.musician(), item.work()))
+                .flatMap(item -> item.track().stream())
                 .toList();
         return new Playlist(tracks);
     }
@@ -1074,7 +1118,7 @@ public final class Browser {
         final List<Track> tracks = level.items.subList(level.cursor, level.items.size()).stream()
                 .map(TuneItem.class::cast)
                 .filter(tune -> tune == chosen || tune.readable())
-                .<Track>map(tune -> new ModArchiveTrack(tune.listing(), tune.entry()))
+                .flatMap(tune -> tune.track().stream())
                 .toList();
         return new Playlist(tracks);
     }
