@@ -391,6 +391,21 @@ class TrackResolverTest {
         return module;
     }
 
+    /**
+     * A rip decades old sometimes carries a module too damaged to open; a working recording beside it,
+     * named after the entry just the same, should be offered instead of a file that will only fail to play.
+     */
+    @Test
+    void skipsACandidateThatNamesTheEntryButDoesNotOpen(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("funkyeeh.dbm", "not a real module".getBytes(StandardCharsets.US_ASCII));
+        bundle.put("funkyeeh.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+
+        assertEquals("funkyeeh.mod", resolver(dir).resolve(ENTRY).getFileName().toString());
+    }
+
     @Test
     void fetchesACompetitionBundleOnceForAllItsEntries(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
@@ -546,7 +561,7 @@ class TrackResolverTest {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
         final Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("aaa.mod", TestModules.proTracker());
-        entries.put("theseus.mod", TestModules.digiBooster());
+        entries.put("theseus.mod", TestModules.proTrackerSwappingSamples());
         http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
 
         final Path resolved = resolver(dir).resolve(ENTRY);

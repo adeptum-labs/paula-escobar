@@ -486,11 +486,27 @@ public final class TrackResolver {
         }
         final boolean named = candidates.stream().anyMatch(file -> namesWhatIsSought(file, sought));
         final Set<Path> titled = named ? Set.of() : titledAsSought(candidates, sought);
-        return candidates.stream()
-                .min(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
+        final List<Path> ranked = candidates.stream()
+                .sorted(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
                         .thenComparing(file -> titled.contains(file) ? 0 : 1)
                         .thenComparing(file -> isProgram(file) ? 1 : 0)
-                        .thenComparing(Path::toString));
+                        .thenComparing(Path::toString))
+                .toList();
+        return ranked.stream().filter(this::opens).findFirst().or(() -> ranked.stream().findFirst());
+    }
+
+    /**
+     * A release ripped decades ago sometimes carries a module too damaged to read; a candidate is only
+     * offered once it is known to open, so a broken module never wins over a working file beside it.
+     */
+    private boolean opens(Path file) {
+        try {
+            loaders.load(file);
+            return true;
+        } catch (IOException | RuntimeException e) {
+            log.info("{} does not open: {}", file, e.getMessage());
+            return false;
+        }
     }
 
     /**
