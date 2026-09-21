@@ -33,6 +33,8 @@ import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.demozoo.Work;
+import com.adeptum.paula.favourites.FavouriteKey;
+import com.adeptum.paula.favourites.Favourites;
 import com.adeptum.paula.modarchive.Artist;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
@@ -42,6 +44,7 @@ import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.modarchive.Slice;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.playlist.DemozooTrack;
+import com.adeptum.paula.playlist.LocalTrack;
 import com.adeptum.paula.playlist.ModArchiveTrack;
 import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
@@ -86,7 +89,8 @@ import org.jline.utils.AttributedStyle;
 public final class Browser {
 
     private sealed interface Item
-            permits SeriesItem, PartyItem, CompoItem, EntryItem, MusicianItem, WorkItem, ChartItem, FormatItem, ArtistItem, TuneItem {
+            permits SeriesItem, PartyItem, CompoItem, EntryItem, MusicianItem, WorkItem, ChartItem, FormatItem, ArtistItem,
+            TuneItem, FavouritesItem, FavouriteItem {
 
         String label();
 
@@ -347,6 +351,54 @@ public final class Browser {
     }
 
     /**
+     * The row on the root screen that opens the songs the user has kept; its count reads the store live, so
+     * it never falls behind a favourite added or dropped elsewhere.
+     */
+    private record FavouritesItem(Favourites favourites) implements Item {
+
+        @Override
+        public String label() {
+            return FAVOURITES_TITLE;
+        }
+
+        @Override
+        public String trailing() {
+            return String.valueOf(favourites.tracks().size());
+        }
+    }
+
+    /**
+     * A row in "Your Favourites", one kept song of whatever kind it is.
+     */
+    private record FavouriteItem(Track song) implements Item {
+
+        @Override
+        public String label() {
+            return switch (song) {
+                case DemozooTrack remote -> remote.entry().title();
+                case MusicianTrack work -> work.work().entry().title();
+                case ModArchiveTrack module -> module.entry().title();
+                case LocalTrack local -> local.path().getFileName().toString();
+            };
+        }
+
+        @Override
+        public String detail() {
+            return switch (song) {
+                case DemozooTrack remote -> remote.entry().author() + COMPO_SEPARATOR + remote.compoLabel();
+                case MusicianTrack work -> work.musician().name();
+                case ModArchiveTrack module -> module.listing().title();
+                case LocalTrack local -> local.path().getParent() == null ? "" : local.path().getParent().toString();
+            };
+        }
+
+        @Override
+        public Optional<Track> track() {
+            return Optional.of(song);
+        }
+    }
+
+    /**
      * A run of pages read off a chart in one go, and where the reading got to.
      */
     private record Grown(List<Item> items, int nextPage, int lastPage) {
@@ -388,6 +440,7 @@ public final class Browser {
         private int lastPage = Integer.MAX_VALUE;
         private boolean restingAtTheEnd;
         private Instant lastGrown;
+        private boolean favourites;
         private final Set<Integer> seen = new HashSet<>();
 
         private Level(String title, String emptyText, List<Item> items) {
@@ -437,7 +490,9 @@ public final class Browser {
     private static final String CHARTS_TITLE = "Charts";
     private static final String MUSICIANS_TITLE = "Musicians";
     private static final String ARTISTS_TITLE = "Artists";
+    private static final String FAVOURITES_TITLE = "Your Favourites";
     private static final String NOTHING_HERE = "Nothing here";
+    private static final String NO_FAVOURITES = "Nothing favourited yet";
     private static final String NO_MUSIC = "No music competitions";
     private static final String NO_MUSICIAN = "No musician is named for this entry";
     private static final String NO_ARTIST = "No artist is registered for this module";
@@ -503,6 +558,7 @@ public final class Browser {
     private final Executor executor;
     private final ReleaseArt art;
     private final PartyArt partyArt;
+    private final Favourites favourites;
     private final Duration dwell;
     private final Clock clock;
     private final Deque<Level> levels = new ArrayDeque<>();
@@ -515,7 +571,7 @@ public final class Browser {
     private int restingOn;
     private int reopening;
     private Instant restingSince;
-    private final Level charts = new Level(CHARTS_TITLE, NOTHING_HERE, Arrays.stream(Chart.values()).<Item>map(ChartItem::new).toList());
+    private final Level charts;
     private boolean chartsSide;
     private Track nowPlaying;
     private double[] nowPlayingSpectrum = new double[0];
@@ -531,24 +587,37 @@ public final class Browser {
 
     public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
             ReleaseArt art, PartyArt partyArt) {
-        this(demozoo, modarchive, loaders, executor, art, partyArt, DWELL, Clock.systemUTC());
+        this(demozoo, modarchive, loaders, executor, art, partyArt, Favourites.NONE);
+    }
+
+    public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt, Favourites favourites) {
+        this(demozoo, modarchive, loaders, executor, art, partyArt, favourites, DWELL, Clock.systemUTC());
     }
 
     Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
             ReleaseArt art, Duration dwell, Clock clock) {
-        this(demozoo, modarchive, loaders, executor, art, PartyArt.NONE, dwell, clock);
+        this(demozoo, modarchive, loaders, executor, art, PartyArt.NONE, Favourites.NONE, dwell, clock);
     }
 
     Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
             ReleaseArt art, PartyArt partyArt, Duration dwell, Clock clock) {
+        this(demozoo, modarchive, loaders, executor, art, partyArt, Favourites.NONE, dwell, clock);
+    }
+
+    Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt, Favourites favourites, Duration dwell, Clock clock) {
         this.demozoo = demozoo;
         this.modarchive = modarchive;
         this.loaders = loaders;
         this.executor = executor;
         this.art = art;
         this.partyArt = partyArt;
+        this.favourites = favourites;
         this.dwell = dwell;
         this.clock = clock;
+        this.charts = new Level(CHARTS_TITLE, NOTHING_HERE, Stream.concat(Stream.<Item>of(new FavouritesItem(favourites)),
+                Arrays.stream(Chart.values()).<Item>map(ChartItem::new)).toList());
         levels.push(new Level(PARTIES_TITLE, NOTHING_HERE,
                 CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).<Item>map(SeriesItem::new).toList()));
     }
@@ -812,7 +881,8 @@ public final class Browser {
      */
     private List<AttributedString> renderFirstPage(int width, int height) {
         final int listRows = Math.max(1, height - CHROME_LINES);
-        final int chartsWidth = charts.widest(Item::label) + NO_CURSOR.length() + COLUMN_GAP + BOX_EDGES;
+        final int chartsWidth = charts.widest(Item::label) + charts.widest(Item::trailing)
+                + NO_CURSOR.length() + COLUMN_GAP + BOX_EDGES;
         final int partiesWidth = width - chartsWidth;
         final List<AttributedString> lines = new ArrayList<>();
         lines.add(Frame.titleBar(APPLICATION, SECTION, width));
@@ -862,6 +932,8 @@ public final class Browser {
                 case MusicianItem musician -> openWorks(musician.nick());
                 case WorkItem work -> selection = playlistFrom(level, work);
                 case TuneItem tune -> selection = playlistFrom(level, tune);
+                case FavouritesItem ignored -> levels.push(favouritesLevel());
+                case FavouriteItem favourite -> selection = playlistFrom(level, favourite);
             }
         });
     }
@@ -917,6 +989,13 @@ public final class Browser {
         return level;
     }
 
+    private Level favouritesLevel() {
+        final Level level = new Level(FAVOURITES_TITLE, NO_FAVOURITES,
+                favourites.tracks().stream().<Item>map(FavouriteItem::new).toList());
+        level.favourites = true;
+        return level;
+    }
+
     private void openWorks(Nick musician) {
         load(musician.name(), NOTHING_HERE, musician, () -> workItems(musician));
     }
@@ -959,6 +1038,12 @@ public final class Browser {
             return;
         }
         final Level level = levels.peek();
+        if (level.favourites) {
+            level.items.clear();
+            level.items.addAll(favourites.tracks().stream().<Item>map(FavouriteItem::new).toList());
+            level.move(0);
+            return;
+        }
         if (level.listing != null) {
             modarchive.forget(level.listing);
             more = null;
@@ -1123,6 +1208,17 @@ public final class Browser {
         return new Playlist(tracks);
     }
 
+    /**
+     * The chosen favourite plays first, and the rest of the list follows in the order it is shown.
+     */
+    private static Playlist playlistFrom(Level level, FavouriteItem chosen) {
+        final List<Track> tracks = level.items.subList(level.cursor, level.items.size()).stream()
+                .map(FavouriteItem.class::cast)
+                .flatMap(favourite -> favourite.track().stream())
+                .toList();
+        return new Playlist(tracks);
+    }
+
     private String breadcrumb() {
         final List<String> titles = new ArrayList<>(levels.stream().map(level -> level.title).toList());
         Collections.reverse(titles);
@@ -1236,6 +1332,9 @@ public final class Browser {
                     && format.slice().holds(track.entry());
             case TuneItem tune -> nowPlaying instanceof ModArchiveTrack track && track.listing().equals(tune.listing())
                     && track.entry().moduleId() == tune.entry().moduleId();
+            case FavouritesItem row -> nowPlaying != null && row.favourites().holds(nowPlaying);
+            case FavouriteItem favourite -> nowPlaying != null
+                    && FavouriteKey.of(nowPlaying).equals(FavouriteKey.of(favourite.song()));
         };
     }
 

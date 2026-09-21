@@ -35,6 +35,9 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.FakeHttp;
+import com.adeptum.paula.favourites.DataDirectory;
+import com.adeptum.paula.favourites.Favourites;
+import com.adeptum.paula.favourites.JsonFavourites;
 import com.adeptum.paula.modarchive.Artist;
 import com.adeptum.paula.modarchive.Chart;
 import com.adeptum.paula.modarchive.ChartEntry;
@@ -49,6 +52,7 @@ import com.adeptum.paula.playlist.MusicianTrack;
 import com.adeptum.paula.playlist.Playlist;
 import com.adeptum.paula.testing.ModArchivePages;
 import com.adeptum.paula.ui.visual.Palette;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -175,6 +179,11 @@ class BrowserTest {
     private Browser browser(ReleaseArt art, PartyArt partyArt) {
         return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
                 art, partyArt, DWELL, clock);
+    }
+
+    private Browser browser(Favourites favourites) {
+        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+                ReleaseArt.NONE, PartyArt.NONE, favourites, DWELL, clock);
     }
 
     @Test
@@ -488,9 +497,10 @@ class BrowserTest {
         assertTrue(lines.get(0).contains("Paula Escobar") && lines.get(0).contains("browse"), "title bar");
         assertTrue(lines.get(1).indexOf("Parties") < lines.get(1).indexOf("Charts"), "two boxes, the parties left of the charts: " + lines.get(1));
         assertTrue(lines.get(2).startsWith("│> Abduction"), "listed by name, so Abduction leads");
-        assertTrue(lines.get(2).contains("│  Top Favourites"), "the charts on the right, without the cursor: " + lines.get(2));
-        assertTrue(lines.get(3).startsWith("│  Abstract") && lines.get(3).contains("Most Downloads"));
-        assertTrue(lines.get(4).contains("Featured"));
+        assertTrue(lines.get(2).contains("│  Your Favourites"), "the charts on the right, without the cursor: " + lines.get(2));
+        assertTrue(lines.get(3).startsWith("│  Abstract") && lines.get(3).contains("Top Favourites"));
+        assertTrue(lines.get(4).contains("Most Downloads"));
+        assertTrue(lines.get(5).contains("Featured"));
         assertTrue(lines.get(7).contains("Árok"), "an accent sorts among the A's, not after the Z's");
         assertTrue(lines.get(2).trim().split(" {2,}").length > 2, "and the series flow into columns");
         assertTrue(lines.get(HEIGHT - 1).contains("quit"), "key bar");
@@ -503,13 +513,14 @@ class BrowserTest {
         cursorToTheParty();
         press(Key.Special.TAB);
         List<String> lines = render();
-        assertTrue(lines.get(2).contains("│> Top Favourites"), "the cursor is on the charts: " + lines.get(2));
+        assertTrue(lines.get(2).contains("│> Your Favourites"), "the cursor is on the charts: " + lines.get(2));
         assertFalse(lines.stream().anyMatch(line -> line.contains("> The Party ")), "and off the series");
+        press(Key.Special.DOWN);
         press(Key.Special.DOWN);
         press(Key.Special.TAB);
         lines = render();
         assertTrue(lines.stream().anyMatch(line -> line.contains("> The Party ")), "back on the series it left");
-        assertTrue(lines.get(3).contains("│  Most Downloads"), "the charts keep their place");
+        assertTrue(lines.get(4).contains("│  Most Downloads"), "the charts keep their place");
         press(Key.Special.TAB);
         press(Key.Special.ENTER);
         assertTrue(render().get(1).contains("Charts › Most Downloads"));
@@ -520,13 +531,57 @@ class BrowserTest {
     void theChartsOpenIntoTheirFormats() {
         press(Key.Special.TAB);
         press(Key.Special.DOWN);
+        press(Key.Special.DOWN);
         press(Key.Special.ENTER);
         assertEquals(List.of("All", "MOD", "XM", "IT", "S3M", "Other"), labels());
         assertTrue(render().get(1).contains("Charts › Most Downloads"));
     }
 
+    @Test
+    void yourFavouritesOpensTheKeptSongs(@TempDir Path dataDir) throws IOException {
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        favourites.toggle(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS));
+        browser = browser(favourites);
+
+        press(Key.Special.TAB);
+        press(Key.Special.ENTER);
+
+        assertTrue(render().get(1).contains("Your Favourites"));
+        assertTrue(labels().contains("space_debris"));
+    }
+
+    @Test
+    void enteringAFavouriteQueuesTheRestOfTheList(@TempDir Path dataDir) throws IOException {
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        favourites.toggle(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS));
+        browser = browser(favourites);
+
+        press(Key.Special.TAB);
+        press(Key.Special.ENTER);
+        press(Key.Special.ENTER);
+
+        final Playlist playlist = browser.takeSelection().orElseThrow();
+        assertEquals(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS), playlist.current());
+        assertEquals(1, playlist.size());
+    }
+
+    @Test
+    void reloadingYourFavouritesStaysOnTheList(@TempDir Path dataDir) throws IOException {
+        final Favourites favourites = new JsonFavourites(new DataDirectory(dataDir));
+        favourites.toggle(new ModArchiveTrack(Chart.TOP_FAVOURITES, DEBRIS));
+        browser = browser(favourites);
+
+        press(Key.Special.TAB);
+        press(Key.Special.ENTER);
+        press('r');
+
+        assertTrue(render().get(1).contains("Your Favourites"), "reload stays on the favourites list");
+        assertTrue(labels().contains("space_debris"));
+    }
+
     private void openFavourites(Slice slice) {
         press(Key.Special.TAB);
+        press(Key.Special.DOWN);
         press(Key.Special.ENTER);
         for (int i = 0; i < slice.ordinal(); i++) {
             press(Key.Special.DOWN);
@@ -690,7 +745,7 @@ class BrowserTest {
         press(Key.Special.BACKSPACE);
         assertTrue(render().get(2).startsWith("│♪ All"));
         press(Key.Special.BACKSPACE);
-        assertTrue(render().get(2).contains("│♪ Top Favourites"), "marked on the first page too");
+        assertTrue(render().get(3).contains("│♪ Top Favourites"), "marked on the first page too");
     }
 
     @Test
