@@ -587,6 +587,7 @@ class BrowserTest {
                     ModArchivePages.page(Chart.TOP_FAVOURITES, page, lastPage, DEBRIS, ODD), Optional.empty());
         }
         openFavourites(Slice.XM);
+        clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         browser.tick();
         browser.tick();
@@ -707,6 +708,7 @@ class BrowserTest {
     void saysSoWhenAChartCannotBeRead() {
         openFavourites(Slice.ALL);
         assertTrue(render().stream().anyMatch(line -> line.contains("HTTP 404")), "the fake answers 404 for a page it has not got");
+        clock.advance(DWELL.multipliedBy(2));
         browser.tick();
         assertEquals(1, http.requests(), "a chart that failed is not asked for again until reloaded");
     }
