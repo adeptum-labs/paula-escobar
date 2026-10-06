@@ -465,11 +465,12 @@ public final class TrackResolver {
     }
 
     /**
-     * A download that holds a whole competition names its files after the entrants, so a file named after this
-     * entry comes first. Some parties numbered the files instead, and there the title the module carries inside
-     * it says which entry it is; only then are the modules opened, since that costs a read of every one. The
-     * rest are taken in name order. Archives are skipped so a download that merely looks like a module by name
-     * is never handed to the loaders.
+     * A download that holds a whole competition names its files after the entrants, so the file naming most of
+     * this entry comes first; a word of a title such as "love" turns up across a whole competition where a
+     * handle seldom does, so between equals the file naming the author wins. Some parties numbered the files
+     * instead, and there the title the module carries inside it says which entry it is; only then are the
+     * modules opened, since that costs a read of every one. The rest are taken in name order. Archives are
+     * skipped so a download that merely looks like a module by name is never handed to the loaders.
      */
     private Optional<Path> firstPlayable(Path directory, Sought sought) throws IOException {
         if (!Files.isDirectory(directory)) {
@@ -484,10 +485,11 @@ public final class TrackResolver {
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
-        final boolean named = candidates.stream().anyMatch(file -> namesWhatIsSought(file, sought));
+        final boolean named = candidates.stream().anyMatch(file -> wordsNamed(file, sought.names()) > 0);
         final Set<Path> titled = named ? Set.of() : titledAsSought(candidates, sought);
         final List<Path> ranked = candidates.stream()
-                .sorted(Comparator.comparing((Path file) -> namesWhatIsSought(file, sought) ? 0 : 1)
+                .sorted(Comparator.comparingInt((Path file) -> -wordsNamed(file, sought.names()))
+                        .thenComparingInt(file -> -wordsNamed(file, sought.names().subList(0, 1)))
                         .thenComparing(file -> titled.contains(file) ? 0 : 1)
                         .thenComparing(file -> isProgram(file) ? 1 : 0)
                         .thenComparing(Path::toString))
@@ -545,12 +547,13 @@ public final class TrackResolver {
         return SidLoader.PROGRAMS.contains(ModuleFormat.extensionOf(file.getFileName().toString()));
     }
 
-    private static boolean namesWhatIsSought(Path file, Sought sought) {
+    private static int wordsNamed(Path file, List<String> texts) {
         final String name = simplified(file.getFileName().toString());
-        return sought.names().stream()
+        return (int) texts.stream()
                 .flatMap(text -> Arrays.stream(simplified(text).split(" ")))
                 .filter(word -> word.length() >= SHORTEST_NAME)
-                .anyMatch(name::contains);
+                .filter(name::contains)
+                .count();
     }
 
     private static String simplified(String text) {
@@ -567,7 +570,7 @@ public final class TrackResolver {
 
     /**
      * What is being looked for: a cache key to remember the download by, a label for messages, and the words a
-     * file inside a bundle might be named by.
+     * file inside a bundle might be named by, the most telling first.
      */
     private record Sought(String key, String label, List<String> names) {
     }

@@ -383,6 +383,39 @@ class TrackResolverTest {
         assertEquals("theseus.mod", resolver(dir).resolve(ENTRY).getFileName().toString());
     }
 
+    /**
+     * Antiq 1999 named its C64 entries after title and author, and Jonny handed in three of them.
+     */
+    @Test
+    void prefersTheFileNamingMostOfTheEntry(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("IN SPACE  -JONNY.mod", TestModules.proTracker());
+        bundle.put("WILD      -JONNY.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        final CompoEntry wild = new CompoEntry(4, "4", 7, "Wild", List.of(new Nick("Jonny", 0, false)), Set.of(29));
+
+        assertEquals("WILD      -JONNY.mod", resolver(dir).resolve(wild).getFileName().toString());
+    }
+
+    /**
+     * Lonely's entry is on the Antiq 1999 disk under another title, while a word of the title Demozoo knows it
+     * by names somebody else's tune.
+     */
+    @Test
+    void prefersTheFileNamingTheAuthorOverOneSharingAWordOfTheTitle(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("LOVE WITH U-DOKI.mod", TestModules.proTracker());
+        bundle.put("LOVERS    -JONNY.mod", TestModules.proTracker());
+        bundle.put("SIDZAK   -LONELY.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(bundle), Optional.empty());
+        final CompoEntry ame = new CompoEntry(1, "1", 7, "Ame Sanctuary of Love", List.of(new Nick("Lonely", 0, false)),
+                Set.of(29));
+
+        assertEquals("SIDZAK   -LONELY.mod", resolver(dir).resolve(ame).getFileName().toString());
+    }
+
     private static byte[] titled(String title) {
         final byte[] module = TestModules.proTracker();
         final byte[] name = title.getBytes(StandardCharsets.US_ASCII);
