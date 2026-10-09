@@ -85,6 +85,17 @@ class BeeperSynthTest {
     }
 
     @Test
+    void anEdgeAtTheFurthestAllowedDistanceStillLandsOnItsSample() {
+        final BeeperSynth synth = new BeeperSynth(RATE, CLOCK, 0, 0);
+        synth.level((long) BeeperSynth.MAX_AHEAD * CLOCK / RATE + 1, 1);
+
+        final double[] out = render(synth, 160);
+
+        assertEquals(0, out[0], 0.01);
+        assertTrue(out[BeeperSynth.MAX_AHEAD] > 0.9, "the edge's own sample is full, was " + out[BeeperSynth.MAX_AHEAD]);
+    }
+
+    @Test
     void startsSilentAtTheLevelItIsGiven() {
         final BeeperSynth synth = new BeeperSynth(RATE, CLOCK, 5000, 0.96);
 

@@ -25,8 +25,10 @@ package com.adeptum.paula.module.zx;
  * Turns the speaker's edges into samples without aliasing. Each change of level is added as a windowed-sinc
  * impulse placed to a fraction of a sample, and the running sum of the impulses is the signal, so a step is
  * band-limited and lands on the exact T-state. A high-pass takes off the standing level, since the speaker
- * rests at one of two levels, not at zero. The edges are added ahead of the samples being read, by
- * {@link #LOOKAHEAD} samples, which is how far an impulse reaches.
+ * rests at one of two levels, not at zero. An impulse reaches {@link #LOOKAHEAD} samples, so an edge must be
+ * added before the samples it touches are read (one for an already read sample is dropped) and no more than
+ * {@link #MAX_AHEAD} samples ahead of the read position (further, it would wrap onto the ring slot of an
+ * unread earlier sample and corrupt it without any error).
  */
 final class BeeperSynth {
 
@@ -35,6 +37,7 @@ final class BeeperSynth {
     private static final int TAPS = 16;
     private static final int PHASES = 64;
     private static final int RING = 128;
+    static final int MAX_AHEAD = RING - TAPS / 2 - 1;
     private static final double HIGH_PASS_HERTZ = 20;
     private static final double[][] KERNEL = kernel();
 
