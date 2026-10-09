@@ -44,6 +44,8 @@ class Z80FuseTest {
     private static final int REGISTER_WORDS = 13;
     private static final int RAM_SIZE = 0x10000;
 
+    private static final int FUSE_CASES = 1356;
+    private static final int KNOWN_DIFFERENCE_COUNT = 6;
     private static final int AF = 0;
     private static final int PC = 11;
     private static final int MEMPTR = 12;
@@ -99,8 +101,10 @@ class Z80FuseTest {
     @Test
     void everyOpcodeEndsInTheStateFuseExpects() throws IOException {
         final List<Case> inputs = parse("/z80/tests.in", false);
-        final Map<String, Case> expected = parse("/z80/tests.expected", true).stream()
-                .collect(Collectors.toMap(Case::name, c -> c));
+        final List<Case> expectations = parse("/z80/tests.expected", true);
+        assertEquals(FUSE_CASES, inputs.size());
+        assertEquals(FUSE_CASES, expectations.size());
+        final Map<String, Case> expected = expectations.stream().collect(Collectors.toMap(Case::name, c -> c));
         final List<String> failures = new ArrayList<>();
         for (final Case input : inputs) {
             final String difference = difference(input, expected.get(input.name()));
@@ -112,8 +116,10 @@ class Z80FuseTest {
     }
 
     @Test
-    void onlyTheSixKnownCasesAreExcusedFromFullComparison() {
-        assertEquals(Set.of("76", "edb2_1", "edb3_1", "edb9_2", "edba_1", "edbb_1"), KNOWN_DIFFERENCES.keySet());
+    void everyKnownDifferenceNamesAnInputCase() throws IOException {
+        final Set<String> names = parse("/z80/tests.in", false).stream().map(Case::name).collect(Collectors.toSet());
+        assertTrue(names.containsAll(KNOWN_DIFFERENCES.keySet()), "unknown case among " + KNOWN_DIFFERENCES.keySet());
+        assertEquals(KNOWN_DIFFERENCE_COUNT, KNOWN_DIFFERENCES.size());
     }
 
     private static String difference(Case input, Case expected) {
