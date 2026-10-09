@@ -103,7 +103,18 @@ class SpectrumTest {
 
         spectrum.runUntil(3L * Spectrum.Model.K48.frame() + 100);
 
-        assertEquals(3, spectrum.read(23672));
+        assertEquals(4, spectrum.read(23672), "one interrupt at the start of each of four frames");
+    }
+
+    @Test
+    void leavesTheFramesSystemVariableAloneWithInterruptsOff() throws Exception {
+        final Spectrum spectrum = machine(Spectrum.Model.K48, SQUARE_WAVE);
+        spectrum.write(23672, 0x55);
+
+        spectrum.runUntil(3L * Spectrum.Model.K48.frame() + 100);
+
+        assertEquals(0x55, spectrum.read(23672));
+        assertEquals(0, spectrum.read(23673));
     }
 
     @Test

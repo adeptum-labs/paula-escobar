@@ -28,8 +28,8 @@ import z80core.Z80;
 
 /**
  * A 48K or 128K Spectrum around the Z80 core, without its ROM: the programs on tapes are music engines that
- * start from a BASIC loader and never call back into it, so the ROM is a stub that answers the frame interrupt
- * and ends the run if the program jumps anywhere else in it. Memory is banked, so the 128K pages are the same
+ * start from a BASIC loader and never call back into it, so the ROM is a stub that answers the frame interrupt,
+ * counting FRAMES as the real handler does, and ends the run if the program jumps anywhere else in it. Memory is banked, so the 128K pages are the same
  * model with the paging port wired up. The ULA delays memory in the banks it shares with the screen, and the
  * ports it answers, exactly as the table of the real machine says, since the engines count T-states.
  */
@@ -107,9 +107,9 @@ final class Spectrum extends MemIoOps implements NotifyOps {
     private boolean pagingLocked;
     private boolean pagingSeen;
     private boolean ayWritten;
-    private long frames;
     private EndReason ended;
     private long endedAt;
+    private long handledFrame = -1;
 
     Spectrum(Model model, TapProgram program, MachineOutput output) {
         super(0, 0);
@@ -125,7 +125,9 @@ final class Spectrum extends MemIoOps implements NotifyOps {
     Optional<EndReason> runUntil(long tstate) {
         while (ended == null && getTstates() < tstate) {
             z80.execute();
-            countFrames();
+            if (z80.getRegPC() == IM1_HANDLER) {
+                handleFrameInterrupt();
+            }
             leaveIfDone();
         }
         return Optional.ofNullable(ended);
@@ -193,7 +195,7 @@ final class Spectrum extends MemIoOps implements NotifyOps {
 
     @Override
     public boolean isActiveINT() {
-        return getTstates() % model.frame < INTERRUPT_LENGTH;
+        return getTstates() % model.frame < INTERRUPT_LENGTH && frame() != handledFrame;
     }
 
     @Override
@@ -263,14 +265,16 @@ final class Spectrum extends MemIoOps implements NotifyOps {
         }
     }
 
-    private void countFrames() {
-        while (frames < getTstates() / model.frame) {
-            frames++;
-            final byte[] screen = banks[SCREEN_BANK];
-            int carry = 0;
-            while (carry < FRAMES_BYTES && ++screen[FRAMES_VARIABLE - ROM_END + carry] == 0) {
-                carry++;
-            }
+    /**
+     * The real handler runs for hundreds of T-states, long past the 32 the interrupt line is held; the stub
+     * returns inside them, so the frame is marked as handled to keep the interrupt from being taken twice.
+     */
+    private void handleFrameInterrupt() {
+        handledFrame = frame();
+        final byte[] screen = banks[SCREEN_BANK];
+        int carry = 0;
+        while (carry < FRAMES_BYTES && ++screen[FRAMES_VARIABLE - ROM_END + carry] == 0) {
+            carry++;
         }
     }
 
@@ -313,6 +317,10 @@ final class Spectrum extends MemIoOps implements NotifyOps {
         if (contended(address)) {
             tick(delay());
         }
+    }
+
+    private long frame() {
+        return getTstates() / model.frame;
     }
 
     private int delay() {
