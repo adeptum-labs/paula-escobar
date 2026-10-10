@@ -27,8 +27,13 @@ import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.modarchive.ModArchive;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
+import com.adeptum.paula.module.ape.ApeLoader;
+import com.adeptum.paula.module.flac.FlacLoader;
+import com.adeptum.paula.module.mp3.Mp3Loader;
+import com.adeptum.paula.module.ogg.OggLoader;
 import com.adeptum.paula.playback.Progress;
 import com.adeptum.paula.module.sid.SidLoader;
+import com.adeptum.paula.module.wav.WavLoader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -88,6 +93,10 @@ public final class TrackResolver {
     private static final int NESTED_ROUNDS = 3;
     private static final int SHORTEST_NAME = 3;
     private static final Set<String> ART = Set.of("diz", "nfo", "asc");
+    private static final Set<String> RECORDINGS = Stream.of(Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT,
+                    OggLoader.FORMAT, ApeLoader.FORMAT)
+            .flatMap(format -> format.extensions().stream())
+            .collect(Collectors.toUnmodifiableSet());
 
     private final DemozooClient demozoo;
     private final HttpFetcher http;
@@ -498,6 +507,7 @@ public final class TrackResolver {
                         .thenComparingInt(file -> -wordsNamed(file, sought.names().subList(0, 1)))
                         .thenComparing(file -> titled.contains(file) ? 0 : 1)
                         .thenComparing(file -> isProgram(file) ? 1 : 0)
+                        .thenComparing(file -> isRecording(file) ? 1 : 0)
                         .thenComparing(Path::toString))
                 .toList();
         return ranked.stream().filter(this::opens).findFirst().or(() -> ranked.stream().findFirst());
@@ -551,6 +561,14 @@ public final class TrackResolver {
      */
     private static boolean isProgram(Path file) {
         return SidLoader.PROGRAMS.contains(ModuleFormat.extensionOf(file.getFileName().toString()));
+    }
+
+    /**
+     * A release often hands in a recording of the tune beside the tape or tracker module it was made from, all
+     * under one name; the recording is only what the others sound like, so between equals it comes last.
+     */
+    private static boolean isRecording(Path file) {
+        return RECORDINGS.contains(ModuleFormat.extensionOf(file.getFileName().toString()));
     }
 
     private static int wordsNamed(Path file, List<String> texts) {

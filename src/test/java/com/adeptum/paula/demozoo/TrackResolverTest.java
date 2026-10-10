@@ -37,6 +37,7 @@ import com.adeptum.paula.testing.TestModules;
 import com.adeptum.paula.testing.TestSids;
 import com.adeptum.paula.testing.TestTaps;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -176,6 +177,38 @@ class TrackResolverTest {
         final Path resolved = resolver(dir).resolve(ENTRY);
 
         assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/surprisingly NOT four twenty.tap"), resolved);
+    }
+
+    /**
+     * The 1-bit compos hand in a recording of the tune beside the tape and the tracker module it was made from,
+     * all under one name; the recording is only what the others sound like, so it comes last.
+     */
+    @Test
+    void prefersTheTapeAndTheModuleToARecordingOfThem(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("Funkyeeh.mp3", recording());
+        release.put("Funkyeeh.tap", TestTaps.loaderTape(TestTaps.SQUARE_WAVE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(release), Optional.empty());
+
+        assertEquals("Funkyeeh.tap", resolver(dir).resolve(ENTRY).getFileName().toString());
+    }
+
+    @Test
+    void prefersAModuleToARecordingOfIt(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("Funkyeeh.mp3", recording());
+        release.put("Funkyeeh.mod", TestModules.proTracker());
+        http.put(SCENE_ORG_FILE, TestArchives.zip(release), Optional.empty());
+
+        assertEquals("Funkyeeh.mod", resolver(dir).resolve(ENTRY).getFileName().toString());
+    }
+
+    private static byte[] recording() throws IOException {
+        try (InputStream in = TrackResolverTest.class.getResourceAsStream("/mp3/paula-test.mp3")) {
+            return in.readAllBytes();
+        }
     }
 
     /**
