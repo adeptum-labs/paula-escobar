@@ -145,6 +145,15 @@ class TapeLengthsTest {
     }
 
     @Test
+    void stillAnswersWhenTheCacheCannotBeWritten(@TempDir Path dir) throws Exception {
+        final Path notADirectory = Files.writeString(dir.resolve("file"), "x");
+
+        final TapeRun run = run(notADirectory.resolve("cache"), HALF_SECOND_THEN_RETURN);
+
+        assertEquals(EndReason.RETURNED, run.reason());
+    }
+
+    @Test
     void recomputesAnAnswerItCannotRead(@TempDir Path cache) throws Exception {
         final byte[] tape = singleBlock(ONE_PULSE_THEN_RETURN);
         final TapeLengths lengths = new TapeLengths(new CacheDirectory(cache));

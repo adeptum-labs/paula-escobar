@@ -64,15 +64,32 @@ final class TapeLengths {
         return new TapeLengths(CacheDirectory.resolve());
     }
 
-    TapeRun of(byte[] tape, TapProgram program) throws IOException {
-        final Path file = cache.file(CACHE_SEGMENT, md5(tape) + ".properties");
-        final Optional<TapeRun> cached = read(file);
+    TapeRun of(byte[] tape, TapProgram program) {
+        final Optional<Path> file = locate(md5(tape) + ".properties");
+        final Optional<TapeRun> cached = file.flatMap(TapeLengths::read);
         if (cached.isPresent()) {
             return cached.get();
         }
         final TapeRun run = analyse(program);
-        cache.writeAtomically(file, write(run));
+        file.ifPresent(target -> store(target, run));
         return run;
+    }
+
+    private Optional<Path> locate(String name) {
+        try {
+            return Optional.of(cache.file(CACHE_SEGMENT, name));
+        } catch (IOException e) {
+            log.warn("Not keeping tape lengths, the cache is unusable: {}", e.toString());
+            return Optional.empty();
+        }
+    }
+
+    private void store(Path file, TapeRun run) {
+        try {
+            cache.writeAtomically(file, write(run));
+        } catch (IOException e) {
+            log.warn("Could not keep the tape length in {}: {}", file, e.toString());
+        }
     }
 
     private static TapeRun analyse(TapProgram program) {
