@@ -276,6 +276,30 @@ class TrackResolverTest {
     }
 
     @Test
+    void namesTheFormatOfAFileNamedTheModlandWayByItsPrefix(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("mod.Funkyeeh", TestModules.proTracker());
+        release.put("Funkyeeh.mp3", recording());
+        releaseOf(release);
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        assertEquals(List.of("MOD", "MP3"), resolver.variants(ENTRY).stream().map(Variant::format).toList());
+    }
+
+    @Test
+    void tellsTwoPrefixedFormatsApart(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("mod.Funkyeeh", TestModules.proTracker());
+        release.put("med.Funkyeeh", TestModules.medMmd0());
+        releaseOf(release);
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        assertEquals(List.of("MED", "MOD"), resolver.variants(ENTRY).stream().map(Variant::format).toList());
+    }
+
+    @Test
     void listsNothingWhereTheFilesAreNotNamedAfterTheEntry(@TempDir Path dir) throws IOException {
         final Map<String, byte[]> numbered = new LinkedHashMap<>();
         numbered.put("01.mod", TestModules.proTracker());

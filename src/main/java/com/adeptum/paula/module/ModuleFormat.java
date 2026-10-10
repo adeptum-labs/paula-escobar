@@ -39,6 +39,14 @@ public record ModuleFormat(String id, String name, Set<String> extensions) {
     }
 
     /**
+     * Which of this format's extensions names the file, read the way {@link #matches} reads it.
+     */
+    public String extensionIn(String fileName) {
+        final String extension = extensionOf(fileName);
+        return extensions.contains(extension) ? extension : prefixOf(fileName);
+    }
+
+    /**
      * The lower-cased text after the last dot, or nothing when the name has no dot.
      */
     public static String extensionOf(String fileName) {

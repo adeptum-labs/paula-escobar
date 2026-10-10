@@ -205,8 +205,10 @@ public final class TrackResolver {
                 && wordsNamed(file, sought.names().subList(0, 1)) == wordsNamed(top, sought.names().subList(0, 1));
     }
 
-    private static String formatOf(Path file) {
-        return ModuleFormat.extensionOf(file.getFileName().toString()).toUpperCase(Locale.ROOT);
+    private String formatOf(Path file) {
+        final String name = file.getFileName().toString();
+        return loaders.loaderFor(file).map(loader -> loader.format().extensionIn(name))
+                .orElseGet(() -> ModuleFormat.extensionOf(name)).toUpperCase(Locale.ROOT);
     }
 
     public boolean holdsNothingPlayable(int productionId) {
