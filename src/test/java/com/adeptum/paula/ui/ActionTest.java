@@ -36,6 +36,8 @@ class ActionTest {
         assertEquals(Action.TOGGLE_PAUSE, Action.of(Key.of(' ')));
         assertEquals(Action.NEXT, Action.of(Key.of('n')));
         assertEquals(Action.PREVIOUS, Action.of(Key.of('p')));
+        assertEquals(Action.FORMAT, Action.of(Key.of('t')));
+        assertEquals(Action.FORMAT, Action.of(Key.of('T')));
         assertEquals(Action.SEEK_FORWARD, Action.of(Key.of(Key.Special.RIGHT)));
         assertEquals(Action.SEEK_BACKWARD, Action.of(Key.of(Key.Special.LEFT)));
         assertEquals(Action.BROWSE, Action.of(Key.of('b')));

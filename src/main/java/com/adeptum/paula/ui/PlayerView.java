@@ -33,6 +33,8 @@ import com.adeptum.paula.ui.visual.Waterfall;
 /**
  * What the player screen shows. The module is absent until a track has loaded, the status line is absent unless
  * something is being loaded or went wrong, and the visual fields are absent when nothing plays.
+ *
+ * @param formats the tag text of the formats the release offers, or null
  */
 @Builder
 public record PlayerView(
@@ -54,7 +56,8 @@ public record PlayerView(
         Progress.Step progress,
         Visual visual,
         Waterfall waterfall,
-        boolean canCast) {
+        boolean canCast,
+        String formats) {
 
     public PlayerView {
         channels = channels == null ? List.of() : channels;

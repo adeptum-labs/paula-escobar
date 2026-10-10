@@ -22,6 +22,7 @@
 package com.adeptum.paula.playback;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,8 @@ import com.adeptum.paula.audio.NowPlaying;
 import com.adeptum.paula.cast.CastDevice;
 import com.adeptum.paula.cast.CastDiscovery;
 import com.adeptum.paula.cast.CastSink;
+import com.adeptum.paula.demozoo.CompoEntry;
+import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.favourites.Favourites;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -77,6 +80,12 @@ public final class PlayerSession {
     private static final short[] NO_AUDIO = new short[0];
     private static final String ADDED_TO_FAVOURITES = "Added to your favourites";
     private static final String REMOVED_FROM_FAVOURITES = "Removed from your favourites";
+    private static final String ONE_FORMAT = "This release has only one format";
+    private static final String SWITCHING_TO = "Switching to ";
+    private static final String WOULD_NOT_PLAY = "%s would not play, back to %s";
+
+    private record Switch(Track track, FormatSwitch.Switched switched) {
+    }
 
     private final ModuleLoaderRegistry loaders;
     private final PlaybackEngine engine;
@@ -85,6 +94,7 @@ public final class PlayerSession {
     private final TrackLoader.Resolver resolver;
     private final Browser browser;
     private final Favourites favourites;
+    private final FormatSwitch formats;
     private final Deadline deadline;
     private boolean showingKeys;
     private final boolean exitWhenDone;
@@ -99,6 +109,8 @@ public final class PlayerSession {
     private Module module;
     private Renderer renderer;
     private String status;
+    private String formatTag;
+    private Switch switching;
     private boolean playedAnything;
     private final CastDiscovery discovery;
     private final Outputs outputs;
@@ -128,6 +140,7 @@ public final class PlayerSession {
         this.resolver = resolver;
         this.browser = browser;
         this.favourites = favourites;
+        this.formats = new FormatSwitch(resolver);
         this.discovery = discovery;
         this.outputs = outputs;
         this.deadline = deadline;
@@ -197,6 +210,7 @@ public final class PlayerSession {
                 discovery.scan();
             }
             case FAVOURITE -> favourite();
+            case FORMAT -> switchFormat();
             case NONE -> {
             }
         }
@@ -216,6 +230,49 @@ public final class PlayerSession {
         } catch (IOException e) {
             status = e.getMessage();
         }
+    }
+
+    /**
+     * The song playing moves on to the next version of the tune that its release holds, from the start; nothing
+     * happens where nothing is playing or a track is still on its way.
+     */
+    private void switchFormat() {
+        if (playlist == null || module == null || loader.loading()) {
+            return;
+        }
+        try {
+            final Optional<FormatSwitch.Switched> switched = formats.advance(playlist.current(), module.source());
+            if (switched.isEmpty()) {
+                status = ONE_FORMAT;
+                return;
+            }
+            switching = new Switch(playlist.current(), switched.get());
+            status = SWITCHING_TO + switched.get().next().format();
+            requestCurrent();
+        } catch (IOException e) {
+            status = e.getMessage();
+        }
+    }
+
+    /**
+     * A version that would not play is put back, and the one before it plays again, rather than the playlist
+     * moving on; a switch is undone once, so a second failure takes the usual way out.
+     */
+    private boolean revertSwitch(Track track) {
+        final Switch undo = switching;
+        switching = null;
+        if (undo == null || !undo.track().equals(track)) {
+            return false;
+        }
+        try {
+            formats.revert(track, undo.switched());
+        } catch (IOException e) {
+            log.warn("Could not put the format back: {}", e.getMessage());
+            return false;
+        }
+        status = WOULD_NOT_PLAY.formatted(undo.switched().next().format(), undo.switched().previous().format());
+        requestCurrent();
+        return true;
     }
 
     /**
@@ -246,6 +303,7 @@ public final class PlayerSession {
     private void requestCurrent() {
         engine.stop();
         module = null;
+        formatTag = null;
         loader.request(playlist.current(), resolver);
     }
 
@@ -315,9 +373,30 @@ public final class PlayerSession {
             log.error("The decoder failed to start", e);
             return skip(loaded.track(), new IOException("Decoder failed: " + e, e));
         }
+        switching = null;
+        formatTag = tagOf(loaded.track(), loaded.path());
+        releaseOf(loaded.track()).ifPresent(browser::refreshFormats);
         status = null;
         playedAnything = true;
         return true;
+    }
+
+    private String tagOf(Track track, Path playing) {
+        try {
+            return Variant.tag(formats.variants(track, playing));
+        } catch (IOException e) {
+            log.debug("Could not list the formats of {}: {}", track.label(), e.getMessage());
+            return "";
+        }
+    }
+
+    private static Optional<CompoEntry> releaseOf(Track track) {
+        return switch (track) {
+            case DemozooTrack remote -> Optional.of(remote.entry());
+            case MusicianTrack work -> Optional.of(work.work().entry());
+            case LocalTrack ignored -> Optional.empty();
+            case ModArchiveTrack ignored -> Optional.empty();
+        };
     }
 
     /**
@@ -387,6 +466,9 @@ public final class PlayerSession {
      */
     private boolean skip(Track track, IOException error) throws IOException {
         log.warn("Skipping {}: {}", track.label(), error.getMessage());
+        if (revertSwitch(track)) {
+            return true;
+        }
         status = error.getMessage();
         if (advance(true)) {
             return true;
@@ -443,6 +525,7 @@ public final class PlayerSession {
                 .visual(visual)
                 .waterfall(waterfall)
                 .canCast(castingTo() != null || !discovery.devices().isEmpty())
+                .formats(formatTag)
                 .build();
     }
 

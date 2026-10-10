@@ -99,6 +99,27 @@ class ScreenTest {
     }
 
     @Test
+    void listsTheFormatsOfAReleaseThatOffersSeveral() {
+        final String all = String.join("\n", text(Screen.render(playing.formats("TAP/[XM]/MP3").build(), WIDTH, HEIGHT)));
+
+        assertTrue(all.contains("Choice") && all.contains("TAP/[XM]/MP3"), all);
+    }
+
+    @Test
+    void saysNothingOfFormatsForAReleaseOfOne() {
+        final String all = String.join("\n", text(Screen.render(view, WIDTH, HEIGHT)));
+        final String empty = String.join("\n", text(Screen.render(playing.formats("").build(), WIDTH, HEIGHT)));
+
+        assertFalse(all.contains("Choice"), all);
+        assertFalse(empty.contains("Choice"), empty);
+    }
+
+    @Test
+    void namesTheFormatKeyInTheKeyList() {
+        assertTrue(Screen.keys().stream().anyMatch(key -> key.key().equals("t")));
+    }
+
+    @Test
     void highlightsTheInstrumentThatIsPlaying() {
         final List<AttributedString> lines = Screen.render(view, WIDTH, HEIGHT);
         final AttributedString snare = lines.stream().filter(line -> line.toString().contains("snare")).findFirst().orElseThrow();
