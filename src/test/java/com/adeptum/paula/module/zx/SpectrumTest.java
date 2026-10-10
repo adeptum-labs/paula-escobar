@@ -174,6 +174,11 @@ class SpectrumTest {
     }
 
     @Test
+    void startsTheRomWithDisableInterruptsAsTheRealOneDoes() throws Exception {
+        assertEquals(0xF3, machine(Spectrum.Model.K48, SQUARE_WAVE).read(0x0000));
+    }
+
+    @Test
     void leavesTheUnusedRomBlockAtFf() throws Exception {
         final Spectrum spectrum = machine(Spectrum.Model.K48, SQUARE_WAVE);
 

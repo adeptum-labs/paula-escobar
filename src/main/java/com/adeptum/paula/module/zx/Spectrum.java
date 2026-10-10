@@ -74,6 +74,8 @@ final class Spectrum extends MemIoOps implements NotifyOps {
     private static final int UNUSED_BLOCK_END = 0x3CFF;
     private static final byte UNUSED_BLOCK_FILL = (byte) 0xFF;
     private static final int IM1_HANDLER = 0x0038;
+    private static final int RESET_VECTOR = 0x0000;
+    private static final byte DISABLE_INTERRUPTS = (byte) 0xF3;
     private static final byte ENABLE_INTERRUPTS = (byte) 0xFB;
     private static final byte RETURN = (byte) 0xC9;
     private static final int BASIC_RETURN = 0x1303;
@@ -125,6 +127,7 @@ final class Spectrum extends MemIoOps implements NotifyOps {
         this.output = output;
         this.delays = contentionTable(model);
         fillRomWithNoise(banks[ROM_BANK]);
+        banks[ROM_BANK][RESET_VECTOR] = DISABLE_INTERRUPTS;
         banks[ROM_BANK][IM1_HANDLER] = ENABLE_INTERRUPTS;
         banks[ROM_BANK][IM1_HANDLER + 1] = RETURN;
         this.z80 = new Z80(this, this);
@@ -133,7 +136,8 @@ final class Spectrum extends MemIoOps implements NotifyOps {
 
     /**
      * Beeper engines read the ROM as a noise source for their drums, so it holds fixed pseudo-random bytes instead
-     * of silence. The unused block stays 0xFF, which the interrupt mode 2 trick with I = 0x39 relies on.
+     * of silence. The unused block stays 0xFF, which the interrupt mode 2 trick with I = 0x39 relies on, and the
+     * first byte is the real DI, which the trampoline of that trick uses as a jump distance.
      */
     private static void fillRomWithNoise(byte[] rom) {
         int state = NOISE_SEED;

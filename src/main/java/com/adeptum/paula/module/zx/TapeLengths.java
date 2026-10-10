@@ -49,7 +49,7 @@ final class TapeLengths {
     static final Duration SILENCE = Duration.ofSeconds(3);
 
     private static final String CACHE_SEGMENT = "tapes";
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     private static final int MINIMUM_EDGES = 2;
     private static final Duration SILENT_TAIL = Duration.ofMillis(500);
     private static final String MD5 = "MD5";
