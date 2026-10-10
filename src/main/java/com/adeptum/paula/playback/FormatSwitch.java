@@ -25,8 +25,11 @@ import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.playlist.Track;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * Moves a track on to the next version of the tune that its release holds, and back again when the new one
@@ -38,6 +41,7 @@ final class FormatSwitch {
     }
 
     private final TrackLoader.Resolver resolver;
+    private final Set<Path> unplayable = new HashSet<>();
 
     FormatSwitch(TrackLoader.Resolver resolver) {
         this.resolver = resolver;
@@ -57,8 +61,8 @@ final class FormatSwitch {
     }
 
     /**
-     * The version after the one playing, wrapping round, already saved as the preferred one; nothing where
-     * the release offers no choice.
+     * The version after the one playing, wrapping round past those that would not play, already saved as the
+     * preferred one; nothing where the release offers no other choice.
      */
     Optional<Switched> advance(Track track, Path playing) throws IOException {
         final List<Variant> variants = variants(track, playing);
@@ -66,12 +70,38 @@ final class FormatSwitch {
             return Optional.empty();
         }
         final Variant current = variants.stream().filter(Variant::plays).findFirst().orElse(variants.get(0));
-        final Variant next = variants.get((variants.indexOf(current) + 1) % variants.size());
-        resolver.prefer(track, next);
-        return Optional.of(new Switched(current, next));
+        final int start = variants.indexOf(current);
+        final Optional<Variant> next = IntStream.range(1, variants.size())
+                .mapToObj(step -> variants.get((start + step) % variants.size()))
+                .filter(variant -> !unplayable.contains(variant.file()))
+                .findFirst();
+        if (next.isPresent()) {
+            resolver.prefer(track, next.get());
+        }
+        return next.map(variant -> new Switched(current, variant));
+    }
+
+    /**
+     * Kept out of the cycle for as long as this session lasts; a later session tries it again, as the file
+     * may have been replaced in the meantime.
+     */
+    void failed(Variant variant) {
+        unplayable.add(variant.file());
     }
 
     void revert(Track track, Switched switched) throws IOException {
         resolver.prefer(track, switched.previous());
+    }
+
+    /**
+     * A chosen version that would not open makes the resolver play another file instead, with no failure to
+     * show for it; the choice is dropped and what plays is saved, so the cycle does not keep landing on it.
+     */
+    Variant fellBack(Track track, Switched switched, Path playing) throws IOException {
+        failed(switched.next());
+        final Variant actual = resolver.variants(track).stream().filter(variant -> variant.file().equals(playing))
+                .findFirst().orElse(switched.previous());
+        resolver.prefer(track, actual);
+        return actual;
     }
 }

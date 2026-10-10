@@ -80,7 +80,7 @@ public final class PlayerSession {
     private static final short[] NO_AUDIO = new short[0];
     private static final String ADDED_TO_FAVOURITES = "Added to your favourites";
     private static final String REMOVED_FROM_FAVOURITES = "Removed from your favourites";
-    private static final String ONE_FORMAT = "This release has only one format";
+    private static final String NO_OTHER_FORMAT = "This release has no other format to play";
     private static final String SWITCHING_TO = "Switching to ";
     private static final String WOULD_NOT_PLAY = "%s would not play, back to %s";
 
@@ -243,13 +243,13 @@ public final class PlayerSession {
         try {
             final Optional<FormatSwitch.Switched> switched = formats.advance(playlist.current(), module.source());
             if (switched.isEmpty()) {
-                status = ONE_FORMAT;
+                status = NO_OTHER_FORMAT;
                 return;
             }
             switching = new Switch(playlist.current(), switched.get());
             status = SWITCHING_TO + switched.get().next().format();
             requestCurrent();
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             status = e.getMessage();
         }
     }
@@ -264,9 +264,10 @@ public final class PlayerSession {
         if (undo == null || !undo.track().equals(track)) {
             return false;
         }
+        formats.failed(undo.switched().next());
         try {
             formats.revert(track, undo.switched());
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             log.warn("Could not put the format back: {}", e.getMessage());
             return false;
         }
@@ -373,18 +374,36 @@ public final class PlayerSession {
             log.error("The decoder failed to start", e);
             return skip(loaded.track(), new IOException("Decoder failed: " + e, e));
         }
-        switching = null;
+        status = settleSwitch(loaded);
         formatTag = tagOf(loaded.track(), loaded.path());
         releaseOf(loaded.track()).ifPresent(browser::refreshFormats);
-        status = null;
         playedAnything = true;
         return true;
+    }
+
+    /**
+     * A switched-to file that does not open is passed over by the resolver for one that does, which arrives
+     * as a track that loaded; the status says so, and nothing is asked for again since the other file plays.
+     */
+    private String settleSwitch(TrackLoader.Loaded loaded) {
+        final Switch done = switching;
+        switching = null;
+        if (done == null || !done.track().equals(loaded.track()) || loaded.path().equals(done.switched().next().file())) {
+            return null;
+        }
+        try {
+            final Variant playing = formats.fellBack(loaded.track(), done.switched(), loaded.path());
+            return WOULD_NOT_PLAY.formatted(done.switched().next().format(), playing.format());
+        } catch (IOException | RuntimeException e) {
+            log.warn("Could not put the format back: {}", e.getMessage());
+            return null;
+        }
     }
 
     private String tagOf(Track track, Path playing) {
         try {
             return Variant.tag(formats.variants(track, playing));
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             log.debug("Could not list the formats of {}: {}", track.label(), e.getMessage());
             return "";
         }
