@@ -85,7 +85,7 @@ class TrackResolverTest {
     private TrackResolver resolver(Path dir, Progress progress) {
         final CacheDirectory cache = new CacheDirectory(dir);
         return new TrackResolver(new DemozooClient(http, cache), http, cache,
-                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
     }
 
     @Test
@@ -192,7 +192,7 @@ class TrackResolverTest {
         final Progress progress = new Progress();
         final CacheDirectory cache = new CacheDirectory(dir);
         final TrackResolver resolver = new TrackResolver(new DemozooClient(http, cache), http, cache,
-                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
 
         resolver.resolve(ENTRY);
 

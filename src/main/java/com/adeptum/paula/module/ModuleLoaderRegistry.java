@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module;
 
+import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.ape.ApeLoader;
 import com.adeptum.paula.module.ay.AyLoader;
 import com.adeptum.paula.module.ay.ProSoundCreatorLoader;
@@ -57,11 +58,15 @@ public final class ModuleLoaderRegistry {
     }
 
     public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths) {
+        return withBuiltInLoaders(sidLengths, CacheDirectory.resolve());
+    }
+
+    public static ModuleLoaderRegistry withBuiltInLoaders(SongLengths sidLengths, CacheDirectory cache) {
         return new ModuleLoaderRegistry(List.of(new JavaModLoader(), new SidLoader(sidLengths), new SapLoader(),
                 new DigiBoosterLoader(), new HivelyLoader(), new MedLoader(), new Composer669Loader(),
                 new XTrackerLoader(), new UltLoader(), new AyLoader(), new SoundTrackerLoader(),
                 new ProTracker2Loader(), new ProTrackerLoader(), new ProSoundCreatorLoader(),
-                TapLoader.inUserCache(), new Mo3Loader(), new Mp3Loader(), new FlacLoader(), new WavLoader(),
+                TapLoader.in(cache), new Mo3Loader(), new Mp3Loader(), new FlacLoader(), new WavLoader(),
                 new OggLoader(), new ApeLoader()));
     }
 

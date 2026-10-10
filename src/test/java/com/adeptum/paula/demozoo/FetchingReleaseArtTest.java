@@ -55,7 +55,7 @@ class FetchingReleaseArtTest {
     private FetchingReleaseArt art(Path dir) {
         final CacheDirectory cache = new CacheDirectory(dir);
         final TrackResolver resolver = new TrackResolver(new DemozooClient(http, cache), http, cache,
-                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()));
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache));
         return new FetchingReleaseArt(new CachedReleaseArt(cache, Duration.ZERO, Clock.systemUTC()), resolver, Runnable::run);
     }
 

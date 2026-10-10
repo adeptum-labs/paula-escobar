@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module.zx;
 
+import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.module.Module;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoader;
@@ -53,8 +54,8 @@ public final class TapLoader implements ModuleLoader {
         this.lengths = lengths;
     }
 
-    public static TapLoader inUserCache() {
-        return new TapLoader(TapeLengths.inUserCache());
+    public static TapLoader in(CacheDirectory cache) {
+        return new TapLoader(new TapeLengths(cache));
     }
 
     @Override

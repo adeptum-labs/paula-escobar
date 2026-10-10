@@ -60,10 +60,6 @@ final class TapeLengths {
         this.cache = cache;
     }
 
-    static TapeLengths inUserCache() {
-        return new TapeLengths(CacheDirectory.resolve());
-    }
-
     TapeRun of(byte[] tape, TapProgram program) {
         final Optional<Path> file = locate(md5(tape) + ".properties");
         final Optional<TapeRun> cached = file.flatMap(TapeLengths::read);
