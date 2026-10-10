@@ -35,6 +35,7 @@ import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
 import com.adeptum.paula.testing.TestSids;
+import com.adeptum.paula.testing.TestTaps;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -162,6 +163,19 @@ class TrackResolverTest {
 
         assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/music/tune.mod"), resolved);
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
+    }
+
+    @Test
+    void takesATapeOutOfAZipAsTheTune(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("readme.txt", README);
+        entries.put("surprisingly NOT four twenty.tap", TestTaps.loaderTape(TestTaps.SQUARE_WAVE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/surprisingly NOT four twenty.tap"), resolved);
     }
 
     /**

@@ -129,7 +129,7 @@ them, `MOD.tune`, counts as well.
 | Commodore 64 | SID tunes and programs |
 | Atari 8-bit | SAP tunes and the native trackers' modules |
 | Atari ST and Falcon | FlexTrax modules and YM recordings |
-| ZX Spectrum | SoundTracker, Pro Tracker 2 and 3 and Pro Sound Creator modules, and AY recordings |
+| ZX Spectrum | SoundTracker, Pro Tracker 2 and 3 and Pro Sound Creator modules, AY recordings, and 48K beeper and 128K AY tapes |
 | Any | MPEG audio, FLAC, Ogg Vorbis, Monkey's Audio, wave, AIFF and AU |
 
 Zip, 7z, RAR, LHA, LZX and gzip archives, PowerPacker and XPK crunched
