@@ -31,17 +31,17 @@ import java.util.stream.Collectors;
  */
 public record Variant(Path file, String format, boolean plays) {
 
+    public static final int FEWEST_FORMATS = 2;
     private static final String SEPARATOR = "/";
     private static final String PLAYING_OPEN = "[";
     private static final String PLAYING_CLOSE = "]";
-    private static final int FEWEST = 2;
 
     /**
      * The formats a release offers in the order they are tried, the one that plays in brackets; nothing for a
      * release that offers no choice.
      */
     public static String tag(List<Variant> variants) {
-        return variants.size() < FEWEST ? "" : variants.stream()
+        return variants.size() < FEWEST_FORMATS ? "" : variants.stream()
                 .map(variant -> variant.plays ? PLAYING_OPEN + variant.format + PLAYING_CLOSE : variant.format)
                 .collect(Collectors.joining(SEPARATOR));
     }

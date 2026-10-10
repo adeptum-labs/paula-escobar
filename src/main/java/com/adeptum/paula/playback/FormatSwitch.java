@@ -66,7 +66,7 @@ final class FormatSwitch {
      */
     Optional<Switched> advance(Track track, Path playing) throws IOException {
         final List<Variant> variants = variants(track, playing);
-        if (variants.size() < 2) {
+        if (variants.size() < Variant.FEWEST_FORMATS) {
             return Optional.empty();
         }
         final Variant current = variants.stream().filter(Variant::plays).findFirst().orElse(variants.get(0));

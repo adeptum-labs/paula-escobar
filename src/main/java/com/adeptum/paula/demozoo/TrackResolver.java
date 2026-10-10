@@ -96,7 +96,6 @@ public final class TrackResolver {
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
     private static final int SHORTEST_NAME = 3;
-    private static final int FEWEST_FORMATS = 2;
     private static final Set<String> ART = Set.of("diz", "nfo", "asc");
     private static final Set<String> RECORDINGS = Stream.of(Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT,
                     OggLoader.FORMAT, ApeLoader.FORMAT)
@@ -171,7 +170,7 @@ public final class TrackResolver {
         final Map<String, Path> byFormat = new LinkedHashMap<>();
         ranked.stream().filter(file -> tiedWith(file, ranked.get(0), sought))
                 .forEach(file -> byFormat.putIfAbsent(formatOf(file), file));
-        if (byFormat.size() < FEWEST_FORMATS) {
+        if (byFormat.size() < Variant.FEWEST_FORMATS) {
             return List.of();
         }
         final Path playing = chosenAmong(byFormat.values(), directory.get(), sought)
