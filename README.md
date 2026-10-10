@@ -86,42 +86,34 @@ wiki lists them all, with what the mouse does.
 
 ### Browsing
 
-The party series sit in columns on the left and the charts on the right;
-`tab` switches sides. The series run from The Party, Assembly and The
-Gathering through Breakpoint and Revision to Swedish Icing, the Polish
-classics and X, the Commodore 64's own party. A series opens into its
-parties, a party into its music competitions and a competition into the
-ranked entries, each with its title, its author and whatever is the matter
-with it: dimmed for executable music Paula cannot run, `(no download)` where
-Demozoo has no file, `(no reader)` where the file is an ARJ or ACE archive
-nothing here opens, and `(unsupported music format)` once a file has been
-fetched and turned out to hold nothing playable, such as an Amiga
-executable. A chart opens into All, MOD, XM, IT, S3M and Other and is read
-forty rows at a time as the cursor reaches the end. Playing a line queues
-the rest of its list, so `n` walks on through the results, and `m` opens
-everything else the musician has, on Demozoo for an entry and on
-ModArchive for a chart tune. `f` keeps or drops the song under the cursor,
-or the one playing, as a favourite, marked with a star where a row can
-carry one; Your Favourites, above the charts, opens what has been kept.
-Where a downloaded release hands in several versions of one tune, a tape, a
-module and a recording of them, the player lists the formats, for example
-`TAP/[XM]/MP3`, with the one playing in brackets, the browser row carries the
-same tag on a terminal 80 columns wide or more, and `t` switches the playing
-song to the next format from the start. The choice is remembered, and a
-format that will not play is skipped.
+The party series sit on the left and the charts on the right; `tab`
+switches sides. A series opens into its parties, a party into its music
+competitions and a competition into the ranked entries, each with its title
+and author. An entry Paula cannot play is marked: dimmed for executable
+music, `(no download)` where Demozoo has no file, `(no reader)` for an ARJ
+or ACE archive, `(unsupported music format)` for a file that held nothing
+playable. A chart opens into All, MOD, XM, IT, S3M and Other and loads forty
+rows at a time. Playing a line queues the rest of its list, so `n` walks on;
+`m` opens everything else the musician has; `f` keeps or drops the song under
+the cursor, or the one playing, as a favourite (Your Favourites sits above
+the charts).
+
+When a downloaded release holds several versions of one tune, a tape, a
+module and a recording, the player and the browser row show the formats, for
+example `TAP/[XM]/MP3` with the one playing in brackets, and `t` switches to
+the next from the start. The choice is remembered, and a format that will not
+play is skipped.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
-scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK
-and PowerPacker crunched modules, Unreal music packages, Amiga disk
-images, plain or DMS-crunched, and Commodore 1541 disk and tape images
+scene.org, ModArchive or Modland. Archives, crunched modules and disk images
 are unpacked as deep as they go, and the file named after the entry is
-played, with the art of its `file_id.diz` or the party's own logo shown
-above the list. Everything fetched is kept under `~/.cache/paula` (or
-`$XDG_CACHE_HOME/paula`): Demozoo answers a week and chart pages a day,
-both still used offline, downloaded modules for good. `r` fetches the
-list in view afresh; delete the directory to start over. Favourites are
-kept apart from it, under `~/.local/share/paula` (or
-`$XDG_DATA_HOME/paula`), and are untouched by that.
+played, with the art of its `file_id.diz` or the party's logo above the list.
+Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`):
+Demozoo answers for a week and chart pages for a day, both still used
+offline, downloaded files for good. `r` fetches the list in view afresh;
+delete the directory to start over. Favourites and format choices are kept
+apart, under `~/.local/share/paula` (or `$XDG_DATA_HOME/paula`), and survive
+that.
 
 ### Formats
 
