@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module.zx;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +30,9 @@ import java.util.OptionalInt;
 /**
  * What a tape's BASIC loader says about the machine code it starts: the RAMTOP of a CLEAR, every LOAD of code or
  * a screen in the order they run, with the address where one is given, and the address a USR jumps to. Nothing
- * is run; the tokenised lines are read for those words, skipping strings, remarks and the hidden five-byte form
- * the editor stores after every number, and numbers that are digits or VAL of a string are the ones understood.
+ * is run; the tokenised lines are read for those words, skipping strings and remarks. A number after one of them
+ * is taken from the hidden five-byte form the editor stores behind its text, or from the text or a VAL of a
+ * string where there is none; a later word whose number cannot be read leaves the earlier value standing.
  */
 record BasicProgram(OptionalInt clear, OptionalInt entry, List<OptionalInt> loads) {
 
@@ -43,6 +45,12 @@ record BasicProgram(OptionalInt clear, OptionalInt entry, List<OptionalInt> load
     private static final int REM = 0xEA;
     private static final int HIDDEN_NUMBER = 0x0E;
     private static final int HIDDEN_NUMBER_BYTES = 5;
+    private static final int SMALL_INTEGER = 0;
+    private static final int SMALL_INTEGER_RANGE = 0x10000;
+    private static final double MANTISSA_SCALE = 0x1p31;
+    private static final int EXPONENT_BIAS = 129;
+    private static final String NUMBER_CHARACTERS = "0123456789.Ee";
+    private static final int LOWER_CASE = 0x20;
     private static final int QUOTE = '"';
     private static final int SPACE = ' ';
     private static final int LINE_HEADER = 4;
@@ -84,8 +92,8 @@ record BasicProgram(OptionalInt clear, OptionalInt entry, List<OptionalInt> load
                     case QUOTE -> skipString();
                     case HIDDEN_NUMBER -> at += HIDDEN_NUMBER_BYTES;
                     case REM -> at = end;
-                    case CLEAR -> clear = number();
-                    case USR -> entry = number();
+                    case CLEAR -> clear = latest(number(), clear);
+                    case USR -> entry = latest(number(), entry);
                     case LOAD -> load();
                     default -> {
                     }
@@ -116,25 +124,44 @@ record BasicProgram(OptionalInt clear, OptionalInt entry, List<OptionalInt> load
                 skipSpaces();
                 return at < end && program[at] == QUOTE ? quotedNumber() : OptionalInt.empty();
             }
-            return digits();
+            return writtenNumber();
         }
 
         private OptionalInt quotedNumber() {
             final int start = ++at;
             skipString();
-            try {
-                return inRange(Double.parseDouble(text(start, at - 1).strip()));
-            } catch (NumberFormatException e) {
-                return OptionalInt.empty();
-            }
+            return parsed(text(start, at - 1));
         }
 
-        private OptionalInt digits() {
+        private OptionalInt writtenNumber() {
             final int start = at;
-            while (at < end && program[at] >= '0' && program[at] <= '9') {
+            while (at < end && (NUMBER_CHARACTERS.indexOf(program[at]) >= 0 || isExponentSign(start))) {
                 at++;
             }
-            return at == start ? OptionalInt.empty() : inRange(Double.parseDouble(text(start, at)));
+            if (at + HIDDEN_NUMBER_BYTES < end && (program[at] & 0xFF) == HIDDEN_NUMBER) {
+                final double value = hiddenValue(at + 1);
+                at += HIDDEN_NUMBER_BYTES + 1;
+                return inRange(value);
+            }
+            return parsed(text(start, at));
+        }
+
+        private boolean isExponentSign(int start) {
+            return (program[at] == '+' || program[at] == '-') && at > start && (program[at - 1] | LOWER_CASE) == 'e';
+        }
+
+        /**
+         * The value BASIC itself uses, which the text in front of it only shows: a small integer, or a floating
+         * point number with its exponent in the first byte and the sign in place of the mantissa's leading one.
+         */
+        private double hiddenValue(int from) {
+            final int exponent = program[from] & 0xFF;
+            if (exponent == SMALL_INTEGER) {
+                return word(from + 2) - (program[from + 1] == 0 ? 0 : SMALL_INTEGER_RANGE);
+            }
+            final int mantissa = ByteBuffer.wrap(program, from + 1, Integer.BYTES).getInt();
+            final double fraction = 1 + (mantissa & Integer.MAX_VALUE) / MANTISSA_SCALE;
+            return Math.copySign(Math.scalb(fraction, exponent - EXPONENT_BIAS), mantissa);
         }
 
         private void skipString() {
@@ -156,6 +183,18 @@ record BasicProgram(OptionalInt clear, OptionalInt entry, List<OptionalInt> load
 
         private int word(int offset) {
             return (program[offset] & 0xFF) | (program[offset + 1] & 0xFF) << 8;
+        }
+
+        private static OptionalInt parsed(String text) {
+            try {
+                return inRange(Double.parseDouble(text.strip()));
+            } catch (NumberFormatException e) {
+                return OptionalInt.empty();
+            }
+        }
+
+        private static OptionalInt latest(OptionalInt read, OptionalInt before) {
+            return read.isPresent() ? read : before;
         }
 
         private static OptionalInt inRange(double value) {

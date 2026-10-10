@@ -21,11 +21,14 @@
 
 package com.adeptum.paula.module.zx;
 
+import static com.adeptum.paula.testing.TestTaps.bytes;
+import static com.adeptum.paula.testing.TestTaps.concat;
 import static com.adeptum.paula.testing.TestTaps.line;
 import static com.adeptum.paula.testing.TestTaps.tokenised;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.util.OptionalInt;
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +60,44 @@ class BasicProgramTest {
         assertEquals(OptionalInt.of(32767), basic.clear());
         assertEquals(OptionalInt.of(32768), basic.entry());
         assertEquals(OptionalInt.of(32768), basic.loads().get(0));
+    }
+
+    @Test
+    void prefersTheHiddenIntegerToTheTextOfANumber() {
+        final BasicProgram basic = BasicProgram.parse(line(1, concat(bytes(0xFD), ascii("4E4"), bytes(0x0E, 0, 0, 0x40, 0x9C, 0))));
+
+        assertEquals(OptionalInt.of(40000), basic.clear());
+    }
+
+    @Test
+    void readsTheHiddenFloatingPointFormOfANumber() {
+        final BasicProgram basic = BasicProgram.parse(line(1, concat(bytes(0xC0), ascii("4.9152E4"), bytes(0x0E, 0x90, 0x40, 0, 0, 0))));
+
+        assertEquals(OptionalInt.of(49152), basic.entry());
+    }
+
+    @Test
+    void refusesANegativeHiddenNumber() {
+        final BasicProgram basic = BasicProgram.parse(line(1, concat(bytes(0xC0), ascii("1"), bytes(0x0E, 0, 0xFF, 0xFF, 0xFF, 0))));
+
+        assertTrue(basic.entry().isEmpty());
+    }
+
+    @Test
+    void readsTheTextOfANumberWithAnExponent() {
+        assertEquals(OptionalInt.of(40000), parse("{CLEAR} 4E4").clear());
+    }
+
+    @Test
+    void keepsAnEarlierValueWhereALaterOneCannotBeRead() {
+        final BasicProgram basic = parse("{CLEAR} 24999: {RANDOMIZE} {USR} 30000", "{CLEAR} x: {RANDOMIZE} {USR} (a+1)");
+
+        assertEquals(OptionalInt.of(24999), basic.clear());
+        assertEquals(OptionalInt.of(30000), basic.entry());
+    }
+
+    private static byte[] ascii(String text) {
+        return text.getBytes(StandardCharsets.ISO_8859_1);
     }
 
     @Test
