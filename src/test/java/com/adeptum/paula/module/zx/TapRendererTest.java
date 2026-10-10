@@ -82,7 +82,7 @@ class TapRendererTest {
 
     @Test
     void finishesExactlyAtTheLengthTheLoaderFound() throws Exception {
-        final Renderer renderer = renderer(HALF_SECOND_THEN_RETURN);
+        final Renderer renderer = renderer(ONE_AND_A_HALF_SECONDS_THEN_RETURN);
         final long expected = renderer.length().orElseThrow().toMillis() * SAMPLE_RATE / 1000;
 
         long total = 0;

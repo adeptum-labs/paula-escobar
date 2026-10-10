@@ -28,6 +28,7 @@ import com.adeptum.paula.module.ModuleLoader;
 import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.module.UnsupportedModuleException;
 import java.io.IOException;
+import java.time.Duration;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -47,6 +48,7 @@ public final class TapLoader implements ModuleLoader {
     private static final int BEEPER_CHANNELS = 1;
     private static final int BEEPER_AND_AY_CHANNELS = 4;
     private static final String SECONDS = "seconds";
+    private static final Duration MINIMUM_SONG = Duration.ofSeconds(1);
 
     private final TapeLengths lengths;
 
@@ -76,6 +78,10 @@ public final class TapLoader implements ModuleLoader {
         if (!run.audible()) {
             throw new UnsupportedModuleException(path,
                     run.reason() == EndReason.ROM_CALL ? "the program needs the Spectrum ROM" : "the program makes no sound");
+        }
+        if (run.length().compareTo(MINIMUM_SONG) < 0) {
+            throw new UnsupportedModuleException(path,
+                    "the program ends at once because its player is driven from BASIC, which Paula does not run");
         }
         return new TapModule(path, metadata(program, run), program, run);
     }

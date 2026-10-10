@@ -50,10 +50,10 @@ class TapeLengthsTest {
 
     @Test
     void aProgramThatReturnsEndsWhereItReturns(@TempDir Path cache) throws Exception {
-        final TapeRun run = run(cache, HALF_SECOND_THEN_RETURN);
+        final TapeRun run = run(cache, ONE_AND_A_HALF_SECONDS_THEN_RETURN);
 
         assertEquals(EndReason.RETURNED, run.reason());
-        assertTrue(run.length().toMillis() >= 480 && run.length().toMillis() <= 520, run.length().toString());
+        assertTrue(run.length().toMillis() >= 1470 && run.length().toMillis() <= 1510, run.length().toString());
         assertTrue(run.audible());
         assertEquals(Spectrum.Model.K48, run.model());
     }
@@ -148,7 +148,7 @@ class TapeLengthsTest {
     void stillAnswersWhenTheCacheCannotBeWritten(@TempDir Path dir) throws Exception {
         final Path notADirectory = Files.writeString(dir.resolve("file"), "x");
 
-        final TapeRun run = run(notADirectory.resolve("cache"), HALF_SECOND_THEN_RETURN);
+        final TapeRun run = run(notADirectory.resolve("cache"), ONE_AND_A_HALF_SECONDS_THEN_RETURN);
 
         assertEquals(EndReason.RETURNED, run.reason());
     }

@@ -59,12 +59,21 @@ class TapLoaderTest {
 
     @Test
     void describesABeeperTape() throws Exception {
-        final Module module = loader().load(write("a.tap", loaderTape(HALF_SECOND_THEN_RETURN)));
+        final Module module = loader().load(write("a.tap", loaderTape(ONE_AND_A_HALF_SECONDS_THEN_RETURN)));
 
         assertEquals("loader", module.metadata().title());
         assertEquals("ZX Spectrum tape (48K beeper)", module.metadata().format().name());
         assertEquals(1, module.metadata().channels());
         assertEquals("seconds", module.metadata().lengthUnit());
+        assertEquals(1, module.metadata().songLength());
+    }
+
+    @Test
+    void refusesATapeWhoseSongEndsAtOnce() throws Exception {
+        final Path tape = write("a.tap", loaderTape(ONE_PULSE_THEN_RETURN));
+
+        final UnsupportedModuleException e = assertThrows(UnsupportedModuleException.class, () -> loader().load(tape));
+        assertTrue(e.getMessage().contains("ends at once") && e.getMessage().contains("BASIC"), e.getMessage());
     }
 
     @Test
