@@ -143,6 +143,23 @@ class SpectrumTest {
     }
 
     @Test
+    void reportsWritesToTheLastSoundRegister() throws Exception {
+        machine(Spectrum.Model.K128, AY_WRITE_ENVELOPE_SHAPE).runUntil(100_000);
+
+        assertEquals(List.of(13), recorder.ay.stream().map(AyWrite::register).toList());
+    }
+
+    @Test
+    void keepsWritesToTheAyIoPortsToItself() throws Exception {
+        final Spectrum spectrum = machine(Spectrum.Model.K128, AY_WRITE_PORT_A);
+
+        spectrum.runUntil(100_000);
+
+        assertEquals(List.of(), recorder.ay);
+        assertTrue(spectrum.ayWritten());
+    }
+
+    @Test
     void pagesTheBankAtC000OnA128() throws Exception {
         final Spectrum spectrum = machine(Spectrum.Model.K128, PAGE_BANK_ONE);
         spectrum.write(0xC000, 0x55);

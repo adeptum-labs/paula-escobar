@@ -93,6 +93,14 @@ class TapLoaderTest {
     }
 
     @Test
+    void refusesATapeThatOnlyWritesToAnAyIoPortAsSilent() throws Exception {
+        final Path tape = write("a.tap", loaderTape(AY_WRITE_PORT_B));
+
+        final UnsupportedModuleException e = assertThrows(UnsupportedModuleException.class, () -> loader().load(tape));
+        assertTrue(e.getMessage().contains("no sound"), e.getMessage());
+    }
+
+    @Test
     void refusesATapeThatNeedsTheRom() throws Exception {
         final Path tape = write("a.tap", loaderTape(SILENT_JUMP_TO_ROM));
 

@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module.zx;
 
+import com.adeptum.paula.module.ay.RegisterFrames;
 import java.util.Arrays;
 import java.util.Optional;
 import z80core.MemIoOps;
@@ -245,7 +246,9 @@ final class Spectrum extends MemIoOps implements NotifyOps {
             selectedRegister = value & AY_REGISTERS;
         } else if ((port & AY_MASK) == AY_DATA) {
             ayWritten = true;
-            output.ayRegister(getTstates(), selectedRegister, value & 0xFF);
+            if (selectedRegister < RegisterFrames.REGISTERS) {
+                output.ayRegister(getTstates(), selectedRegister, value & 0xFF);
+            }
         }
         afterPort(port);
     }
