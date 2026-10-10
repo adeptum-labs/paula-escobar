@@ -188,7 +188,8 @@ public final class Paula implements Runnable {
             final SceneOrgPartyArt partyArt = new SceneOrgPartyArt(demozoo, http, cache, fetchingArt);
             final Favourites favourites = new JsonFavourites(data);
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
-                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt, favourites);
+                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt, favourites,
+                    artResolver::variants);
             new PlayerSession(playlist, loaders, engine, ui, loader,
                     tracks(resolver, loaders, sidLengths, demozoo, releaseArt, partyArt),
                     browser, favourites, discovery, outputs(), deadline()).run();

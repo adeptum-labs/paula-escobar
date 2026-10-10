@@ -34,6 +34,7 @@ import com.adeptum.paula.demozoo.Nick;
 import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
+import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.demozoo.FakeHttp;
 import com.adeptum.paula.favourites.DataDirectory;
 import com.adeptum.paula.favourites.Favourites;
@@ -1295,6 +1296,87 @@ class BrowserTest {
         press(Key.Special.ENTER);
         final Playlist playlist = browser.takeSelection().orElseThrow();
         assertEquals(2, playlist.size(), "entries without a download are not queued");
+    }
+
+    private Browser browserWith(ReleaseFormats formats) {
+        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+                ReleaseArt.NONE, PartyArt.NONE, Favourites.NONE, formats, DWELL, clock);
+    }
+
+    private static List<Variant> tapeAndModule() {
+        return List.of(new Variant(Path.of("a.tap"), "TAP", true), new Variant(Path.of("a.xm"), "XM", false));
+    }
+
+    @Test
+    void tagsAnEntryWhoseReleaseOffersSeveralFormats() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
+        browser = browserWith(entry -> entry.productionId() == 11 ? tapeAndModule() : List.of());
+        openCompo();
+        browser.tick();
+
+        final List<String> lines = render();
+
+        assertTrue(lines.get(2).endsWith("[TAP]/XM│"), lines.get(2));
+        assertTrue(lines.get(3).startsWith("│      2  Second") && !lines.get(3).contains("TAP"), lines.get(3));
+    }
+
+    @Test
+    void aTaggedEntryStaysPlayable() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(14), PRODUCTION_WITH_DOWNLOAD);
+        browser = browserWith(entry -> tapeAndModule());
+        openCompo();
+        browser.tick();
+        browser.render(WIDTH, HEIGHT);
+
+        press(Key.Special.ENTER);
+
+        assertEquals(3, browser.takeSelection().orElseThrow().size(),
+                "the tag must not make the entries look unplayable to the playlist");
+        assertEquals(Palette.VALUE, browser.render(WIDTH, HEIGHT).get(3).styleAt(10), "and they are not dimmed");
+    }
+
+    @Test
+    void leavesTheTagOutOfANarrowTerminal() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        browser = browserWith(entry -> tapeAndModule());
+        openCompo();
+        browser.tick();
+
+        final String line = browser.render(WIDTH - 1, HEIGHT).get(2).toString();
+
+        assertFalse(line.contains("TAP"), line);
+    }
+
+    @Test
+    void aFailureMarkTakesThePlaceOfTheTag() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITHOUT_DOWNLOAD);
+        browser = browserWith(entry -> tapeAndModule());
+        openCompo();
+        browser.tick();
+
+        final List<String> lines = render();
+
+        assertTrue(lines.get(3).endsWith("(no download)│"), lines.get(3));
+    }
+
+    @Test
+    void showsTheNewTagOnceTheFormatsChange() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        final List<Variant> shown = new ArrayList<>(tapeAndModule());
+        browser = browserWith(entry -> List.copyOf(shown));
+        openCompo();
+        browser.tick();
+        shown.clear();
+        shown.addAll(List.of(new Variant(Path.of("a.tap"), "TAP", false), new Variant(Path.of("a.xm"), "XM", true)));
+
+        browser.refreshFormats(new CompoEntry(1, "1", 11, "First", List.of(new Nick("A", 0, false)), Set.of(29)));
+
+        assertTrue(render().get(2).endsWith("TAP/[XM]│"), render().get(2));
     }
 
     /**
