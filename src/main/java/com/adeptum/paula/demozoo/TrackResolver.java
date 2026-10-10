@@ -175,27 +175,33 @@ public final class TrackResolver {
      * The links are tried in turn, since the release handed in at the party is now and then a disk image or a
      * bundle of a whole competition that holds nothing the player can play, while a copy elsewhere is the tune
      * itself. A C64 program plays a whole release rather than a tune, so it is kept as a last resort behind
-     * whatever the other links offer.
+     * whatever the other links offer, and behind it a file that does not open, such as a tape whose program
+     * Paula cannot run, which is still offered last so that playing it tells why.
      */
     private Path resolve(Sought sought, List<URI> uris) throws IOException {
         IOException failure = null;
         boolean allHeldNothingPlayable = true;
         Path program = null;
+        Path unopened = null;
         for (final URI uri : uris) {
             try {
                 final Path playable = download(uri, sought);
-                if (!isProgram(playable)) {
+                if (isProgram(playable)) {
+                    program = program == null ? playable : program;
+                } else if (opens(playable)) {
                     return playable;
+                } else {
+                    unopened = unopened == null ? playable : unopened;
                 }
-                program = program == null ? playable : program;
             } catch (IOException e) {
                 log.info("Nothing playable from {} for {}: {}", uri, sought.label(), e.getMessage());
                 allHeldNothingPlayable &= e instanceof NothingPlayableException;
                 failure = e;
             }
         }
-        if (program != null) {
-            return program;
+        final Path lastResort = program != null ? program : unopened;
+        if (lastResort != null) {
+            return lastResort;
         }
         throw allHeldNothingPlayable || !(failure instanceof NothingPlayableException)
                 ? failure : new IOException(failure.getMessage(), failure);

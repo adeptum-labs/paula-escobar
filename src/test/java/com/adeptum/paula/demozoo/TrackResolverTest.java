@@ -664,6 +664,32 @@ class TrackResolverTest {
     }
 
     @Test
+    void movesOnToTheNextDownloadWhenTheFirstHoldsATapeThatCannotBePlayed(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW, "ModlandFile", MODLAND_FILE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("silent.tap", silentTape())), Optional.empty());
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("funkyeeh.mod", resolved.getFileName().toString(), "the module comes before the silent tape");
+    }
+
+    @Test
+    void offersATapeThatCannotBePlayedWhereNothingElseIs(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("silent.tap", silentTape())), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/silent.tap"), resolved,
+                "playing it tells why it cannot be played");
+    }
+
+    private static byte[] silentTape() {
+        return TestTaps.tape(TestTaps.codePart("x", TestTaps.ENTRY, TestTaps.WAIT_FOREVER));
+    }
+
+    @Test
     void failsClearlyOnUnknownDownloads(@TempDir Path dir) throws IOException {
         http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW.replace("funkyeeh.zip", "page.html")));
         http.put(SCENE_ORG_FILE.replace("funkyeeh.zip", "page.html"), "<html>".getBytes(StandardCharsets.US_ASCII), Optional.empty());
