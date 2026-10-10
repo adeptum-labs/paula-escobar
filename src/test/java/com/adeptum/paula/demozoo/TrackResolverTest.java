@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.favourites.PreferredFormats;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.javamod.JavaModLoader;
 import com.adeptum.paula.playback.Progress;
@@ -87,6 +88,26 @@ class TrackResolverTest {
         final CacheDirectory cache = new CacheDirectory(dir);
         return new TrackResolver(new DemozooClient(http, cache), http, cache,
                 ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
+    }
+
+    private TrackResolver resolver(Path dir, PreferredFormats preferred) {
+        final CacheDirectory cache = new CacheDirectory(dir);
+        final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache);
+        return new TrackResolver(new DemozooClient(http, cache), http, cache, loaders, new Progress(),
+                new UnplayableReleases(cache, loaders), preferred);
+    }
+
+    private void releaseOf(Map<String, byte[]> files) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(files), Optional.empty());
+    }
+
+    private static Map<String, byte[]> threeFormats() throws IOException {
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("Funkyeeh.mp3", recording());
+        release.put("Funkyeeh.tap", TestTaps.loaderTape(TestTaps.SQUARE_WAVE));
+        release.put("Funkyeeh.mod", TestModules.proTracker());
+        return release;
     }
 
     @Test
@@ -209,6 +230,124 @@ class TrackResolverTest {
         try (InputStream in = TrackResolverTest.class.getResourceAsStream("/mp3/paula-test.mp3")) {
             return in.readAllBytes();
         }
+    }
+
+    @Test
+    void listsTheFormatsOfADownloadedReleaseInPlayOrder(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        final List<Variant> variants = resolver.variants(ENTRY);
+
+        assertEquals(List.of("MOD", "TAP", "MP3"), variants.stream().map(Variant::format).toList());
+        assertEquals(List.of(true, false, false), variants.stream().map(Variant::plays).toList());
+        assertEquals("[MOD]/TAP/MP3", Variant.tag(variants));
+    }
+
+    @Test
+    void listsNothingForAReleaseThatIsNotDownloaded(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+
+        assertEquals(List.of(), resolver(dir, PreferredFormats.inMemory()).variants(ENTRY));
+    }
+
+    @Test
+    void listsNothingForAReleaseOfOneFormat(@TempDir Path dir) throws IOException {
+        releaseOf(Map.of("Funkyeeh.mod", TestModules.proTracker()));
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        assertEquals(List.of(), resolver.variants(ENTRY));
+    }
+
+    @Test
+    void listsOnlyTheFilesNamingTheEntryFromACompetitionBundle(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> bundle = new LinkedHashMap<>();
+        bundle.put("Funkyeeh.mod", TestModules.proTracker());
+        bundle.put("Funkyeeh.tap", TestTaps.loaderTape(TestTaps.SQUARE_WAVE));
+        bundle.put("Quiet-Someone.mod", TestModules.proTracker());
+        bundle.put("Quiet-Someone.mp3", recording());
+        releaseOf(bundle);
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        assertEquals(List.of("MOD", "TAP"), resolver.variants(ENTRY).stream().map(Variant::format).toList());
+    }
+
+    @Test
+    void listsNothingWhereTheFilesAreNotNamedAfterTheEntry(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> numbered = new LinkedHashMap<>();
+        numbered.put("01.mod", TestModules.proTracker());
+        numbered.put("01.mp3", recording());
+        releaseOf(numbered);
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+
+        assertEquals(List.of(), resolver.variants(ENTRY));
+    }
+
+    @Test
+    void playsTheFormatPreferredAndMarksIt(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+        final Variant tape = resolver.variants(ENTRY).get(1);
+
+        resolver.prefer(ENTRY, tape);
+
+        assertEquals(tape.file(), resolver.resolve(ENTRY));
+        assertEquals(List.of(false, true, false), resolver.variants(ENTRY).stream().map(Variant::plays).toList());
+    }
+
+    @Test
+    void remembersAPreferenceBetweenResolvers(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+        final PreferredFormats preferred = PreferredFormats.inMemory();
+        final TrackResolver first = resolver(dir, preferred);
+        first.resolve(ENTRY);
+        final Variant recording = first.variants(ENTRY).get(2);
+        first.prefer(ENTRY, recording);
+
+        assertEquals(recording.file(), resolver(dir, preferred).resolve(ENTRY));
+    }
+
+    @Test
+    void fallsBackToTheDefaultWhenThePreferredFileIsGone(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+        final PreferredFormats preferred = PreferredFormats.inMemory();
+        final TrackResolver resolver = resolver(dir, preferred);
+        final Path defaultPick = resolver.resolve(ENTRY);
+        preferred.set(String.valueOf(ENTRY.productionId()), "extracted/Funkyeeh.gone");
+
+        assertEquals(defaultPick, resolver.resolve(ENTRY));
+        assertEquals(List.of(true, false, false), resolver.variants(ENTRY).stream().map(Variant::plays).toList());
+    }
+
+    @Test
+    void fallsBackToTheDefaultWhenThePreferredFileDoesNotOpen(@TempDir Path dir) throws IOException {
+        final Map<String, byte[]> release = new LinkedHashMap<>();
+        release.put("Funkyeeh.mod", TestModules.proTracker());
+        release.put("Funkyeeh.mp3", new byte[] {1, 2, 3});
+        releaseOf(release);
+        final PreferredFormats preferred = PreferredFormats.inMemory();
+        final TrackResolver resolver = resolver(dir, preferred);
+        final Path defaultPick = resolver.resolve(ENTRY);
+        preferred.set(String.valueOf(ENTRY.productionId()), "extracted/Funkyeeh.mp3");
+
+        assertEquals(defaultPick, resolver.resolve(ENTRY));
+    }
+
+    @Test
+    void listingLoadsNoFile(@TempDir Path dir) throws IOException {
+        releaseOf(threeFormats());
+        final TrackResolver resolver = resolver(dir, PreferredFormats.inMemory());
+        resolver.resolve(ENTRY);
+        assertFalse(Files.exists(dir.resolve("tapes")), "resolving opened only the module");
+
+        resolver.variants(ENTRY);
+
+        assertFalse(Files.exists(dir.resolve("tapes")), "listing the formats must not analyse the tape");
     }
 
     /**

@@ -24,6 +24,7 @@ package com.adeptum.paula.demozoo;
 import com.adeptum.paula.archive.ArchiveExtractor;
 import com.adeptum.paula.archive.Archives;
 import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.favourites.PreferredFormats;
 import com.adeptum.paula.modarchive.ModArchive;
 import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
@@ -42,10 +43,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +96,7 @@ public final class TrackResolver {
     private static final Set<String> UNUSABLE_NAMES = Set.of("", ".", "..");
     private static final int NESTED_ROUNDS = 3;
     private static final int SHORTEST_NAME = 3;
+    private static final int FEWEST_FORMATS = 2;
     private static final Set<String> ART = Set.of("diz", "nfo", "asc");
     private static final Set<String> RECORDINGS = Stream.of(Mp3Loader.FORMAT, FlacLoader.FORMAT, WavLoader.FORMAT,
                     OggLoader.FORMAT, ApeLoader.FORMAT)
@@ -104,6 +109,7 @@ public final class TrackResolver {
     private final ModuleLoaderRegistry loaders;
     private final Progress progress;
     private final UnplayableReleases unplayable;
+    private final PreferredFormats preferred;
 
     public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders) {
         this(demozoo, http, cache, loaders, new Progress());
@@ -116,12 +122,18 @@ public final class TrackResolver {
 
     public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders,
             Progress progress, UnplayableReleases unplayable) {
+        this(demozoo, http, cache, loaders, progress, unplayable, PreferredFormats.inMemory());
+    }
+
+    public TrackResolver(DemozooClient demozoo, HttpFetcher http, CacheDirectory cache, ModuleLoaderRegistry loaders,
+            Progress progress, UnplayableReleases unplayable, PreferredFormats preferred) {
         this.progress = progress;
         this.demozoo = demozoo;
         this.http = http;
         this.downloads = new DownloadCache(cache);
         this.loaders = loaders;
         this.unplayable = unplayable;
+        this.preferred = preferred;
     }
 
     /**
@@ -139,13 +151,74 @@ public final class TrackResolver {
         }
     }
 
+    /**
+     * The versions of this tune a downloaded release holds, one per format in the order they are tried. Only
+     * what is on disk is looked at and no file is opened, so it is cheap enough to ask for every entry on a
+     * screen; a release that is not downloaded, that offers one format, or whose files are not named after the
+     * entry (telling those apart would mean opening them all) lists nothing.
+     */
+    public List<Variant> variants(CompoEntry entry) throws IOException {
+        final Sought sought = soughtOf(entry);
+        final Optional<Path> directory = downloads.of(sought.key());
+        if (directory.isEmpty()) {
+            return List.of();
+        }
+        final List<Path> candidates = candidates(directory.get());
+        if (!isNamed(candidates, sought)) {
+            return List.of();
+        }
+        final List<Path> ranked = sorted(candidates, sought, Set.of());
+        final Map<String, Path> byFormat = new LinkedHashMap<>();
+        ranked.stream().filter(file -> tiedWith(file, ranked.get(0), sought))
+                .forEach(file -> byFormat.putIfAbsent(formatOf(file), file));
+        if (byFormat.size() < FEWEST_FORMATS) {
+            return List.of();
+        }
+        final Path playing = chosenAmong(byFormat.values(), directory.get(), sought)
+                .orElse(byFormat.values().iterator().next());
+        return byFormat.entrySet().stream()
+                .map(format -> new Variant(format.getValue(), format.getKey(), format.getValue().equals(playing)))
+                .toList();
+    }
+
+    /**
+     * Makes this version the one that plays from now on.
+     */
+    public void prefer(CompoEntry entry, Variant variant) throws IOException {
+        final Sought sought = soughtOf(entry);
+        final Path directory = downloads.of(sought.key())
+                .orElseThrow(() -> new IOException("No download of " + entry.title()));
+        preferred.set(sought.key(), relative(directory, variant.file()));
+    }
+
+    /**
+     * The file a user chose for this release, where it is still there.
+     */
+    private Optional<Path> chosenAmong(Collection<Path> files, Path directory, Sought sought) {
+        return preferred.of(sought.key()).flatMap(saved -> files.stream()
+                .filter(file -> relative(directory, file).equals(saved))
+                .findFirst());
+    }
+
+    private static boolean tiedWith(Path file, Path top, Sought sought) {
+        return wordsNamed(file, sought.names()) == wordsNamed(top, sought.names())
+                && wordsNamed(file, sought.names().subList(0, 1)) == wordsNamed(top, sought.names().subList(0, 1));
+    }
+
+    private static String formatOf(Path file) {
+        return ModuleFormat.extensionOf(file.getFileName().toString()).toUpperCase(Locale.ROOT);
+    }
+
     public boolean holdsNothingPlayable(int productionId) {
         return unplayable.contains(productionId);
     }
 
+    private static Sought soughtOf(CompoEntry entry) {
+        return new Sought(String.valueOf(entry.productionId()), entry.title(), List.of(entry.author(), entry.title()));
+    }
+
     private Path resolveEntry(CompoEntry entry) throws IOException {
-        final Sought sought = new Sought(String.valueOf(entry.productionId()), entry.title(),
-                List.of(entry.author(), entry.title()));
+        final Sought sought = soughtOf(entry);
         final Optional<Path> cached = remembered(sought);
         if (cached.isPresent()) {
             return cached.get();
@@ -485,24 +558,38 @@ public final class TrackResolver {
      * handle seldom does, so between equals the file naming the author wins. Some parties numbered the files
      * instead, and there the title the module carries inside it says which entry it is; only then are the
      * modules opened, since that costs a read of every one. The rest are taken in name order. Archives are
-     * skipped so a download that merely looks like a module by name is never handed to the loaders.
+     * skipped so a download that merely looks like a module by name is never handed to the loaders. A file a
+     * user chose comes before all of them for as long as it opens.
      */
     private Optional<Path> firstPlayable(Path directory, Sought sought) throws IOException {
+        final List<Path> candidates = candidates(directory);
+        final boolean named = isNamed(candidates, sought);
+        final List<Path> ranked = sorted(candidates, sought, named ? Set.of() : titledAsSought(candidates, sought));
+        return chosenAmong(ranked, directory, sought).filter(this::opens)
+                .or(() -> ranked.stream().filter(this::opens).findFirst())
+                .or(() -> ranked.stream().findFirst());
+    }
+
+    private List<Path> candidates(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
-            return Optional.empty();
+            return List.of();
         }
-        final List<Path> candidates;
         try (Stream<Path> files = Files.walk(directory)) {
-            candidates = files.filter(Files::isRegularFile)
+            return files.filter(Files::isRegularFile)
                     .filter(file -> loaders.loaderFor(file).isPresent())
                     .filter(TrackResolver::isPlainFile)
                     .toList();
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
-        final boolean named = candidates.stream().anyMatch(file -> wordsNamed(file, sought.names()) > 0);
-        final Set<Path> titled = named ? Set.of() : titledAsSought(candidates, sought);
-        final List<Path> ranked = candidates.stream()
+    }
+
+    private static boolean isNamed(List<Path> candidates, Sought sought) {
+        return candidates.stream().anyMatch(file -> wordsNamed(file, sought.names()) > 0);
+    }
+
+    private static List<Path> sorted(List<Path> candidates, Sought sought, Set<Path> titled) {
+        return candidates.stream()
                 .sorted(Comparator.comparingInt((Path file) -> -wordsNamed(file, sought.names()))
                         .thenComparingInt(file -> -wordsNamed(file, sought.names().subList(0, 1)))
                         .thenComparing(file -> titled.contains(file) ? 0 : 1)
@@ -510,7 +597,10 @@ public final class TrackResolver {
                         .thenComparing(file -> isRecording(file) ? 1 : 0)
                         .thenComparing(Path::toString))
                 .toList();
-        return ranked.stream().filter(this::opens).findFirst().or(() -> ranked.stream().findFirst());
+    }
+
+    private static String relative(Path directory, Path file) {
+        return directory.relativize(file).toString().replace('\\', '/');
     }
 
     /**
