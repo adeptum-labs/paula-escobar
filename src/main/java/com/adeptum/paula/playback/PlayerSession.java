@@ -250,7 +250,8 @@ public final class PlayerSession {
             status = SWITCHING_TO + switched.get().next().format();
             requestCurrent();
         } catch (IOException | RuntimeException e) {
-            status = e.getMessage();
+            log.warn("Could not switch format: {}", e.toString());
+            status = e.getMessage() == null ? e.toString() : e.getMessage();
         }
     }
 
