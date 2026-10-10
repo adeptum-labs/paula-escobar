@@ -28,8 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class SpectrumTest {
@@ -155,11 +157,51 @@ class SpectrumTest {
     void ignoresWritesToTheRom() throws Exception {
         final Spectrum spectrum = machine(Spectrum.Model.K48, SQUARE_WAVE);
 
-        spectrum.write(0x0100, 0x77);
+        final int before = spectrum.read(0x0100);
 
-        assertEquals(0, spectrum.read(0x0100));
+        spectrum.write(0x0100, before ^ 0xFF);
+
+        assertEquals(before, spectrum.read(0x0100));
+        assertFalse(spectrum.pagingSeen());
+    }
+
+    @Test
+    void keepsTheInterruptHandlerStubInTheNoisyRom() throws Exception {
+        final Spectrum spectrum = machine(Spectrum.Model.K48, SQUARE_WAVE);
+
         assertEquals(0xFB, spectrum.read(0x0038));
         assertEquals(0xC9, spectrum.read(0x0039));
-        assertFalse(spectrum.pagingSeen());
+    }
+
+    @Test
+    void leavesTheUnusedRomBlockAtFf() throws Exception {
+        final Spectrum spectrum = machine(Spectrum.Model.K48, SQUARE_WAVE);
+
+        assertEquals(0xFF, spectrum.read(0x386E));
+        assertEquals(0xFF, spectrum.read(0x3CFF));
+    }
+
+    @Test
+    void fillsTheRestOfTheRomWithTheSameNoiseOnEveryMachine() throws Exception {
+        final Spectrum first = machine(Spectrum.Model.K48, SQUARE_WAVE);
+        final Spectrum second = machine(Spectrum.Model.K128, WAIT_FOREVER);
+
+        final Set<Integer> distinct = new HashSet<>();
+        for (int address = 0; address < 0x4000; address++) {
+            assertEquals(first.read(address), second.read(address));
+            if (address < 0x100) {
+                distinct.add(first.read(address));
+            }
+        }
+        assertTrue(distinct.size() >= 100, distinct.size() + " distinct values in the first 256 bytes");
+    }
+
+    @Test
+    void letsAnEngineUseTheRomAsItsNoiseSource() throws Exception {
+        final byte[] copyRomBitToSpeaker = bytes(0xF3, 0x21, 0x00, 0x00, 0x7E, 0xE6, 0x10, 0xD3, 0xFE, 0x23, 0x18, 0xF8);
+
+        machine(Spectrum.Model.K48, copyRomBitToSpeaker).runUntil(3000);
+
+        assertTrue(recorder.edges.size() > 10, recorder.edges.size() + " edges");
     }
 }

@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.module.zx;
 
+import java.util.Arrays;
 import java.util.Optional;
 import z80core.MemIoOps;
 import z80core.NotifyOps;
@@ -65,6 +66,13 @@ final class Spectrum extends MemIoOps implements NotifyOps {
     private static final int RAM_BANKS = 8;
     private static final int SCREEN_BANK = 5;
     private static final int ROM_END = 0x4000;
+    private static final int NOISE_SEED = 0x2A5F1D93;
+    private static final int XORSHIFT_LEFT = 13;
+    private static final int XORSHIFT_RIGHT = 17;
+    private static final int XORSHIFT_LEFT_AGAIN = 5;
+    private static final int UNUSED_BLOCK_START = 0x386E;
+    private static final int UNUSED_BLOCK_END = 0x3CFF;
+    private static final byte UNUSED_BLOCK_FILL = (byte) 0xFF;
     private static final int IM1_HANDLER = 0x0038;
     private static final byte ENABLE_INTERRUPTS = (byte) 0xFB;
     private static final byte RETURN = (byte) 0xC9;
@@ -116,10 +124,26 @@ final class Spectrum extends MemIoOps implements NotifyOps {
         this.model = model;
         this.output = output;
         this.delays = contentionTable(model);
+        fillRomWithNoise(banks[ROM_BANK]);
         banks[ROM_BANK][IM1_HANDLER] = ENABLE_INTERRUPTS;
         banks[ROM_BANK][IM1_HANDLER + 1] = RETURN;
         this.z80 = new Z80(this, this);
         boot(program);
+    }
+
+    /**
+     * Beeper engines read the ROM as a noise source for their drums, so it holds fixed pseudo-random bytes instead
+     * of silence. The unused block stays 0xFF, which the interrupt mode 2 trick with I = 0x39 relies on.
+     */
+    private static void fillRomWithNoise(byte[] rom) {
+        int state = NOISE_SEED;
+        for (int i = 0; i < ROM_END; i++) {
+            state ^= state << XORSHIFT_LEFT;
+            state ^= state >>> XORSHIFT_RIGHT;
+            state ^= state << XORSHIFT_LEFT_AGAIN;
+            rom[i] = (byte) (state >>> Integer.SIZE - Byte.SIZE);
+        }
+        Arrays.fill(rom, UNUSED_BLOCK_START, UNUSED_BLOCK_END + 1, UNUSED_BLOCK_FILL);
     }
 
     Optional<EndReason> runUntil(long tstate) {
