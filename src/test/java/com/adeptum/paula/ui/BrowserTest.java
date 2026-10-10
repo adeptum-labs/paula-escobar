@@ -1365,6 +1365,24 @@ class BrowserTest {
     }
 
     @Test
+    void keepsLookingUpDownloadsAfterAListingFailsUnexpectedly() {
+        http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
+        http.put(productionUrl(12), PRODUCTION_WITHOUT_DOWNLOAD);
+        browser = browserWith(entry -> {
+            if (entry.productionId() == 11) {
+                throw new IllegalStateException("broken listing");
+            }
+            return List.of();
+        });
+        openCompo();
+        browser.tick();
+
+        final List<String> lines = render();
+
+        assertTrue(lines.get(3).endsWith("(no download)│"), lines.get(3));
+    }
+
+    @Test
     void showsTheNewTagOnceTheFormatsChange() {
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         final List<Variant> shown = new ArrayList<>(tapeAndModule());

@@ -1228,12 +1228,13 @@ public final class Browser {
 
     /**
      * Looks the formats of an entry's release up again, as after the release has been downloaded by playing
-     * it or after the user switched format; the tag is what is on disk then.
+     * it or after the user switched format; the tag is what is on disk then. A failure of any kind only leaves
+     * the tag out, since the same loop goes on to look up the downloads of the entries after it.
      */
     public void refreshFormats(CompoEntry entry) {
         try {
             formatTags.put(entry.productionId(), Variant.tag(formats.of(entry)));
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             log.debug("Could not list the formats of {}: {}", entry.title(), e.getMessage());
         }
     }
