@@ -50,6 +50,7 @@ import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.cli.BuildInfo;
 import com.adeptum.paula.cli.FormatsCommand;
 import com.adeptum.paula.cli.InfoCommand;
+import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
@@ -62,7 +63,10 @@ import com.adeptum.paula.demozoo.TrackResolver;
 import com.adeptum.paula.favourites.DataDirectory;
 import com.adeptum.paula.favourites.Favourites;
 import com.adeptum.paula.favourites.JsonFavourites;
+import com.adeptum.paula.favourites.JsonPreferredFormats;
+import com.adeptum.paula.favourites.PreferredFormats;
 import com.adeptum.paula.demozoo.UnplayableReleases;
+import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.modarchive.ModArchiveClient;
 import com.adeptum.paula.module.ModuleLoaderRegistry;
 import com.adeptum.paula.module.sid.SidLoader;
@@ -175,14 +179,17 @@ public final class Paula implements Runnable {
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final UnplayableReleases unplayable = new UnplayableReleases(cache, loaders);
-            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress(), unplayable);
+            final DataDirectory data = DataDirectory.resolve();
+            final PreferredFormats preferred = new JsonPreferredFormats(data);
+            final TrackResolver resolver = new TrackResolver(demozoo, http, cache, loaders, loader.progress(), unplayable, preferred);
             // Art is fetched behind the browser's back and must not write over what the player is waiting for.
-            final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders, new Progress(), unplayable);
+            final TrackResolver artResolver = new TrackResolver(demozoo, http, cache, loaders, new Progress(), unplayable, preferred);
             final CachedReleaseArt releaseArt = new CachedReleaseArt(cache);
             final SceneOrgPartyArt partyArt = new SceneOrgPartyArt(demozoo, http, cache, fetchingArt);
-            final Favourites favourites = new JsonFavourites(DataDirectory.resolve());
+            final Favourites favourites = new JsonFavourites(data);
             final Browser browser = new Browser(demozoo, new ModArchiveClient(http, cache), loaders, browsing,
-                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt, favourites);
+                    new FetchingReleaseArt(releaseArt, artResolver, fetchingArt), partyArt, favourites,
+                    artResolver::variants);
             new PlayerSession(playlist, loaders, engine, ui, loader,
                     tracks(resolver, loaders, sidLengths, demozoo, releaseArt, partyArt),
                     browser, favourites, discovery, outputs(), deadline()).run();
@@ -282,6 +289,20 @@ public final class Paula implements Runnable {
                 final List<String> release = art.of(productionOf(track)).orElse(List.of());
                 return release.isEmpty() ? partyLogo(track, parties) : release;
             }
+
+            @Override
+            public List<Variant> variants(Track track) throws IOException {
+                final CompoEntry entry = entryOf(track);
+                return entry == null ? List.of() : resolver.variants(entry);
+            }
+
+            @Override
+            public void prefer(Track track, Variant variant) throws IOException {
+                final CompoEntry entry = entryOf(track);
+                if (entry != null) {
+                    resolver.prefer(entry, variant);
+                }
+            }
         };
     }
 
@@ -305,6 +326,19 @@ public final class Paula implements Runnable {
      */
     private static List<String> partyLogo(Track track, PartyArt parties) {
         return track instanceof DemozooTrack entry ? parties.of(entry.party().id()).orElse(List.of()) : List.of();
+    }
+
+    /**
+     * The competition entry a track was made from, or nothing for one that did not come from Demozoo's
+     * competitions.
+     */
+    private static CompoEntry entryOf(Track track) {
+        return switch (track) {
+            case DemozooTrack remote -> remote.entry();
+            case MusicianTrack work -> work.work().entry();
+            case LocalTrack ignored -> null;
+            case ModArchiveTrack ignored -> null;
+        };
     }
 
     /**

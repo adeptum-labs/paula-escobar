@@ -32,6 +32,7 @@ import com.adeptum.paula.demozoo.Party;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
 import com.adeptum.paula.demozoo.TrackResolver;
+import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.demozoo.Work;
 import com.adeptum.paula.favourites.FavouriteKey;
 import com.adeptum.paula.favourites.Favourites;
@@ -72,6 +73,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -187,8 +189,8 @@ public final class Browser {
         }
     }
 
-    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, String> downloads, ReleaseArt art)
-            implements Item {
+    private record EntryItem(CompoItem compo, CompoEntry entry, int index, Map<Integer, String> downloads, ReleaseArt art,
+            Map<Integer, String> formatTags, AtomicBoolean roomForTags) implements Item {
 
         @Override
         public String label() {
@@ -202,6 +204,11 @@ public final class Browser {
 
         @Override
         public String trailing() {
+            final String failure = failure();
+            return failure.isEmpty() && roomForTags.get() ? formatTags.getOrDefault(entry.productionId(), "") : failure;
+        }
+
+        private String failure() {
             return compo.compo().unsupportedFormat() ? UNSUPPORTED_FORMAT : downloadMark(entry, downloads, art);
         }
 
@@ -225,7 +232,7 @@ public final class Browser {
         }
 
         boolean playable() {
-            return entry.likelyPlayable() && !compo.compo().unsupportedFormat() && trailing().isEmpty();
+            return entry.likelyPlayable() && !compo.compo().unsupportedFormat() && failure().isEmpty();
         }
     }
 
@@ -536,6 +543,7 @@ public final class Browser {
     private static final Set<Key.Special> MOVES = EnumSet.of(Key.Special.UP, Key.Special.DOWN,
             Key.Special.PAGE_UP, Key.Special.PAGE_DOWN, Key.Special.HOME, Key.Special.END);
     private static final Duration DWELL = Duration.ofMillis(500);
+    private static final int FORMAT_TAG_WIDTH = 80;
     private static final String TICKER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
     private static final String TICKER_SPACE = "  ";
     private static final Duration TICKER_FRAME = Duration.ofMillis(100);
@@ -551,6 +559,7 @@ public final class Browser {
             new Frame.Key("enter →", "open, or play an entry"),
             new Frame.Key("m", "more by the musician"),
             new Frame.Key("f", "add or remove from your favourites"),
+            new Frame.Key("t", "switch the playing song to its next format"),
             new Frame.Key("backspace", "go back one level"),
             new Frame.Key("← esc", "go back, or quit at the top"),
             new Frame.Key("r", "fetch this list and its logo afresh"),
@@ -566,10 +575,13 @@ public final class Browser {
     private final ReleaseArt art;
     private final PartyArt partyArt;
     private final Favourites favourites;
+    private final ReleaseFormats formats;
     private final Duration dwell;
     private final Clock clock;
     private final Deque<Level> levels = new ArrayDeque<>();
     private final Map<Integer, String> downloads = new ConcurrentHashMap<>();
+    private final Map<Integer, String> formatTags = new ConcurrentHashMap<>();
+    private final AtomicBoolean roomForTags = new AtomicBoolean(true);
     private CompletableFuture<Level> pending;
     private CompletableFuture<Grown> more;
     private Level filling;
@@ -599,7 +611,12 @@ public final class Browser {
 
     public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
             ReleaseArt art, PartyArt partyArt, Favourites favourites) {
-        this(demozoo, modarchive, loaders, executor, art, partyArt, favourites, DWELL, Clock.systemUTC());
+        this(demozoo, modarchive, loaders, executor, art, partyArt, favourites, ReleaseFormats.NONE);
+    }
+
+    public Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt, Favourites favourites, ReleaseFormats formats) {
+        this(demozoo, modarchive, loaders, executor, art, partyArt, favourites, formats, DWELL, Clock.systemUTC());
     }
 
     Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
@@ -614,6 +631,12 @@ public final class Browser {
 
     Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
             ReleaseArt art, PartyArt partyArt, Favourites favourites, Duration dwell, Clock clock) {
+        this(demozoo, modarchive, loaders, executor, art, partyArt, favourites, ReleaseFormats.NONE, dwell, clock);
+    }
+
+    Browser(DemozooClient demozoo, ModArchiveClient modarchive, ModuleLoaderRegistry loaders, Executor executor,
+            ReleaseArt art, PartyArt partyArt, Favourites favourites, ReleaseFormats formats, Duration dwell,
+            Clock clock) {
         this.demozoo = demozoo;
         this.modarchive = modarchive;
         this.loaders = loaders;
@@ -621,6 +644,7 @@ public final class Browser {
         this.art = art;
         this.partyArt = partyArt;
         this.favourites = favourites;
+        this.formats = formats;
         this.dwell = dwell;
         this.clock = clock;
         this.charts = new Level(CHARTS_TITLE, NOTHING_HERE, Stream.concat(Stream.<Item>of(new FavouritesItem(favourites)),
@@ -877,6 +901,7 @@ public final class Browser {
     }
 
     public List<AttributedString> render(int width, int height) {
+        roomForTags.set(width >= FORMAT_TAG_WIDTH);
         if (atRoot()) {
             return renderFirstPage(width, height);
         }
@@ -1170,7 +1195,7 @@ public final class Browser {
      */
     private void openCompo(CompoItem compo) {
         final List<CompoEntry> entries = compo.compo().entries();
-        final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads, art)).toList();
+        final List<Item> items = IntStream.range(0, entries.size()).<Item>mapToObj(i -> new EntryItem(compo, entries.get(i), i, downloads, art, formatTags, roomForTags)).toList();
         final Level level = new Level(compo.compoLabel(), NOTHING_HERE, items);
         level.partyId = compo.party().id();
         level.compoId = compo.compo().id();
@@ -1197,6 +1222,20 @@ public final class Browser {
                     log.debug("Could not look up downloads for {}: {}", entry.title(), e.getMessage());
                 }
             }
+            refreshFormats(entry);
+        }
+    }
+
+    /**
+     * Looks the formats of an entry's release up again, as after the release has been downloaded by playing
+     * it or after the user switched format; the tag is what is on disk then. A failure of any kind only leaves
+     * the tag out, since the same loop goes on to look up the downloads of the entries after it.
+     */
+    public void refreshFormats(CompoEntry entry) {
+        try {
+            formatTags.put(entry.productionId(), Variant.tag(formats.of(entry)));
+        } catch (IOException | RuntimeException e) {
+            log.debug("Could not list the formats of {}: {}", entry.title(), e.getMessage());
         }
     }
 

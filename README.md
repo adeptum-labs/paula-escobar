@@ -103,6 +103,12 @@ everything else the musician has, on Demozoo for an entry and on
 ModArchive for a chart tune. `f` keeps or drops the song under the cursor,
 or the one playing, as a favourite, marked with a star where a row can
 carry one; Your Favourites, above the charts, opens what has been kept.
+Where a downloaded release hands in several versions of one tune, a tape, a
+module and a recording of them, the player lists the formats, for example
+`TAP/[XM]/MP3`, with the one playing in brackets, the browser row carries the
+same tag on a terminal 80 columns wide or more, and `t` switches the playing
+song to the next format from the start. The choice is remembered, and a
+format that will not play is skipped.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
 scene.org, ModArchive or Modland. Zip, 7z, RAR, LHA and LZX archives, XPK

@@ -21,6 +21,7 @@
 
 package com.adeptum.paula.playback;
 
+import com.adeptum.paula.demozoo.Variant;
 import com.adeptum.paula.playlist.Track;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -62,6 +63,20 @@ public final class TrackLoader implements AutoCloseable {
          */
         default List<String> artOf(Track track) {
             return List.of();
+        }
+
+        /**
+         * The versions of this tune that the release holds, when it holds more than one; none for a track
+         * whose source offers no choice.
+         */
+        default List<Variant> variants(Track track) throws IOException {
+            return List.of();
+        }
+
+        /**
+         * Makes this version the one that plays when the track is next resolved.
+         */
+        default void prefer(Track track, Variant variant) throws IOException {
         }
     }
 

@@ -73,6 +73,7 @@ public final class Screen {
             new Frame.Key("v", "next visualiser: spectrum, waterfall, vectorscope"),
             new Frame.Key("c", "cast to a device on the network"),
             new Frame.Key("f", "add or remove the playing song from your favourites"),
+            new Frame.Key("t", "switch to the next format of the release"),
             new Frame.Key("?", "close these keys"),
             new Frame.Key("click", "next visualiser, or mute the channel clicked"),
             new Frame.Key("shift/double click", "solo a channel"),
@@ -244,6 +245,9 @@ public final class Screen {
         lines.add(field("Title  ", meta.displayTitle()));
         lines.add(field("File   ", view.module().source().getFileName().toString()));
         lines.add(field("Format ", meta.format().name() + ", " + meta.channels() + " channels, " + meta.displayLength()));
+        if (view.formats() != null && !view.formats().isEmpty()) {
+            lines.add(field("Choice ", view.formats()));
+        }
         lines.add(field("Track  ", view.track() + " / " + view.trackCount()));
         if (view.trackLabel() != null) {
             lines.add(line(b -> b.style(Palette.LABEL).append("       ").style(Palette.VALUE).append(view.trackLabel())));
