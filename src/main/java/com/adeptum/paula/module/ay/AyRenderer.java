@@ -34,23 +34,7 @@ import java.util.OptionalLong;
 public final class AyRenderer implements Renderer {
 
     private static final int OUTPUT_CHANNELS = 2;
-    private static final int TONE_REGISTERS = 2;
-    private static final int MIXER_REGISTER = 7;
-    private static final int FIRST_VOLUME_REGISTER = 8;
-    private static final int ENVELOPE_PERIOD_REGISTER = 11;
-    private static final int ENVELOPE_SHAPE_REGISTER = 13;
-    private static final int ENVELOPE_FLAG = 0x10;
-    private static final int VOLUME_MASK = 0x0f;
-    private static final int NOISE_SHIFT = 3;
-    private static final double[] SPREAD = {0.15, 0.5, 0.85};
     private static final int MILLIS = 1000;
-
-    /**
-     * Each channel reaches full scale on its own, so three of them at once would carry the mix well past what
-     * a sample holds. The room left is what the loudest side of the spread can add up to, which keeps the
-     * three together inside the scale rather than clipping the sum flat.
-     */
-    private static final double HEADROOM = 1 / weightOfTheLoudestSide();
 
     private final AySource source;
     private final AyChip chip;
@@ -58,7 +42,7 @@ public final class AyRenderer implements Renderer {
     private final int framesPerSecond;
     private final int tickFrames;
     private final int tickRemainder;
-    private final int[] registers = new int[RegisterFrames.REGISTERS];
+    private final AyRegisters registers = new AyRegisters();
 
     private long rendered;
     private int untilTick;
@@ -71,10 +55,7 @@ public final class AyRenderer implements Renderer {
         this.framesPerSecond = framesPerSecond;
         this.tickFrames = sampleRate / framesPerSecond;
         this.tickRemainder = sampleRate % framesPerSecond;
-        this.chip = new AyChip(voicing, clockRate, sampleRate);
-        for (int channel = 0; channel < AyChip.CHANNELS; channel++) {
-            chip.pan(channel, SPREAD[channel]);
-        }
+        this.chip = AyRegisters.chip(voicing, clockRate, sampleRate);
     }
 
     @Override
@@ -125,10 +106,10 @@ public final class AyRenderer implements Renderer {
      * and spent as soon as it comes to one.
      */
     private boolean beginTick() {
-        if (!source.nextFrame(registers)) {
+        if (!source.nextFrame(registers.values())) {
             return false;
         }
-        apply();
+        registers.applyTo(chip);
         untilTick = tickFrames;
         carried += tickRemainder;
         if (carried >= framesPerSecond) {
@@ -147,42 +128,7 @@ public final class AyRenderer implements Renderer {
     }
 
     private static short pcm(double sample) {
-        return (short) Math.clamp(Math.round(sample * HEADROOM * Short.MAX_VALUE),
+        return (short) Math.clamp(Math.round(sample * AyRegisters.HEADROOM * Short.MAX_VALUE),
                 Short.MIN_VALUE, Short.MAX_VALUE);
-    }
-
-    private static double weightOfTheLoudestSide() {
-        double left = 0;
-        double right = 0;
-        for (final double pan : SPREAD) {
-            left += 1 - pan;
-            right += pan;
-        }
-        return Math.max(left, right);
-    }
-
-    private void apply() {
-        for (int channel = 0; channel < AyChip.CHANNELS; channel++) {
-            final int fine = registers[channel * TONE_REGISTERS];
-            final int coarse = registers[channel * TONE_REGISTERS + 1];
-            chip.tone(channel, fine | (coarse << Byte.SIZE));
-            final int level = registers[FIRST_VOLUME_REGISTER + channel];
-            chip.mixer(channel, bit(MIXER_REGISTER, channel), bit(MIXER_REGISTER, channel + NOISE_SHIFT),
-                    (level & ENVELOPE_FLAG) != 0);
-            chip.volume(channel, level & VOLUME_MASK);
-        }
-        chip.noise(registers[AyChip.CHANNELS * TONE_REGISTERS]);
-        chip.envelope(registers[ENVELOPE_PERIOD_REGISTER]
-                | (registers[ENVELOPE_PERIOD_REGISTER + 1] << Byte.SIZE));
-        if (registers[ENVELOPE_SHAPE_REGISTER] != RegisterFrames.SHAPE_UNTOUCHED) {
-            chip.envelopeShape(registers[ENVELOPE_SHAPE_REGISTER]);
-        }
-    }
-
-    /**
-     * The mixer register turns a generator off where its bit is set, rather than on.
-     */
-    private boolean bit(int register, int at) {
-        return (registers[register] >> at & 1) != 0;
     }
 }

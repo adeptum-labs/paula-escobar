@@ -35,6 +35,7 @@ import com.adeptum.paula.module.sid.SongLengths;
 import com.adeptum.paula.testing.TestArchives;
 import com.adeptum.paula.testing.TestModules;
 import com.adeptum.paula.testing.TestSids;
+import com.adeptum.paula.testing.TestTaps;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -84,7 +85,7 @@ class TrackResolverTest {
     private TrackResolver resolver(Path dir, Progress progress) {
         final CacheDirectory cache = new CacheDirectory(dir);
         return new TrackResolver(new DemozooClient(http, cache), http, cache,
-                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
     }
 
     @Test
@@ -164,6 +165,19 @@ class TrackResolverTest {
         assertArrayEquals(TestModules.proTracker(), Files.readAllBytes(resolved));
     }
 
+    @Test
+    void takesATapeOutOfAZipAsTheTune(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("readme.txt", README);
+        entries.put("surprisingly NOT four twenty.tap", TestTaps.loaderTape(TestTaps.SQUARE_WAVE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/surprisingly NOT four twenty.tap"), resolved);
+    }
+
     /**
      * A party archive can hold hundreds of entries, and unpacking one takes long enough that the screen should
      * say so rather than sit on "Loading".
@@ -178,7 +192,7 @@ class TrackResolverTest {
         final Progress progress = new Progress();
         final CacheDirectory cache = new CacheDirectory(dir);
         final TrackResolver resolver = new TrackResolver(new DemozooClient(http, cache), http, cache,
-                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none()), progress);
+                ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
 
         resolver.resolve(ENTRY);
 
@@ -647,6 +661,32 @@ class TrackResolverTest {
         final Path resolved = resolver(dir).resolve(ENTRY);
 
         assertEquals("funkyeeh.mod", resolved.getFileName().toString(), "the module comes before the C64 program");
+    }
+
+    @Test
+    void movesOnToTheNextDownloadWhenTheFirstHoldsATapeThatCannotBePlayed(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW, "ModlandFile", MODLAND_FILE));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("silent.tap", silentTape())), Optional.empty());
+        http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals("funkyeeh.mod", resolved.getFileName().toString(), "the module comes before the silent tape");
+    }
+
+    @Test
+    void offersATapeThatCannotBePlayedWhereNothingElseIs(@TempDir Path dir) throws IOException {
+        http.put(PRODUCTION_URL, productionJson("SceneOrgFile", SCENE_ORG_VIEW));
+        http.put(SCENE_ORG_FILE, TestArchives.zip(Map.of("silent.tap", silentTape())), Optional.empty());
+
+        final Path resolved = resolver(dir).resolve(ENTRY);
+
+        assertEquals(downloaded(dir, SCENE_ORG_FILE).resolve("extracted/silent.tap"), resolved,
+                "playing it tells why it cannot be played");
+    }
+
+    private static byte[] silentTape() {
+        return TestTaps.tape(TestTaps.codePart("x", TestTaps.ENTRY, TestTaps.WAIT_FOREVER));
     }
 
     @Test
