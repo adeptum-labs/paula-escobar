@@ -131,9 +131,12 @@ final class TapeLengths {
 
         @Override
         public void ayRegister(long tstate, int register, int value) {
+            final boolean wasAudible = ay.audible();
             ay.write(register, value);
             ayHeard |= ay.audible();
-            lastSound = tstate;
+            if (wasAudible || ay.audible()) {
+                lastSound = tstate;
+            }
         }
 
         boolean audible() {

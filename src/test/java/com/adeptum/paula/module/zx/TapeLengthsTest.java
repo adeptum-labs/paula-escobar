@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.adeptum.paula.cache.CacheDirectory;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -92,7 +93,26 @@ class TapeLengthsTest {
 
         assertEquals(EndReason.SILENT, run.reason());
         assertFalse(run.audible());
-        assertTrue(run.length().compareTo(TapeLengths.SILENCE.plusSeconds(1)) <= 0);
+        assertEquals(Duration.ofMillis(500), run.length());
+    }
+
+    @Test
+    void silenceAfterSoundEndsHalfASecondAfterTheLastEdge(@TempDir Path cache) throws Exception {
+        final TapeRun run = run(cache, PULSE_THEN_WAIT);
+
+        assertEquals(EndReason.SILENT, run.reason());
+        assertTrue(run.audible());
+        assertTrue(run.length().toMillis() >= 490 && run.length().toMillis() <= 520, run.length().toString());
+    }
+
+    @Test
+    void anAyThatKeepsBeingSilencedEndsTheSong(@TempDir Path cache) throws Exception {
+        final TapeRun run = run(cache, AY_TONE_THEN_REWRITES_SILENCE);
+
+        assertEquals(Spectrum.Model.K128, run.model());
+        assertEquals(EndReason.SILENT, run.reason());
+        assertTrue(run.audible());
+        assertTrue(run.length().compareTo(Duration.ofSeconds(1)) < 0, run.length().toString());
     }
 
     @Test
