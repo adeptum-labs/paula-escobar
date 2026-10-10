@@ -31,9 +31,10 @@ import z80core.Z80;
 /**
  * A 48K or 128K Spectrum around the Z80 core, without its ROM: the programs on tapes are music engines that
  * start from a BASIC loader and never call back into it, so the ROM is a stub that answers the frame interrupt,
- * counting FRAMES as the real handler does, and ends the run if the program jumps anywhere else in it. Memory is banked, so the 128K pages are the same
- * model with the paging port wired up. The ULA delays memory in the banks it shares with the screen, and the
- * ports it answers, exactly as the table of the real machine says, since the engines count T-states.
+ * counting FRAMES as the real handler does, and ends the run if the program jumps anywhere else in it. Memory
+ * is banked, so the 128K pages are the same model with the paging port wired up. The ULA delays memory in the
+ * banks it shares with the screen, and the ports it answers, exactly as the table of the real machine says,
+ * since the engines count T-states.
  */
 final class Spectrum extends MemIoOps implements NotifyOps {
 

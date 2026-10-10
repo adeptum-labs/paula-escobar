@@ -28,9 +28,9 @@ import com.adeptum.paula.module.ModuleLoader;
 import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.module.UnsupportedModuleException;
 import java.io.IOException;
-import java.time.Duration;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Set;
 
 /**
@@ -97,4 +97,3 @@ public final class TapLoader implements ModuleLoader {
                 .build();
     }
 }
-

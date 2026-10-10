@@ -167,4 +167,3 @@ class TapRendererTest {
         assertTrue(peak(buffer) > 1000, "an AY tone with no beeper edges is audible, peak was " + peak(buffer));
     }
 }
-

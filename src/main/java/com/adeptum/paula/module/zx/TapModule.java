@@ -36,4 +36,3 @@ record TapModule(Path source, ModuleMetadata metadata, TapProgram program, TapeR
         return new TapRenderer(program, run, sampleRate);
     }
 }
-

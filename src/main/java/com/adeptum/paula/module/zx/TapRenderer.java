@@ -192,4 +192,3 @@ final class TapRenderer implements Renderer, MachineOutput {
         return (short) Math.clamp(Math.round(sample * Short.MAX_VALUE), Short.MIN_VALUE, Short.MAX_VALUE);
     }
 }
-

@@ -115,4 +115,3 @@ class TapLoaderTest {
         assertThrows(UnsupportedModuleException.class, () -> loader().load(raw));
     }
 }
-
