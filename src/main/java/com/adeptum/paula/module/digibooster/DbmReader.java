@@ -310,7 +310,9 @@ final class DbmReader {
 
     /**
      * The points of a switched off envelope are left at zero, and its loop and sustain points unset, whatever
-     * the file holds for them. Where both sustain points are set, the lower one comes first.
+     * the file holds for them. Where both sustain points are set, the lower one comes first. DigiBooster Pro 2
+     * saved some envelopes from stale memory, with holds and points outside any envelope; such an envelope
+     * goes to no instrument rather than the module being refused.
      */
     private DbmEnvelope readEnvelope(boolean panning) throws IOException {
         final int instrument = unsigned16();
@@ -321,12 +323,11 @@ final class DbmReader {
         final int enteredLoopLast = unsigned8();
         final int enteredSustainB = unsigned8();
         final boolean enabled = (flags & ENVELOPE_ENABLED) != 0;
-        final int sustainA = enabled && (flags & ENVELOPE_SUSTAIN_A) != 0 ? point(enteredSustainA, sections) : DbmEnvelope.NONE;
-        final int sustainB = enabled && (flags & ENVELOPE_SUSTAIN_B) != 0 ? point(enteredSustainB, sections) : DbmEnvelope.NONE;
+        final int sustainA = enabled && (flags & ENVELOPE_SUSTAIN_A) != 0 ? enteredSustainA : DbmEnvelope.NONE;
+        final int sustainB = enabled && (flags & ENVELOPE_SUSTAIN_B) != 0 ? enteredSustainB : DbmEnvelope.NONE;
         final boolean loops = enabled && (flags & ENVELOPE_LOOP) != 0;
-        if (loops && (enteredLoopLast > sections || enteredLoopFirst >= enteredLoopLast)) {
-            throw corrupt("an envelope looping from " + enteredLoopFirst + " to " + enteredLoopLast);
-        }
+        boolean fits = holdsWithin(sustainA, sections) && holdsWithin(sustainB, sections)
+                && (!loops || enteredLoopLast <= sections && enteredLoopFirst <= enteredLoopLast);
         final boolean sustained = sustainA != DbmEnvelope.NONE && sustainB != DbmEnvelope.NONE;
         final int[] positions = new int[DbmEnvelope.MAX_SECTIONS + 1];
         final int[] values = new int[DbmEnvelope.MAX_SECTIONS + 1];
@@ -334,11 +335,12 @@ final class DbmReader {
             final int at = signed16();
             final int value = envelopeValue(signed16(), panning);
             if (enabled && point <= sections) {
-                positions[point] = envelopePosition(at);
-                values[point] = checked(value, panning);
+                positions[point] = at;
+                values[point] = value;
+                fits &= pointFits(at, value, panning);
             }
         }
-        return new DbmEnvelope(instrument < 1 || instrument > MAX_COUNT ? DbmEnvelope.NONE : instrument, sections,
+        return new DbmEnvelope(!fits || instrument < 1 || instrument > MAX_COUNT ? DbmEnvelope.NONE : instrument, sections,
                 loops ? enteredLoopFirst : DbmEnvelope.NONE, loops ? enteredLoopLast : DbmEnvelope.NONE,
                 sustained ? Math.min(sustainA, sustainB) : sustainA, sustained ? Math.max(sustainA, sustainB) : sustainB,
                 positions, values);
@@ -348,27 +350,13 @@ final class DbmReader {
         return panning && creatorVersion == DbmFile.DIGIBOOSTER_2 ? (value << PANNING_SCALE_DIGIBOOSTER_2) - MAX_PANNING : value;
     }
 
-    private int envelopePosition(int at) throws IOException {
-        if (at < 0 || at > MAX_ENVELOPE_POSITION) {
-            throw corrupt("an envelope point at " + at);
-        }
-        return at;
+    private static boolean holdsWithin(int point, int sections) {
+        return point == DbmEnvelope.NONE || point <= sections;
     }
 
-    private int checked(int value, boolean panning) throws IOException {
-        final int lowest = panning ? -MAX_PANNING : 0;
-        final int highest = panning ? MAX_PANNING : MAX_VOLUME;
-        if (value < lowest || value > highest) {
-            throw corrupt("an envelope value of " + value);
-        }
-        return value;
-    }
-
-    private int point(int point, int sections) throws IOException {
-        if (point > sections) {
-            throw corrupt("an envelope point " + point + " beyond its " + sections + " sections");
-        }
-        return point;
+    private static boolean pointFits(int at, int value, boolean panning) {
+        return at >= 0 && at <= MAX_ENVELOPE_POSITION
+                && value >= (panning ? -MAX_PANNING : 0) && value <= (panning ? MAX_PANNING : MAX_VOLUME);
     }
 
     /**

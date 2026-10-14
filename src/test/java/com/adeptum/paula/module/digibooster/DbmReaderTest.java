@@ -36,6 +36,8 @@ import org.junit.jupiter.api.Test;
 class DbmReaderTest {
 
     private static final int C4 = 4;
+    private static final int ENVELOPE_LOOP_FIRST_AT = 15;
+    private static final int ENVELOPE_FIRST_POSITION_AT = 18;
 
     private static DbmFile module() throws IOException {
         return DbmReader.read(TestModules.digiBooster());
@@ -102,6 +104,26 @@ class DbmReaderTest {
         assertEquals(2, envelope.loopLast());
         assertEquals(64, envelope.values()[0]);
         assertEquals(20, envelope.positions()[2]);
+    }
+
+    @Test
+    void leavesOffAnEnvelopeSavedFromStaleMemory() throws IOException {
+        final byte[] file = TestModules.digiBooster();
+        file[indexOf(file, "VENV") + ENVELOPE_FIRST_POSITION_AT] = (byte) 0xFC;
+
+        assertEquals(DbmEnvelope.NONE, DbmReader.read(file).instruments().getFirst().volumeEnvelope());
+    }
+
+    @Test
+    void keepsAnEnvelopeLoopOnOnePoint() throws IOException {
+        final byte[] file = TestModules.digiBooster();
+        file[indexOf(file, "VENV") + ENVELOPE_LOOP_FIRST_AT] = 2;
+        final DbmFile module = DbmReader.read(file);
+        final DbmEnvelope envelope = module.volumeEnvelopes().getFirst();
+
+        assertEquals(0, module.instruments().getFirst().volumeEnvelope());
+        assertEquals(2, envelope.loopFirst());
+        assertEquals(2, envelope.loopLast());
     }
 
     @Test
