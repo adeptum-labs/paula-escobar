@@ -80,6 +80,17 @@ class DigiBoosterRendererTest {
     }
 
     @Test
+    void playsAtTheLevelTheAutoBoostFound() throws IOException {
+        final DbmFile module = DbmReader.read(TestModules.digiBooster());
+        new DbmEngine(module, SAMPLE_RATE, 0).mix(out, FRAMES);
+        final int unboosted = loudest();
+
+        new DigiBoosterRenderer(module, SAMPLE_RATE).render(out);
+
+        assertTrue(loudest() > unboosted);
+    }
+
+    @Test
     void ignoresAChannelTheModuleDoesNotHave() throws IOException {
         final Renderer renderer = renderer();
 

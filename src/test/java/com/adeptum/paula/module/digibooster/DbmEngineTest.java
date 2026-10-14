@@ -39,7 +39,11 @@ class DbmEngineTest {
     private final short[] out = new short[FRAMES * STEREO];
 
     private DbmEngine engine() throws IOException {
-        return new DbmEngine(DbmReader.read(TestModules.digiBooster()), SAMPLE_RATE);
+        return engine(0);
+    }
+
+    private static DbmEngine engine(int decibels) throws IOException {
+        return new DbmEngine(DbmReader.read(TestModules.digiBooster()), SAMPLE_RATE, decibels);
     }
 
     @Test
@@ -87,6 +91,16 @@ class DbmEngineTest {
         engine.mix(out, FRAMES);
 
         assertNotEquals(0, engine.order(), "the second order of the playlist is playing");
+    }
+
+    @Test
+    void doublesTheLevelEverySixDecibelsOfBoost() throws IOException {
+        engine(0).mix(out, FRAMES);
+        final int unboosted = loudest();
+
+        engine(6).mix(out, FRAMES);
+
+        assertEquals(2 * unboosted, loudest(), 1);
     }
 
     private int loudest() {

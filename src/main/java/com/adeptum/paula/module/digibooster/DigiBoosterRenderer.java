@@ -43,6 +43,7 @@ public final class DigiBoosterRenderer implements Renderer {
     private static final int GAIN_UNIT = 1 << 14;
     private static final int CATCH_UP_FRAMES_PER_BUFFER = 16384;
     private static final int SCRATCH_FRAMES = 4096;
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
 
     private static final long LONGEST_SONG_SECONDS = 60 * 60;
 
@@ -53,6 +54,8 @@ public final class DigiBoosterRenderer implements Renderer {
     private final boolean[] muted;
 
     private DbmEngine engine;
+    private DbmAutoBoost autoBoost;
+    private int decibels;
     private long renderedFrames;
     private long pendingFrames;
     private boolean ended;
@@ -61,7 +64,8 @@ public final class DigiBoosterRenderer implements Renderer {
     public DigiBoosterRenderer(DbmFile file, int sampleRate) {
         this.file = file;
         this.sampleRate = sampleRate;
-        this.engine = new DbmEngine(file, sampleRate);
+        this.engine = new DbmEngine(file, sampleRate, decibels);
+        this.autoBoost = new DbmAutoBoost(file);
         this.muted = new boolean[engine.tracks()];
         this.songFrames = DbmEngine.songFrames(file, sampleRate, LONGEST_SONG_SECONDS * sampleRate);
     }
@@ -69,11 +73,14 @@ public final class DigiBoosterRenderer implements Renderer {
     @Override
     public int render(short[] interleavedStereo) {
         final int frames = interleavedStereo.length / STEREO;
-        catchUp();
+        final boolean boosted = boosted(frames);
+        if (boosted) {
+            catchUp();
+        }
         if (ended) {
             return 0;
         }
-        if (pendingFrames > 0) {
+        if (!boosted || pendingFrames > 0) {
             Arrays.fill(interleavedStereo, 0, frames * STEREO, (short) 0);
             return frames;
         }
@@ -97,7 +104,7 @@ public final class DigiBoosterRenderer implements Renderer {
     public void seek(Duration target) {
         final long targetFrames = Math.max(0, target.toMillis() * sampleRate / MILLIS);
         if (targetFrames < renderedFrames) {
-            engine = new DbmEngine(file, sampleRate);
+            engine = new DbmEngine(file, sampleRate, decibels);
             applyMutes();
             renderedFrames = 0;
             ended = false;
@@ -148,6 +155,21 @@ public final class DigiBoosterRenderer implements Renderer {
             waveform[at] = (double) sample[start + at] / Short.MAX_VALUE * volume;
         }
         return new ChannelState(number + 1, track.instrument, volume, waveform, track.muted);
+    }
+
+    /**
+     * Nothing is played until the autoboost has heard the whole song, so the level never changes once the
+     * music has started. It gets about the time of the buffer asked for at each go, which only ever holds up
+     * silence.
+     */
+    private boolean boosted(int frames) {
+        if (autoBoost != null && autoBoost.advance(frames * NANOS_PER_SECOND / sampleRate)) {
+            decibels = autoBoost.decibels();
+            autoBoost = null;
+            engine = new DbmEngine(file, sampleRate, decibels);
+            applyMutes();
+        }
+        return autoBoost == null;
     }
 
     private void catchUp() {

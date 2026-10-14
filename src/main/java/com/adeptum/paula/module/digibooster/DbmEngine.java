@@ -70,6 +70,7 @@ final class DbmEngine {
     private static final int CLIP_HIGH = 0x7FFF;
     private static final int CLIP_LOW = 0x8001;
     private static final int MAX_LEVEL = 0x7FFFFFFF;
+    private static final int DECIBELS_PER_DOUBLING = 6;
 
     private final DbmFile module;
     private final int sampleRate;
@@ -107,7 +108,11 @@ final class DbmEngine {
     private short[] preMix = new short[0];
     private int[] accumulator = new int[0];
 
-    DbmEngine(DbmFile module, int sampleRate) {
+    /**
+     * The boost is in decibels above the level at which the mix cannot clip even with every track at full
+     * amplitude, the level libdigibooster3 starts at.
+     */
+    DbmEngine(DbmFile module, int sampleRate, int decibels) {
         this.module = module;
         this.sampleRate = sampleRate;
         this.tracks = new DbmTrack[module.tracks()];
@@ -115,9 +120,22 @@ final class DbmEngine {
         for (int track = 0; track < tracks.length; track++) {
             tracks[track] = new DbmTrack(shifts);
         }
-        this.boostMultiplier = (int) ((long) DbmTables.UNIT * DbmTables.DECIBELS[0] / tracks.length >> Short.SIZE);
-        this.boostLimit = boostMultiplier == 0 ? MAX_LEVEL : MAX_LEVEL / boostMultiplier;
+        this.boostMultiplier = boostMultiplier(decibels, tracks.length);
+        this.boostLimit = boostLimit(decibels, tracks.length);
         reset();
+    }
+
+    private static int boostMultiplier(int decibels, int tracks) {
+        final long doubled = (long) DbmTables.UNIT << decibels / DECIBELS_PER_DOUBLING;
+        return (int) (doubled * DbmTables.DECIBELS[decibels % DECIBELS_PER_DOUBLING] / tracks >> Short.SIZE);
+    }
+
+    /**
+     * The loudest mixed level that still fits the output at this boost; anything above it clips.
+     */
+    static int boostLimit(int decibels, int tracks) {
+        final int multiplier = boostMultiplier(decibels, tracks);
+        return multiplier == 0 ? MAX_LEVEL : MAX_LEVEL / multiplier;
     }
 
     int tracks() {
@@ -129,7 +147,7 @@ final class DbmEngine {
      * song that jumps back on itself and never reaches an end.
      */
     static OptionalLong songFrames(DbmFile module, int sampleRate, long limit) {
-        final DbmEngine engine = new DbmEngine(module, sampleRate);
+        final DbmEngine engine = new DbmEngine(module, sampleRate, 0);
         long frames = 0;
         while (frames < limit) {
             final boolean ended = engine.nextTick();
@@ -185,6 +203,17 @@ final class DbmEngine {
         }
         flush(out, frames);
         return mixed;
+    }
+
+    /**
+     * The loudest the last mix got before the boost, on either side.
+     */
+    int loudest(int frames) {
+        int loudest = 0;
+        for (int slot = 0; slot < frames * STEREO; slot++) {
+            loudest = Math.max(loudest, Math.abs(accumulator[slot]));
+        }
+        return loudest;
     }
 
     private void room(int frames) {
