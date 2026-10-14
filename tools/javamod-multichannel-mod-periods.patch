@@ -1,0 +1,21 @@
+--- a/source/de/quippy/javamod/multimedia/mod/mixer/ProTrackerMixer.java
++++ b/source/de/quippy/javamod/multimedia/mod/mixer/ProTrackerMixer.java
+@@ -560,7 +560,8 @@
+ 					// I consider it a bug that with arpeggios the base note is not newly calculated with finetune
+ 					// but the notes 1 and 2 are. However, that is what PT2 did. I guess that was fixed.
+ 					// FT2 however does not change instruments when no note is set - so there we are fine.
+-					if (isMOD)
++					// Generic multichannel MODs are tuned like XMs, with the finetune in the XM scale, which the PT2 table lookup cannot take
++					if (frequencyTableType == ModConstants.AMIGA_TABLE)
+ 					{
+ 						aktMemo.arpeggioNote[0] = getFineTunePeriod(aktMemo);
+ 						aktMemo.arpeggioNote[1] = adjustPTPeriodFromNote(aktMemo, aktMemo.arpeggioNote[0], (aktMemo.arpeggioParam >>4));
+@@ -1196,7 +1197,7 @@
+ 
+ 		if (aktMemo.glissando)
+ 		{
+-			if (isMOD)
++			if (frequencyTableType == ModConstants.AMIGA_TABLE)
+ 				setNewPlayerTuningFor(aktMemo, adjustPTPeriodFromNote(aktMemo, aktMemo.currentNotePeriod, 0));
+ 			else
+ 				setNewPlayerTuningFor(aktMemo, adjustFTPeriodFromNote(aktMemo, aktMemo.currentNotePeriod, 0));

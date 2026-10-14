@@ -106,6 +106,15 @@ class JavaModRendererTest {
     }
 
     /**
+     * A module of more than four channels is tuned like a FastTracker one, whose finetune runs from -128 to 127
+     * instead of ProTracker's -8 to 7, so its arpeggio and glissando must not look the finetune up as ProTracker's.
+     */
+    @Test
+    void keepsRenderingAnEightChannelModWithAFinetunedArpeggioAndGlissando(@TempDir Path dir) throws Exception {
+        assertRendersASecond(new JavaModLoader().load(TestModules.writeEightChannelFinetunedArpeggio(dir)));
+    }
+
+    /**
      * A tracker writes an instrument with no sample of its own and a MIDI channel for an outboard synth to
      * sound; JavaMod hands those notes to a MIDI mixer, and the player has to give it one to hand them to.
      */

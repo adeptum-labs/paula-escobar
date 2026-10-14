@@ -93,6 +93,12 @@ public final class TestModules {
     private static final int SHORT_LOOP_LENGTH = 256;
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
+    private static final int PERIOD_F2 = 320;
+    private static final int FIRST_SAMPLE_FINETUNE_AT = 44;
+    private static final int ARPEGGIO = 0x00;
+    private static final int TONE_PORTAMENTO = 0x03;
+    private static final int EXTENDED = 0x0e;
+    private static final int GLISSANDO_ON = 0x31;
     private static final int DBM_LENGTH = 1024;
     public static final int MED_PLAY_SEQUENCE_AT = 52 + 63 * 8 + 4;
     public static final int MED_TRACKS = 2;
@@ -324,6 +330,25 @@ public final class TestModules {
             buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
         }
         return buffer.array();
+    }
+
+    /**
+     * An eight-channel module, which JavaMod plays with FastTracker's tuning, whose sample is finetuned and whose
+     * first channel arpeggiates while the second glides to another note with glissando on.
+     */
+    public static Path writeEightChannelFinetunedArpeggio(Path directory) throws IOException {
+        final byte[] module = eightChannel(new byte[0]);
+        module[FIRST_SAMPLE_FINETUNE_AT] = 3;
+        final ByteBuffer pattern = ByteBuffer.wrap(module).position(HEADER_LENGTH);
+        putNote(pattern, 1, PERIOD_C2, ARPEGGIO, 0x47);
+        putNote(pattern, 1, PERIOD_C2, EXTENDED, GLISSANDO_ON);
+        pattern.position(HEADER_LENGTH + FLEX_CHANNELS * BYTES_PER_NOTE + BYTES_PER_NOTE);
+        putNote(pattern, 0, PERIOD_F2, TONE_PORTAMENTO, 0x10);
+        return Files.write(directory.resolve("eight.mod"), module);
+    }
+
+    private static void putNote(ByteBuffer pattern, int sample, int period, int effect, int parameter) {
+        pattern.put((byte) (period >> 8)).put((byte) period).put((byte) (sample << 4 | effect)).put((byte) parameter);
     }
 
     public static Path writeDigiBooster(Path directory) throws IOException {
