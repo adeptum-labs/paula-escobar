@@ -91,14 +91,17 @@ public final class TestModules {
     private static final int SAMPLE_LENGTH = 64;
     private static final int LONG_SAMPLE_LENGTH = 1000;
     private static final int SHORT_LOOP_LENGTH = 256;
+    private static final int LATE_LOOP_START = 800;
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int PERIOD_F2 = 320;
     private static final int FIRST_SAMPLE_FINETUNE_AT = 44;
+    private static final int NO_EFFECT = 0x00;
     private static final int ARPEGGIO = 0x00;
     private static final int TONE_PORTAMENTO = 0x03;
     private static final int EXTENDED = 0x0e;
     private static final int GLISSANDO_ON = 0x31;
+    private static final int NOTE_DELAY_ONE_TICK = 0xd1;
     private static final int DBM_LENGTH = 1024;
     public static final int MED_PLAY_SEQUENCE_AT = 52 + 63 * 8 + 4;
     public static final int MED_TRACKS = 2;
@@ -330,6 +333,32 @@ public final class TestModules {
             buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
         }
         return buffer.array();
+    }
+
+    /**
+     * A ProTracker module whose first channel loops a short sample, then names a long sample whose loop starts
+     * past the short one's end, with its note a tick late; the long one is swapped in at the short one's loop end
+     * before the note sounds.
+     */
+    public static Path writeProTrackerDelayedNoteAfterSwap(Path directory) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + SAMPLE_LENGTH + LONG_SAMPLE_LENGTH);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded("short", 22)).putShort((short) (SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) (SAMPLE_LENGTH / 2));
+        buffer.put(padded("long", 22)).putShort((short) (LONG_SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) (LATE_LOOP_START / 2)).putShort((short) ((LONG_SAMPLE_LENGTH - LATE_LOOP_START) / 2));
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        putNote(buffer, 1, PERIOD_C2, NO_EFFECT, 0);
+        buffer.position(HEADER_LENGTH + ROW_LENGTH);
+        putNote(buffer, 2, PERIOD_C2, EXTENDED, NOTE_DELAY_ONE_TICK);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        for (int i = 0; i < SAMPLE_LENGTH + LONG_SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return Files.write(directory.resolve("delay.mod"), buffer.array());
     }
 
     /**

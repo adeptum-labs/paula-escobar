@@ -82,6 +82,15 @@ class JavaModRendererTest {
     }
 
     /**
+     * A sample named with a delayed note is swapped in at the loop end of the one playing before the note sounds,
+     * and the ramp down of the note fades out the swapped-in sample at its own position.
+     */
+    @Test
+    void keepsRenderingADelayedNoteAfterASampleSwap(@TempDir Path dir) throws Exception {
+        assertRendersASecond(new JavaModLoader().load(TestModules.writeProTrackerDelayedNoteAfterSwap(dir)));
+    }
+
+    /**
      * A channel that was never given a sample has no frequency to tune a note to.
      */
     @Test
