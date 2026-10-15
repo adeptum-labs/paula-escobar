@@ -53,6 +53,8 @@ class JavaModRendererTest {
     private static final int FIRST_SUBSONG_MILLIS = TestModules.S3M_FIRST_SUBSONG_ROWS * TestModules.S3M_ROW_MILLIS;
     private static final int SECOND_SUBSONG_MILLIS = TestModules.S3M_SECOND_SUBSONG_ROWS * TestModules.S3M_ROW_MILLIS;
     private static final int A_ROW_OR_TWO_MILLIS = 250;
+    private static final int A_FEW_TICKS_MILLIS = 60;
+    private static final int ROWS_BEFORE_STOPPING = 4;
     private static final Duration LONGER_THAN_ANY_FADE = Duration.ofMinutes(1);
 
     @Test
@@ -69,6 +71,42 @@ class JavaModRendererTest {
             buffers++;
         }
         assertTrue(buffers < MAX_BUFFERS, "song should end once it loops and fades out");
+    }
+
+    /**
+     * ProTracker stops the song at F00 but leaves its voices running, so a sample started on that row rings until
+     * its loop comes round, and the song ends there rather than at the end of the pattern.
+     */
+    @Test
+    void ringsOutTheVoicesOfASongStoppedWithASpeedOfZero(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTrackerStoppedRowsAfterItsNote(dir, 0)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        assertEquals(FRAMES, renderer.render(buffer));
+        assertTrue(peak(buffer) > 1000, "first buffer should contain the square wave");
+        for (int i = 0; i < MAX_BUFFERS && renderer.render(buffer) > 0; i++) {
+            assertTrue(peak(buffer) > 1000, "buffer " + i + " should still ring");
+        }
+
+        assertEquals(TestModules.RINGING_SAMPLE_MILLIS, renderer.position().toMillis(), A_FEW_TICKS_MILLIS);
+        assertEquals(TestModules.RINGING_SAMPLE_MILLIS, renderer.length().orElseThrow().toMillis(), A_FEW_TICKS_MILLIS);
+    }
+
+    /**
+     * The length is measured without mixing, yet a note started rows before the song stops has played part of
+     * its sample by then, and rings out only the rest of it.
+     */
+    @Test
+    void measuresTheRingOutFromWhereTheVoicesHaveGotTo(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTrackerStoppedRowsAfterItsNote(dir, ROWS_BEFORE_STOPPING)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        for (int i = 0; i < MAX_BUFFERS && renderer.render(buffer) > 0; i++) {
+            assertTrue(peak(buffer) > 1000, "buffer " + i + " should still ring");
+        }
+
+        assertEquals(TestModules.RINGING_SAMPLE_MILLIS, renderer.position().toMillis(), A_FEW_TICKS_MILLIS);
+        assertEquals(TestModules.RINGING_SAMPLE_MILLIS, renderer.length().orElseThrow().toMillis(), A_FEW_TICKS_MILLIS);
     }
 
     /**

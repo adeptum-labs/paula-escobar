@@ -95,6 +95,9 @@ public final class TestModules {
     private static final int LONG_SAMPLE_LENGTH = 1000;
     private static final int SHORT_LOOP_LENGTH = 256;
     private static final int LATE_LOOP_START = 800;
+    public static final int RINGING_SAMPLE_MILLIS = 1000;
+    private static final int C2_HERTZ = 8363;
+    private static final int RINGING_SAMPLE_LENGTH = C2_HERTZ * RINGING_SAMPLE_MILLIS / 1000 / 2 * 2;
     private static final int ROW_LENGTH = 16;
     private static final int PERIOD_C2 = 428;
     private static final int PERIOD_F2 = 320;
@@ -103,6 +106,7 @@ public final class TestModules {
     private static final int ARPEGGIO = 0x00;
     private static final int TONE_PORTAMENTO = 0x03;
     private static final int EXTENDED = 0x0e;
+    private static final int SET_SPEED = 0x0f;
     private static final int GLISSANDO_ON = 0x31;
     private static final int NOTE_DELAY_ONE_TICK = 0xd1;
     private static final int DBM_LENGTH = 1024;
@@ -413,6 +417,30 @@ public final class TestModules {
             buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
         }
         return Files.write(directory.resolve("delay.mod"), buffer.array());
+    }
+
+    /**
+     * A ProTracker module whose only note plays a sample looping over the whole of its second-long length, and
+     * which stops the song with F00 the given number of rows after the note.
+     */
+    public static Path writeProTrackerStoppedRowsAfterItsNote(Path directory, int rows) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + RINGING_SAMPLE_LENGTH);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded(SAMPLE_NAME, 22)).putShort((short) (RINGING_SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) (RINGING_SAMPLE_LENGTH / 2));
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        buffer.position(HEADER_LENGTH + rows * ROW_LENGTH);
+        putNote(buffer, 0, 0, SET_SPEED, 0);
+        buffer.position(HEADER_LENGTH);
+        putNote(buffer, 1, PERIOD_C2, rows == 0 ? SET_SPEED : NO_EFFECT, 0);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        for (int i = 0; i < RINGING_SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return Files.write(directory.resolve("stopped.mod"), buffer.array());
     }
 
     /**
