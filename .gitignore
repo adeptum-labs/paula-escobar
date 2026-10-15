@@ -1,4 +1,5 @@
 .claude/
+.graphify-out/
 target/
 *.log
 .idea/
