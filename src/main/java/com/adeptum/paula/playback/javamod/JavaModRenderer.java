@@ -31,6 +31,7 @@ import de.quippy.javamod.multimedia.mod.mixer.BasicModMixer;
 import de.quippy.javamod.multimedia.mod.mixer.ChannelMemory;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,7 +50,9 @@ public final class JavaModRenderer implements Renderer {
     private static final int WAVEFORM_SAMPLES = 128;
     private static final double FULL_CHANNEL_VOLUME = 2.0 * ModConstants.MAXCHANNELVOLUME;
 
-    private final BasicModMixer mixer;
+    private final Module tracker;
+    private final Subsongs subsongs;
+    private final long[] subsongMillis;
     private final int sampleRate;
     private final int channelCount;
     private final Duration length;
@@ -59,6 +62,8 @@ public final class JavaModRenderer implements Renderer {
      */
     private final Map<Sample, Double> samplePeaks = new ConcurrentHashMap<>();
     private final Set<Integer> muted = ConcurrentHashMap.newKeySet();
+    private BasicModMixer mixer;
+    private int subsong;
     private long[] left = new long[0];
     private long[] right = new long[0];
     private long renderedFrames;
@@ -66,33 +71,41 @@ public final class JavaModRenderer implements Renderer {
     /**
      * An instrument with no sample of its own and a MIDI channel named on it is sounded by a synth, not by the
      * mixer, which needs a MIDI mixer to hand those notes to. Paula opens no device, so it stays silent.
+     *
+     * <p>A module of several subsongs plays as all of them back to back, so the length of each is measured
+     * here, the first one last, so that its mixer is the one left to play.</p>
      */
-    public JavaModRenderer(Module tracker, int sampleRate) {
+    public JavaModRenderer(Module tracker, Subsongs subsongs, int sampleRate) {
+        this.tracker = tracker;
         this.sampleRate = sampleRate;
-        this.mixer = tracker.getModMixer(sampleRate, ModConstants.INTERPOLATION_WINDOWSFIR,
-                ModConstants.AMIGAEMULATION_NONE, ModConstants.PLAYER_LOOP_FADEOUT, MAX_NNA_CHANNELS);
-        mixer.setModMidiMixer(new ModMidiMixer(null, null, tracker.getNChannels()));
-        mixer.setFireUpdates(false);
         this.channelCount = tracker.getNChannels();
-        this.length = Duration.ofMillis(mixer.getLengthInMilliseconds());
+        this.subsongs = subsongs;
+        this.subsongMillis = new long[subsongs.count()];
+        BasicModMixer measured = null;
+        for (int index = subsongMillis.length - 1; index >= 0; index--) {
+            measured = switchTo(index);
+            subsongMillis[index] = measured.getLengthInMilliseconds();
+        }
+        this.mixer = measured;
+        this.length = Duration.ofMillis(Arrays.stream(subsongMillis).sum());
     }
 
     @Override
     public int render(short[] interleavedStereo) {
         final int frames = interleavedStereo.length / OUTPUT_CHANNELS;
         ensureBuffers(frames);
-        final int mixed = mixer.mixIntoBuffer(left, right, frames);
-        if (mixed <= 0) {
-            return 0;
+        int filled = 0;
+        while (filled < frames) {
+            final int mixed = mixer.mixIntoBuffer(left, right, frames - filled);
+            if (mixed > 0) {
+                writeFrames(interleavedStereo, filled, mixed);
+                filled += mixed;
+            } else if (!nextSubsong()) {
+                break;
+            }
         }
-        for (int i = 0; i < mixed; i++) {
-            interleavedStereo[i * OUTPUT_CHANNELS] = toPcm16(left[i]);
-            interleavedStereo[i * OUTPUT_CHANNELS + 1] = toPcm16(right[i]);
-            left[i] = 0;
-            right[i] = 0;
-        }
-        renderedFrames += mixed;
-        return mixed;
+        renderedFrames += filled;
+        return filled;
     }
 
     @Override
@@ -101,12 +114,18 @@ public final class JavaModRenderer implements Renderer {
     }
 
     /**
-     * JavaMod replays the song from the start without mixing and reports how far it actually got, which is the
-     * first tick at or past the target.
+     * JavaMod replays the subsong from the start without mixing and reports how far it actually got, which is
+     * the first tick at or past the target.
      */
     @Override
     public void seek(Duration target) {
-        renderedFrames = mixer.seek(target.toMillis());
+        final long millis = Math.max(0, target.toMillis());
+        final int wanted = subsongOf(millis);
+        if (wanted != subsong) {
+            mixer = switchTo(wanted);
+        }
+        final long offset = offsetMillis(wanted);
+        renderedFrames = offset * sampleRate / 1000 + mixer.seek(millis - offset);
         applyMutes();
     }
 
@@ -155,6 +174,60 @@ public final class JavaModRenderer implements Renderer {
         for (int i = 0; i < Math.min(channelCount, memory.length); i++) {
             memory[i].muted = muted.contains(i + 1);
         }
+    }
+
+    /**
+     * Installs the subsong as the tracker's order list and builds the mixer that plays it. A mixer reads the
+     * arrangement as it goes, so playing another subsong means building another mixer.
+     */
+    private BasicModMixer switchTo(int index) {
+        subsongs.select(index);
+        subsong = index;
+        final BasicModMixer created = tracker.getModMixer(sampleRate, ModConstants.INTERPOLATION_WINDOWSFIR,
+                ModConstants.AMIGAEMULATION_NONE, ModConstants.PLAYER_LOOP_FADEOUT, MAX_NNA_CHANNELS);
+        created.setModMidiMixer(new ModMidiMixer(null, null, channelCount));
+        created.setFireUpdates(false);
+        return created;
+    }
+
+    private boolean nextSubsong() {
+        if (subsong + 1 >= subsongs.count()) {
+            return false;
+        }
+        mixer = switchTo(subsong + 1);
+        applyMutes();
+        return true;
+    }
+
+    private void writeFrames(short[] interleavedStereo, int at, int frames) {
+        for (int i = 0; i < frames; i++) {
+            interleavedStereo[(at + i) * OUTPUT_CHANNELS] = toPcm16(left[i]);
+            interleavedStereo[(at + i) * OUTPUT_CHANNELS + 1] = toPcm16(right[i]);
+            left[i] = 0;
+            right[i] = 0;
+        }
+    }
+
+    /**
+     * Which subsong the position falls in, counting the frames of the earlier ones; past the end is the last.
+     */
+    private int subsongOf(long millis) {
+        long remaining = millis;
+        for (int index = 0; index < subsongMillis.length - 1; index++) {
+            if (remaining < subsongMillis[index]) {
+                return index;
+            }
+            remaining -= subsongMillis[index];
+        }
+        return subsongMillis.length - 1;
+    }
+
+    private long offsetMillis(int index) {
+        long offset = 0;
+        for (int before = 0; before < index; before++) {
+            offset += subsongMillis[before];
+        }
+        return offset;
     }
 
     static short toPcm16(long sample) {

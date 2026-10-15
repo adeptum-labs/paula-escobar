@@ -59,6 +59,18 @@ class JavaModLoaderTest {
     }
 
     /**
+     * A Scream Tracker file keeps the songs of one track in one order list, separated by "---" markers the
+     * loader stops the song length at; both sounding songs count.
+     */
+    @Test
+    void countsTheSongsOfAScreamTrackerModule(@TempDir Path dir) throws Exception {
+        final Module module = loader.load(TestModules.writeScreamTrackerWithSubsongs(dir));
+
+        assertEquals(TestModules.TITLE, module.metadata().title());
+        assertEquals(TestModules.S3M_SUBSONGS, module.metadata().songLength());
+    }
+
+    /**
      * A FlexTrax module is a ProTracker one carrying the Falcon's own effects, which JavaMod reads as the
      * module it is; the extension is all that is its own, and the effects are simply not sounded.
      */

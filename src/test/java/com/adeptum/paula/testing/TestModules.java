@@ -30,12 +30,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Builds minimal but valid modules to play in tests: a four-channel ProTracker module and a two-track
  * DigiBooster Pro one, each with a single looping square-wave sample, one pattern and one note, and an
  * AHX and a HivelyTracker module playing one synthesised square instead, the ProTracker one again
- * as an MO3, and a Composer 669 module of two patterns.
+ * as an MO3, a Composer 669 module of two patterns, and a Scream Tracker file whose two sounding songs
+ * sit behind the separators of its order list.
  */
 public final class TestModules {
 
@@ -277,6 +280,57 @@ public final class TestModules {
      * Two commands on one row, a note and the instrument to sound it with, then the byte that ends the track.
      */
     private static final byte[] MO3_TRACK = {0x12, 0x01, 0x30, 0x02, 0x00, 0x00};
+
+    public static final int S3M_SUBSONGS = 2;
+    public static final int S3M_FIRST_SUBSONG_ROWS = 64;
+    public static final int S3M_SECOND_SUBSONG_ROWS = 32;
+
+    /**
+     * Six ticks of 20 ms each, as tempo 125 makes them.
+     */
+    public static final int S3M_ROW_MILLIS = 120;
+
+    /**
+     * The cue a game plays once: the subsong behind the two of the other file, jumping out of itself to the
+     * silent first order when its last row is through.
+     */
+    public static final int S3M_CUE_ORDER = 6;
+    public static final int S3M_CUE_PATTERN = 3;
+    public static final int S3M_CUE_JUMP_ROW = 15;
+
+    private static final String S3M_MARK = "SCRM";
+    private static final String S3M_SAMPLE_MARK = "SCRS";
+    private static final String S3M_SAMPLE_FILE_NAME = "square.smp";
+    private static final int S3M_CHANNELS = 4;
+    private static final int S3M_UNUSED_CHANNEL = 255;
+    private static final int S3M_ORDER_SEPARATOR = 255;
+    private static final int S3M_HEADER_LENGTH = 0x60;
+    private static final int S3M_VERSION = 0x1320;
+    private static final int S3M_UNSIGNED_SAMPLES = 2;
+    private static final int S3M_SPEED = 6;
+    private static final int S3M_TEMPO = 125;
+    private static final int S3M_MASTER_VOLUME = 0xb0;
+    private static final int S3M_FULL_VOLUME = 64;
+    private static final int S3M_SAMPLE_MIDDLE = 128;
+    private static final int S3M_SAMPLE_PEAK = 100;
+    private static final int S3M_SAMPLE_LOOPS = 1;
+    private static final int S3M_MIDDLE_C = 0x40;
+    private static final int S3M_NOTE_AND_VOLUME_CELL = 0x60;
+    private static final int S3M_EFFECT_CELL = 0x80;
+    private static final int S3M_ROW_END = 0;
+
+    /**
+     * Effects count from 'A': B jumps to an order, C breaks to the next one.
+     */
+    private static final int S3M_JUMP_EFFECT = 2;
+    private static final int S3M_BREAK_EFFECT = 3;
+    private static final int S3M_FIRST_ORDER = 0;
+
+    private static final int S3M_SAMPLE_HEADER_AT = 0x80;
+    private static final int S3M_FIRST_PATTERN_AT = 0xd0;
+    private static final int S3M_PATTERN_SPACING = 0x50;
+    private static final int S3M_MOST_PATTERNS = 4;
+    private static final int S3M_SAMPLE_DATA_AT = S3M_FIRST_PATTERN_AT + S3M_MOST_PATTERNS * S3M_PATTERN_SPACING;
 
     private TestModules() {
     }
@@ -927,6 +981,102 @@ public final class TestModules {
             packed.write(music, at, Math.min(MO3_LITERALS_PER_CONTROL_BYTE, music.length - at));
         }
         return packed.toByteArray();
+    }
+
+    public static Path writeScreamTrackerWithSubsongs(Path directory) throws IOException {
+        return Files.write(directory.resolve("subsongs.s3m"), screamTracker(s3mSilentStart(), s3mNoteFor(S3M_FIRST_SUBSONG_ROWS),
+                s3mNoteFor(S3M_SECOND_SUBSONG_ROWS)));
+    }
+
+    /**
+     * The same file with a game's cue behind its two subsongs: one note, then a jump out of itself.
+     */
+    public static Path writeScreamTrackerWithACue(Path directory) throws IOException {
+        final Map<Integer, byte[]> cue = new HashMap<>(s3mNoteFor(ROWS));
+        cue.put(S3M_CUE_JUMP_ROW, bytes(S3M_EFFECT_CELL, S3M_JUMP_EFFECT, S3M_FIRST_ORDER));
+        return Files.write(directory.resolve("cue.s3m"), screamTracker(s3mSilentStart(), s3mNoteFor(S3M_FIRST_SUBSONG_ROWS),
+                s3mNoteFor(S3M_SECOND_SUBSONG_ROWS), cue));
+    }
+
+    /**
+     * A minimal Scream Tracker module of one pattern per subsong, each followed by the "---" marker, as the
+     * tracker writes the subsongs of one file back to back; every pattern is given as its cells by row.
+     */
+    @SafeVarargs
+    private static byte[] screamTracker(Map<Integer, byte[]>... patterns) {
+        final ByteBuffer buffer = ByteBuffer.allocate(S3M_SAMPLE_DATA_AT + SAMPLE_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
+        s3mHeader(buffer, patterns.length);
+        buffer.position(S3M_HEADER_LENGTH);
+        for (int pattern = 0; pattern < patterns.length; pattern++) {
+            buffer.put((byte) pattern).put((byte) S3M_ORDER_SEPARATOR);
+        }
+        buffer.putShort((short) (S3M_SAMPLE_HEADER_AT >> 4));
+        for (int pattern = 0; pattern < patterns.length; pattern++) {
+            buffer.putShort((short) ((S3M_FIRST_PATTERN_AT + pattern * S3M_PATTERN_SPACING) >> 4));
+        }
+        buffer.position(S3M_SAMPLE_HEADER_AT);
+        s3mSampleHeader(buffer);
+        for (int pattern = 0; pattern < patterns.length; pattern++) {
+            buffer.put(S3M_FIRST_PATTERN_AT + pattern * S3M_PATTERN_SPACING, s3mPattern(patterns[pattern]));
+        }
+        buffer.position(S3M_SAMPLE_DATA_AT);
+        for (int frame = 0; frame < SAMPLE_LENGTH; frame++) {
+            buffer.put((byte) (frame < SAMPLE_LENGTH / 2 ? S3M_SAMPLE_MIDDLE + S3M_SAMPLE_PEAK : S3M_SAMPLE_MIDDLE - S3M_SAMPLE_PEAK));
+        }
+        return buffer.array();
+    }
+
+    /**
+     * No note at all, and a jump that loops the pattern onto itself, as a game leaves its first order to wait in.
+     */
+    private static Map<Integer, byte[]> s3mSilentStart() {
+        return Map.of(0, bytes(S3M_EFFECT_CELL, S3M_JUMP_EFFECT, S3M_FIRST_ORDER));
+    }
+
+    /**
+     * One note on the square, in a pattern broken off after the rows given.
+     */
+    private static Map<Integer, byte[]> s3mNoteFor(int rows) {
+        final byte[] note = bytes(S3M_NOTE_AND_VOLUME_CELL, S3M_MIDDLE_C, 1, S3M_FULL_VOLUME);
+        return rows < ROWS ? Map.of(0, note, rows - 1, bytes(S3M_EFFECT_CELL, S3M_BREAK_EFFECT, 0)) : Map.of(0, note);
+    }
+
+    private static void s3mHeader(ByteBuffer buffer, int patterns) {
+        buffer.put(padded(TITLE, 28)).put((byte) 0x1a).put((byte) 0x10).putShort((short) 0)
+                .putShort((short) (2 * patterns)).putShort((short) 1).putShort((short) patterns)
+                .putShort((short) 0).putShort((short) S3M_VERSION).putShort((short) S3M_UNSIGNED_SAMPLES)
+                .put(S3M_MARK.getBytes(StandardCharsets.US_ASCII))
+                .put((byte) S3M_FULL_VOLUME).put((byte) S3M_SPEED).put((byte) S3M_TEMPO).put((byte) S3M_MASTER_VOLUME)
+                .put((byte) 0).put((byte) 0).put(new byte[8]).putShort((short) 0);
+        for (int channel = 0; channel < 32; channel++) {
+            buffer.put((byte) (channel < S3M_CHANNELS ? channel : S3M_UNUSED_CHANNEL));
+        }
+    }
+
+    /**
+     * A looping sample whose data sits at a paragraph of its own; the paragraph is three bytes, the high one
+     * first.
+     */
+    private static void s3mSampleHeader(ByteBuffer buffer) {
+        final int paragraph = S3M_SAMPLE_DATA_AT >> 4;
+        buffer.put((byte) 1).put(padded(S3M_SAMPLE_FILE_NAME, 12)).put((byte) (paragraph >> 16)).putShort((short) paragraph);
+        buffer.putInt(SAMPLE_LENGTH).putInt(0).putInt(SAMPLE_LENGTH);
+        buffer.put((byte) S3M_FULL_VOLUME).put((byte) 0).put((byte) 0).put((byte) S3M_SAMPLE_LOOPS).putInt(C3_FREQUENCY);
+        buffer.put(new byte[12]).put(padded(SAMPLE_NAME, 28)).put(S3M_SAMPLE_MARK.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    /**
+     * A packed pattern of the cells given by row, every row closed by its end mark; the length in front counts
+     * itself.
+     */
+    private static byte[] s3mPattern(Map<Integer, byte[]> cells) {
+        final ByteArrayOutputStream rows = new ByteArrayOutputStream();
+        for (int row = 0; row < ROWS; row++) {
+            rows.writeBytes(cells.getOrDefault(row, new byte[0]));
+            rows.write(S3M_ROW_END);
+        }
+        final ByteBuffer pattern = ByteBuffer.allocate(Short.BYTES + rows.size()).order(ByteOrder.LITTLE_ENDIAN);
+        return pattern.putShort((short) pattern.capacity()).put(rows.toByteArray()).array();
     }
 
     private static byte[] bytes(int... values) {

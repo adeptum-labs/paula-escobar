@@ -26,6 +26,7 @@ import com.adeptum.paula.module.ModuleFormat;
 import com.adeptum.paula.module.ModuleMetadata;
 import com.adeptum.paula.playback.Renderer;
 import com.adeptum.paula.playback.javamod.JavaModRenderer;
+import com.adeptum.paula.playback.javamod.Subsongs;
 import de.quippy.javamod.multimedia.mod.loader.instrument.InstrumentsContainer;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -37,22 +38,27 @@ import java.util.Set;
 public record JavaModModule(
         Path source,
         ModuleMetadata metadata,
-        de.quippy.javamod.multimedia.mod.loader.Module tracker) implements Module {
+        de.quippy.javamod.multimedia.mod.loader.Module tracker,
+        Subsongs subsongs) implements Module {
 
+    /**
+     * The subsongs are read once, while the order list is still as loaded; playing one rewrites it.
+     */
     public static JavaModModule of(Path source, de.quippy.javamod.multimedia.mod.loader.Module tracker) {
+        final Subsongs subsongs = Subsongs.of(tracker);
         final ModuleMetadata metadata = ModuleMetadata.builder()
                 .title(tracker.getSongName().strip())
                 .format(format(source, tracker))
                 .channels(tracker.getNChannels())
-                .songLength(tracker.getSongLength())
+                .songLength(subsongs.orders())
                 .instruments(instrumentNames(tracker.getInstrumentContainer()))
                 .build();
-        return new JavaModModule(source, metadata, tracker);
+        return new JavaModModule(source, metadata, tracker, subsongs);
     }
 
     @Override
     public Renderer createRenderer(int sampleRate) {
-        return new JavaModRenderer(tracker, sampleRate);
+        return new JavaModRenderer(tracker, subsongs, sampleRate);
     }
 
     private static ModuleFormat format(Path source, de.quippy.javamod.multimedia.mod.loader.Module tracker) {

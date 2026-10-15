@@ -50,6 +50,10 @@ class JavaModRendererTest {
     private static final int SPECIAL = 0x0e;
     private static final int CUT_AT_TICK_THREE = 0xc3;
     private static final int RETRIG_WITHOUT_SPEED = 0x90;
+    private static final int FIRST_SUBSONG_MILLIS = TestModules.S3M_FIRST_SUBSONG_ROWS * TestModules.S3M_ROW_MILLIS;
+    private static final int SECOND_SUBSONG_MILLIS = TestModules.S3M_SECOND_SUBSONG_ROWS * TestModules.S3M_ROW_MILLIS;
+    private static final int A_ROW_OR_TWO_MILLIS = 250;
+    private static final Duration LONGER_THAN_ANY_FADE = Duration.ofMinutes(1);
 
     @Test
     void rendersAudioAndEventuallyFinishes(@TempDir Path dir) throws Exception {
@@ -229,6 +233,84 @@ class JavaModRendererTest {
     void knowsTheSongLength(@TempDir Path dir) throws Exception {
         final Renderer renderer = new JavaModLoader().load(TestModules.writeProTracker(dir)).createRenderer(SAMPLE_RATE);
         assertTrue(renderer.length().orElseThrow().toMillis() > 0);
+    }
+
+    /**
+     * The first song of the Scream Tracker fixture holds no note at all, so the one behind the separator is
+     * the song that sounds, and it sounds from the start.
+     */
+    @Test
+    void skipsTheSongWithNoNotesBehindTheFirstSeparator(@TempDir Path dir) throws Exception {
+        final Renderer renderer = createScreamTrackerRenderer(dir);
+        final short[] buffer = new short[FRAMES * 2];
+
+        assertEquals(FRAMES, renderer.render(buffer));
+        assertTrue(peak(buffer) > 1000, "the song behind the separator should sound straight away");
+    }
+
+    /**
+     * The songs of one file play back to back: once the first has run out the renderer moves on within the same
+     * buffer, so the sound carries on past the first song's own length.
+     */
+    @Test
+    void rendersPastTheFirstSubsongIntoTheSecond(@TempDir Path dir) throws Exception {
+        final Renderer renderer = createScreamTrackerRenderer(dir);
+        final short[] buffer = new short[FRAMES * 2];
+        final int frames = (FIRST_SUBSONG_MILLIS + A_ROW_OR_TWO_MILLIS) * SAMPLE_RATE / 1000;
+
+        for (int rendered = 0; rendered < frames; rendered += FRAMES) {
+            assertEquals(FRAMES, renderer.render(buffer), rendered + " frames in");
+        }
+    }
+
+    /**
+     * JavaMod measures a module once and keeps that length, so subsongs of different lengths show whether each
+     * was measured on its own.
+     */
+    @Test
+    void measuresAFileAtItsSubsongsTogether(@TempDir Path dir) throws Exception {
+        final Renderer renderer = createScreamTrackerRenderer(dir);
+
+        assertEquals(FIRST_SUBSONG_MILLIS + SECOND_SUBSONG_MILLIS, renderer.length().orElseThrow().toMillis(), A_ROW_OR_TWO_MILLIS);
+    }
+
+    /**
+     * A cue ends in a jump to the silent order the game waits in, which inside its own subsong would loop the
+     * cue for as long as the mixer lets it; it fades out instead, as a song looping to its start does.
+     */
+    @Test
+    void endsACueThatJumpsOutOfItsSubsong(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeScreamTrackerWithACue(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+        final long frames = LONGER_THAN_ANY_FADE.toSeconds() * SAMPLE_RATE;
+
+        long rendered = 0;
+        for (int mixed = renderer.render(buffer); mixed > 0 && rendered < frames; mixed = renderer.render(buffer)) {
+            rendered += mixed;
+        }
+
+        assertTrue(rendered < frames, "the cue should end, still playing after " + rendered + " frames");
+        assertTrue(renderer.length().orElseThrow().compareTo(LONGER_THAN_ANY_FADE) < 0);
+    }
+
+    /**
+     * A seek into the second song counts the position from the start of the file and keeps playing from there.
+     */
+    @Test
+    void seeksIntoTheSecondSubsong(@TempDir Path dir) throws Exception {
+        final Renderer renderer = createScreamTrackerRenderer(dir);
+        final short[] buffer = new short[FRAMES * 2];
+        final Duration target = renderer.length().orElseThrow().multipliedBy(3).dividedBy(4);
+
+        renderer.seek(target);
+
+        final Duration position = renderer.position();
+        assertTrue(position.compareTo(target) >= 0, "seek should reach the requested moment, was " + position);
+        assertEquals(FRAMES, renderer.render(buffer));
+    }
+
+    private static Renderer createScreamTrackerRenderer(Path dir) throws Exception {
+        return new JavaModLoader().load(TestModules.writeScreamTrackerWithSubsongs(dir)).createRenderer(SAMPLE_RATE);
     }
 
     @Test

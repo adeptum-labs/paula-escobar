@@ -4,5 +4,11 @@
     "fields": [
       {"name": "channelMemory"}
     ]
+  },
+  {
+    "name": "de.quippy.javamod.multimedia.mod.loader.Module",
+    "fields": [
+      {"name": "songLength", "allowWrite": true}
+    ]
   }
 ]
