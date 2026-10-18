@@ -110,6 +110,37 @@ class JavaModRendererTest {
     }
 
     /**
+     * A voice holding an empty sample is never mixed, so it never finishes either, and the ring out must not wait
+     * for it.
+     */
+    @Test
+    void endsASongStoppedWithASpeedOfZeroBesideAnEmptySample(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeProTrackerStoppedBesideAnEmptySample(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        int buffers = 0;
+        while (renderer.render(buffer) > 0 && buffers < MAX_BUFFERS) {
+            buffers++;
+        }
+
+        assertEquals(TestModules.RINGING_SAMPLE_MILLIS, renderer.position().toMillis(), A_FEW_TICKS_MILLIS);
+    }
+
+    /**
+     * Each retrigger ramps down what was playing, which is the new sample by then and not the short one the row
+     * started with.
+     */
+    @Test
+    void keepsRenderingWhenANewSampleIsRetriggered(@TempDir Path dir) throws Exception {
+        final Renderer renderer = new JavaModLoader().load(TestModules.writeXmRetriggeringANewSample(dir)).createRenderer(SAMPLE_RATE);
+        final short[] buffer = new short[FRAMES * 2];
+
+        for (int i = 0; i < SAMPLE_RATE / FRAMES; i++) {
+            assertEquals(FRAMES, renderer.render(buffer), "buffer " + i);
+        }
+    }
+
+    /**
      * The interpolation looks ahead of where the old sample was, and the sample swapped in for it may be far
      * shorter than that.
      */

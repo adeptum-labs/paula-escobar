@@ -167,6 +167,10 @@ public final class TestModules {
     private static final int XM_PATTERN_HEADER_LENGTH = 9;
     private static final int XM_EVENT_LENGTH = 5;
     private static final byte XM_NOTE = 49;
+    private static final byte XM_HIGH_NOTE = 85;
+    private static final byte XM_MULTI_RETRIGGER = 0x1b;
+    private static final byte XM_EVERY_TICK = 0x01;
+    private static final int XM_NO_LOOP = 0;
     private static final int XM_INSTRUMENT_HEADER_LENGTH = 263;
     private static final int XM_SAMPLE_HEADER_LENGTH = 40;
     private static final int XM_SQUARE_HIGH = 100;
@@ -441,6 +445,30 @@ public final class TestModules {
             buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
         }
         return Files.write(directory.resolve("stopped.mod"), buffer.array());
+    }
+
+    /**
+     * A ProTracker module that stops on its first row, where one channel starts a sample looping over a second
+     * and the other a note naming an empty sample, which never sounds and so never ends either.
+     */
+    public static Path writeProTrackerStoppedBesideAnEmptySample(Path directory) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH + PATTERN_LENGTH + RINGING_SAMPLE_LENGTH);
+        buffer.put(padded(TITLE, 20));
+        buffer.put(padded(SAMPLE_NAME, 22)).putShort((short) (RINGING_SAMPLE_LENGTH / 2)).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) (RINGING_SAMPLE_LENGTH / 2));
+        buffer.put(padded("empty", 22)).putShort((short) 0).put((byte) 0).put((byte) 64)
+                .putShort((short) 0).putShort((short) 1);
+        buffer.position(950);
+        buffer.put((byte) 1).put((byte) 0);
+        buffer.position(1080);
+        buffer.put("M.K.".getBytes(StandardCharsets.US_ASCII));
+        putNote(buffer, 1, PERIOD_C2, SET_SPEED, 0);
+        putNote(buffer, 2, PERIOD_C2, NO_EFFECT, 0);
+        buffer.position(HEADER_LENGTH + PATTERN_LENGTH);
+        for (int i = 0; i < RINGING_SAMPLE_LENGTH; i++) {
+            buffer.put((byte) (i % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? 100 : -100));
+        }
+        return Files.write(directory.resolve("empty.mod"), buffer.array());
     }
 
     /**
@@ -1216,7 +1244,7 @@ public final class TestModules {
         final ByteArrayOutputStream file = new ByteArrayOutputStream();
         xmHeader(file);
         xmPattern(file);
-        xmSquareInstrument(file, SAMPLE_NAME, 0);
+        xmSquareInstrument(file, SAMPLE_NAME, SAMPLE_LENGTH, XM_SAMPLE_LOOPS, 0);
         xmInstrumentHeader(file, XM_MIDI_NAME, 0, XM_WITH_MIDI);
         return file.toByteArray();
     }
@@ -1234,9 +1262,35 @@ public final class TestModules {
         xmHeader(file);
         xmPattern(file);
         xmInstrumentHeader(file, XM_PACKED_NAME, 1, XM_WITHOUT_MIDI);
-        xmSampleHeader(file, XM_PACKED_NAME, XM_ADPCM);
+        xmSampleHeader(file, XM_PACKED_NAME, SAMPLE_LENGTH, XM_SAMPLE_LOOPS, XM_ADPCM);
         file.writeBytes(new byte[XM_ADPCM_TABLE_LENGTH + (SAMPLE_LENGTH + 1) / 2]);
-        xmSquareInstrument(file, XM_PLAIN_NAME, 0);
+        xmSquareInstrument(file, XM_PLAIN_NAME, SAMPLE_LENGTH, XM_SAMPLE_LOOPS, 0);
+        return file.toByteArray();
+    }
+
+    public static Path writeXmRetriggeringANewSample(Path directory) throws IOException {
+        return Files.write(directory.resolve("retrigger.xm"), xmRetriggeringANewSample());
+    }
+
+    /**
+     * An Extended Module whose first channel loops a short square, then on the next row starts a long sample
+     * at a high note and retriggers it on every tick, so each retrigger finds the new sample far past the end of
+     * the short one.
+     */
+    public static byte[] xmRetriggeringANewSample() {
+        final ByteArrayOutputStream file = new ByteArrayOutputStream();
+        xmHeader(file);
+        final byte[] events = new byte[ROWS * XM_CHANNELS * XM_EVENT_LENGTH];
+        events[0] = XM_NOTE;
+        events[1] = 1;
+        final int nextRow = XM_CHANNELS * XM_EVENT_LENGTH;
+        events[nextRow] = XM_HIGH_NOTE;
+        events[nextRow + 1] = 2;
+        events[nextRow + 3] = XM_MULTI_RETRIGGER;
+        events[nextRow + 4] = XM_EVERY_TICK;
+        xmPattern(file, events);
+        xmSquareInstrument(file, SAMPLE_NAME, SAMPLE_LENGTH, XM_SAMPLE_LOOPS, 0);
+        xmSquareInstrument(file, SAMPLE_NAME, RINGING_SAMPLE_LENGTH, XM_NO_LOOP, 0);
         return file.toByteArray();
     }
 
@@ -1268,6 +1322,10 @@ public final class TestModules {
             events[channel * XM_EVENT_LENGTH] = XM_NOTE;
             events[channel * XM_EVENT_LENGTH + 1] = (byte) (channel + 1);
         }
+        xmPattern(file, events);
+    }
+
+    private static void xmPattern(ByteArrayOutputStream file, byte[] events) {
         dword(file, XM_PATTERN_HEADER_LENGTH);
         file.write(0);
         word(file, ROWS);
@@ -1278,24 +1336,24 @@ public final class TestModules {
     /**
      * A square written as the deltas a plain XM sample is kept in.
      */
-    private static void xmSquareInstrument(ByteArrayOutputStream file, String name, int reserved) {
+    private static void xmSquareInstrument(ByteArrayOutputStream file, String name, int length, int loop, int reserved) {
         xmInstrumentHeader(file, name, 1, XM_WITHOUT_MIDI);
-        xmSampleHeader(file, name, reserved);
+        xmSampleHeader(file, name, length, loop, reserved);
         int previous = 0;
-        for (int frame = 0; frame < SAMPLE_LENGTH; frame++) {
-            final int value = frame < SAMPLE_LENGTH / 2 ? XM_SQUARE_HIGH : -XM_SQUARE_HIGH;
+        for (int frame = 0; frame < length; frame++) {
+            final int value = frame % SAMPLE_LENGTH < SAMPLE_LENGTH / 2 ? XM_SQUARE_HIGH : -XM_SQUARE_HIGH;
             file.write(value - previous);
             previous = value;
         }
     }
 
-    private static void xmSampleHeader(ByteArrayOutputStream file, String name, int reserved) {
-        dword(file, SAMPLE_LENGTH);
+    private static void xmSampleHeader(ByteArrayOutputStream file, String name, int length, int loop, int reserved) {
+        dword(file, length);
         dword(file, 0);
-        dword(file, SAMPLE_LENGTH);
+        dword(file, loop == XM_NO_LOOP ? 0 : length);
         file.write(XM_FULL_VOLUME);
         file.write(0);
-        file.write(XM_SAMPLE_LOOPS);
+        file.write(loop);
         file.write(XM_CENTRE_PANNING);
         file.write(0);
         file.write(reserved);
