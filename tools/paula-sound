@@ -27,12 +27,17 @@ server=tcp:$host:$port
 
 usage() {
     cat <<'USAGE'
-Usage: paula-sound [paula arguments...]
+Usage: paula-sound [--buffer-more] [paula arguments...]
 
 Starts Paula Escobar here and plays it out of the machine you are sitting
 at, through the tunnel that machine opens when it ssh's in. Nothing
 listens on the network at either end. When a piece is missing, the script
 says what to run where.
+
+Options:
+    --buffer-more      hand paula a buffer four times its default, for a
+                       link that drops out now and then; a --buffer of
+                       your own still wins
 
 Environment:
     PAULA_SOUND_PORT   both ends of the tunnel (default 4713)
@@ -49,6 +54,26 @@ die() {
 case ${1-} in
     -h|--help) usage; exit 0 ;;
 esac
+
+more_frames=8192
+buffer_more=false
+buffer_given=false
+args=()
+options=true
+for arg in "$@"; do
+    if $options; then
+        case $arg in
+            --) options=false ;;
+            --buffer-more) buffer_more=true; continue ;;
+            -b*|--buffer|--buffer=*) buffer_given=true ;;
+        esac
+    fi
+    args+=("$arg")
+done
+if $buffer_more && ! $buffer_given; then
+    args=(--buffer "$more_frames" "${args[@]}")
+fi
+set -- "${args[@]}"
 
 no_tunnel() {
     cat <<MESSAGE
