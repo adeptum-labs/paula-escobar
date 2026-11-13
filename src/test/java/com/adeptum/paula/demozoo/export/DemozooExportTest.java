@@ -37,7 +37,10 @@ import com.adeptum.paula.demozoo.PartySeries;
 import com.adeptum.paula.demozoo.Production;
 import com.adeptum.paula.demozoo.Work;
 import com.adeptum.paula.playback.Progress;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -56,6 +59,9 @@ import org.junit.jupiter.api.io.TempDir;
 class DemozooExportTest {
 
     private static final String URL = DemozooExport.EXPORT.toString();
+    private static final String RELEASES = "https://releases.example/latest/download/";
+    private static final String CHECKSUM_URL = RELEASES + CatalogueFormat.checksumName();
+    private static final String CATALOGUE_URL = RELEASES + CatalogueFormat.fileName();
     private static final String ETAG = "\"v1\"";
     private static final String NEW_ETAG = "\"v2\"";
     private static final String LAST_MODIFIED = "Wed, 12 Nov 2025 00:00:00 GMT";
@@ -71,7 +77,7 @@ class DemozooExportTest {
 
         assertEquals(converter.catalogue(), export(dir, converter).catalogue());
         assertEquals(1, converter.calls());
-        assertEquals(2, http.requests(), "one HEAD and one download");
+        assertEquals(3, http.requests(), "a release checksum look, a HEAD and a download");
         assertTrue(Files.exists(dir.resolve("demozoo/catalogue.bin.gz")));
         assertTrue(Files.exists(dir.resolve("demozoo/catalogue.sha256")));
         assertTrue(Files.exists(dir.resolve("demozoo/export.properties")));
@@ -87,7 +93,7 @@ class DemozooExportTest {
 
         final StubConverter second = new StubConverter(catalogue("Assembly 1998"));
         assertEquals(loaded, export(dir, second).catalogue());
-        assertEquals(2, http.requests(), "nothing is asked of the network for a catalogue already cached");
+        assertEquals(3, http.requests(), "nothing is asked of the network for a catalogue already cached");
         assertEquals(0, second.calls(), "nothing is converted again");
     }
 
@@ -100,7 +106,7 @@ class DemozooExportTest {
         final StubConverter converter = new StubConverter(catalogue("Assembly 1998"));
         assertEquals(converter.catalogue(), export(dir, converter).catalogue());
         assertEquals(1, converter.calls());
-        assertEquals(4, http.requests(), "the export is fetched again");
+        assertEquals(6, http.requests(), "a release checksum look, then a HEAD and a download");
     }
 
     @Test
@@ -113,7 +119,7 @@ class DemozooExportTest {
         clock.advance(MORE_THAN_A_WEEK);
 
         assertEquals(loaded, export.catalogue());
-        assertEquals(3, http.requests(), "the weekly look is a HEAD alone");
+        assertEquals(5, http.requests(), "the weekly look is a release checksum look and a HEAD");
         assertEquals(1, converter.calls(), "an unchanged export is not converted again");
     }
 
@@ -129,9 +135,9 @@ class DemozooExportTest {
 
         assertEquals(old, export.catalogue(), "the old catalogue is served while the new one is converted");
         assertEquals(2, converter.calls());
-        assertEquals(4, http.requests(), "a new ETag means a HEAD and a download");
+        assertEquals(6, http.requests(), "a new ETag means a release checksum look, a HEAD and a download");
         assertEquals(converter.latest(), export.catalogue(), "the next look sees the new catalogue");
-        assertEquals(4, http.requests(), "within the week it is served without another look");
+        assertEquals(6, http.requests(), "within the week it is served without another look");
     }
 
     @Test
@@ -160,12 +166,12 @@ class DemozooExportTest {
         clock.advance(MORE_THAN_A_WEEK);
         export.catalogue();
         export.catalogue();
-        assertEquals(fetched + 1, http.requests(), "the failed look is not repeated at once");
+        assertEquals(fetched + 2, http.requests(), "the failed look is not repeated at once");
 
         http.goOnline();
         clock.advance(Duration.ofHours(25));
         assertEquals(loaded, export.catalogue());
-        assertEquals(fetched + 2, http.requests(), "a day later it is tried again");
+        assertEquals(fetched + 4, http.requests(), "a day later it is tried again");
         assertEquals(1, converter.calls());
     }
 
@@ -180,7 +186,7 @@ class DemozooExportTest {
         export.checkSoon();
         export.catalogue();
 
-        assertEquals(3, http.requests(), "one HEAD, as asked for");
+        assertEquals(5, http.requests(), "a release checksum look and one HEAD, as asked for");
         assertEquals(1, converter.calls());
     }
 
@@ -224,13 +230,109 @@ class DemozooExportTest {
         assertTrue(export.preparing().isEmpty());
     }
 
+    @Test
+    void firstUseTakesTheCataloguePublishedWithTheRelease(@TempDir Path dir) throws IOException {
+        final MusicCatalogue published = catalogue("Assembly 2026");
+        final String sha256 = publish(published);
+        final StubConverter converter = new StubConverter(catalogue("Assembly 1995"));
+
+        assertEquals(published, export(dir, converter).catalogue());
+        assertEquals(2, http.requests(), "a release checksum look and a catalogue fetch");
+        assertEquals(0, converter.calls(), "the export is neither downloaded nor converted");
+        assertEquals(sha256, Files.readString(dir.resolve("demozoo/catalogue.sha256"), StandardCharsets.US_ASCII));
+    }
+
+    @Test
+    void aWeekLaterTheSamePublishedChecksumCostsOneRequest(@TempDir Path dir) throws IOException {
+        final MusicCatalogue published = catalogue("Assembly 2026");
+        publish(published);
+        final DemozooExport export = export(dir, new StubConverter(catalogue("Assembly 1995")));
+        assertEquals(published, export.catalogue());
+
+        clock.advance(MORE_THAN_A_WEEK);
+
+        assertEquals(published, export.catalogue());
+        assertEquals(3, http.requests(), "the weekly look is the release checksum alone");
+    }
+
+    @Test
+    void aWeekLaterANewPublishedCatalogueIsFetchedBehindTheOldOne(@TempDir Path dir) throws IOException {
+        final MusicCatalogue old = catalogue("Assembly 2026");
+        publish(old);
+        final DemozooExport export = export(dir, new StubConverter(catalogue("Assembly 1995")));
+        assertEquals(old, export.catalogue());
+
+        final MusicCatalogue latest = catalogue("Assembly 2027");
+        publish(latest);
+        clock.advance(MORE_THAN_A_WEEK);
+
+        assertEquals(old, export.catalogue(), "the old catalogue is served while the new one is fetched");
+        assertEquals(4, http.requests(), "a new checksum means a checksum look and a catalogue fetch");
+        assertEquals(latest, export.catalogue(), "the next look sees the new catalogue");
+        assertEquals(4, http.requests(), "within the week it is served without another look");
+    }
+
+    @Test
+    void aPublishedCatalogueThatDoesNotMatchItsChecksumFallsBackToTheExport(@TempDir Path dir) throws IOException {
+        serve(ETAG, "export one");
+        final byte[] released = bytesOf(catalogue("Assembly 2026"));
+        http.put(CHECKSUM_URL, Checksums.line(Checksums.sha256(released), CatalogueFormat.fileName()));
+        http.put(CATALOGUE_URL, "a damaged catalogue".getBytes(StandardCharsets.UTF_8), Optional.empty());
+        final StubConverter converter = new StubConverter(catalogue("Assembly 1995"));
+
+        assertEquals(converter.catalogue(), export(dir, converter).catalogue());
+        assertEquals(1, converter.calls(), "the export is converted once");
+        assertEquals(4, http.requests(), "a checksum look, a catalogue fetch, a HEAD and a download");
+    }
+
+    @Test
+    void aPublishedChecksumThatIsNotAChecksumFallsBackToTheExport(@TempDir Path dir) throws IOException {
+        serve(ETAG, "export one");
+        http.put(CHECKSUM_URL, "not the checksum");
+        final StubConverter converter = new StubConverter(catalogue("Assembly 1995"));
+
+        assertEquals(converter.catalogue(), export(dir, converter).catalogue());
+        assertEquals(1, converter.calls(), "the export is converted once");
+        assertEquals(3, http.requests(), "a checksum look, a HEAD and a download");
+    }
+
+    @Test
+    void aSecondExportOnTheSameCacheLoadsTheReleaseCatalogueWithoutARequest(@TempDir Path dir) throws IOException {
+        final MusicCatalogue published = catalogue("Assembly 2026");
+        publish(published);
+        assertEquals(published, export(dir, new StubConverter(catalogue("Assembly 1995"))).catalogue());
+
+        final StubConverter second = new StubConverter(catalogue("Assembly 1998"));
+        assertEquals(published, export(dir, second).catalogue());
+        assertEquals(2, http.requests(), "nothing is asked of the network for a catalogue already cached");
+        assertEquals(0, second.calls());
+    }
+
     private void serve(String etag, String dump) {
         http.putHead(URL, etag, LAST_MODIFIED);
         http.put(URL, dump);
     }
 
+    /**
+     * Serves the catalogue as the release publishes it: the bytes as CatalogueFormat writes them and the
+     * checksum line beside them.
+     */
+    private String publish(MusicCatalogue catalogue) throws IOException {
+        final byte[] bytes = bytesOf(catalogue);
+        final String sha256 = Checksums.sha256(bytes);
+        http.put(CHECKSUM_URL, Checksums.line(sha256, CatalogueFormat.fileName()));
+        http.put(CATALOGUE_URL, bytes, Optional.of(CatalogueFormat.fileName()));
+        return sha256;
+    }
+
+    private static byte[] bytesOf(MusicCatalogue catalogue) throws IOException {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        CatalogueFormat.write(catalogue, bytes);
+        return bytes.toByteArray();
+    }
+
     private DemozooExport export(Path dir, StubConverter converter) {
-        return new DemozooExport(http, new CacheDirectory(dir), clock, Runnable::run, converter);
+        return new DemozooExport(http, new CacheDirectory(dir), clock, Runnable::run, converter, URI.create(RELEASES));
     }
 
     private static MusicCatalogue catalogue(String seriesName) {

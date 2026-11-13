@@ -33,12 +33,9 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -46,13 +43,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Demozoo's music, converted from the database export Demozoo publishes every night.
+ * Demozoo's music, as the catalogue published with Paula's latest release or, where none can be had, converted
+ * from the database export Demozoo publishes every night.
  *
- * <p>The first time it is asked for, the export is fetched and converted while the caller waits. After that the
- * converted catalogue is read from the cache, and once a week the export is asked after: only when Demozoo's handle
- * for it has changed is it fetched and converted again, in the background, with the old catalogue served meanwhile.
- * A catalogue whose checksum no longer matches is converted afresh, and a network that is down leaves the old one
- * in use and the export is asked after again a day later rather than at every look.
+ * <p>The first time it is asked for, the published catalogue is fetched while the caller waits, a few megabytes;
+ * only when there is none is Demozoo's export of a couple of hundred megabytes fetched and converted instead.
+ * After that the catalogue is read from the cache, and once a week the published checksum is asked after, or
+ * Demozoo's handle for its export: only when it has changed is the catalogue fetched again, in the background,
+ * with the old one served meanwhile. A catalogue whose checksum no longer matches is fetched afresh, and a network
+ * that is down leaves the old one in use and is asked after again a day later rather than at every look.
  */
 @Slf4j
 public final class DemozooExport implements CatalogueSource {
@@ -74,7 +73,10 @@ public final class DemozooExport implements CatalogueSource {
     private static final String CONVERTED = "converted";
     private static final String NEXT_CHECK = "next-check";
     private static final String LOOKED = "looked";
-    private static final String DIGEST = "SHA-256";
+    private static final String SOURCE = "source";
+    private static final String FROM_RELEASE = "release";
+    private static final String FROM_EXPORT = "export";
+    private static final String FETCHING_CATALOGUE = "Fetching the Demozoo catalogue";
     private static final String FETCHING = "Fetching the Demozoo database";
     private static final String CONVERTING = "Reading the Demozoo database";
 
@@ -91,6 +93,7 @@ public final class DemozooExport implements CatalogueSource {
     private final Clock clock;
     private final Executor background;
     private final Converter converter;
+    private final ReleaseCatalogue release;
     private final Progress progress = new Progress();
     private final AtomicBoolean refreshing = new AtomicBoolean();
     private volatile MusicCatalogue catalogue;
@@ -103,11 +106,16 @@ public final class DemozooExport implements CatalogueSource {
     }
 
     public DemozooExport(HttpFetcher http, CacheDirectory cache, Clock clock, Executor background, Converter converter) {
+        this(http, cache, clock, background, converter, ReleaseCatalogue.LATEST);
+    }
+
+    DemozooExport(HttpFetcher http, CacheDirectory cache, Clock clock, Executor background, Converter converter, URI releases) {
         this.http = http;
         this.cache = cache;
         this.clock = clock;
         this.background = background;
         this.converter = converter;
+        this.release = new ReleaseCatalogue(http, releases);
     }
 
     /**
@@ -149,9 +157,24 @@ public final class DemozooExport implements CatalogueSource {
             catalogue = stored().orElse(null);
         }
         if (catalogue == null) {
+            catalogue = fromRelease().orElse(null);
+        }
+        if (catalogue == null) {
             catalogue = fetchAndConvert(http.head(EXPORT));
         }
         return catalogue;
+    }
+
+    /**
+     * The catalogue published with the latest release, when there is one to be had.
+     */
+    private Optional<MusicCatalogue> fromRelease() {
+        try {
+            return Optional.of(takeRelease(release.publishedChecksum()));
+        } catch (IOException e) {
+            log.info("No Demozoo catalogue from the latest release ({}); converting Demozoo's export instead", e.getMessage());
+            return Optional.empty();
+        }
     }
 
     /**
@@ -165,7 +188,7 @@ public final class DemozooExport implements CatalogueSource {
                 return Optional.empty();
             }
             final byte[] bytes = Files.readAllBytes(file);
-            if (!sha256(bytes).equals(Files.readString(checksum, StandardCharsets.US_ASCII).strip())) {
+            if (!Checksums.sha256(bytes).equals(Files.readString(checksum, StandardCharsets.US_ASCII).strip())) {
                 log.warn("The cached Demozoo catalogue does not match its checksum and is converted afresh");
                 return Optional.empty();
             }
@@ -248,7 +271,24 @@ public final class DemozooExport implements CatalogueSource {
         });
     }
 
+    /**
+     * Looks at the catalogue published with the latest release first, and at Demozoo's own export only when no
+     * catalogue can be had from there.
+     */
     private void refresh() throws IOException {
+        try {
+            final String published = release.publishedChecksum();
+            if (published.equals(storedChecksum())) {
+                final Properties state = state();
+                markChecked(state);
+                saveState(state);
+            } else {
+                catalogue = takeRelease(published);
+            }
+            return;
+        } catch (IOException e) {
+            log.info("No Demozoo catalogue from the latest release ({}); looking at Demozoo's export instead", e.getMessage());
+        }
         final HttpFetcher.Head head = http.head(EXPORT);
         final Properties state = state();
         if (head.etag().isPresent() && head.etag().get().equals(state.getProperty(ETAG))) {
@@ -257,6 +297,36 @@ public final class DemozooExport implements CatalogueSource {
             return;
         }
         catalogue = fetchAndConvert(head);
+    }
+
+    /**
+     * Fetches the published catalogue and caches its bytes as they came, so the cached checksum is the published
+     * one and an unchanged release is recognised by its checksum alone.
+     */
+    private MusicCatalogue takeRelease(String sha256) throws IOException {
+        try {
+            progress.measured(FETCHING_CATALOGUE, 0);
+            final ReleaseCatalogue.Fetched fetched = release.fetch(sha256,
+                    (read, total) -> progress.measured(FETCHING_CATALOGUE, fraction(read, total)));
+            cache.writeAtomically(file(CATALOGUE), fetched.bytes());
+            cache.writeAtomically(file(CHECKSUM), fetched.sha256().getBytes(StandardCharsets.US_ASCII));
+            final Properties state = new Properties();
+            state.setProperty(SOURCE, FROM_RELEASE);
+            markChecked(state);
+            state.setProperty(CONVERTED, clock.instant().toString());
+            saveState(state);
+            return fetched.catalogue();
+        } finally {
+            progress.clear();
+        }
+    }
+
+    private String storedChecksum() {
+        try {
+            return Files.readString(file(CHECKSUM), StandardCharsets.US_ASCII).strip();
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     /**
@@ -274,8 +344,9 @@ public final class DemozooExport implements CatalogueSource {
             final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             CatalogueFormat.write(converted, bytes);
             cache.writeAtomically(file(CATALOGUE), bytes.toByteArray());
-            cache.writeAtomically(file(CHECKSUM), sha256(bytes.toByteArray()).getBytes(StandardCharsets.US_ASCII));
+            cache.writeAtomically(file(CHECKSUM), Checksums.sha256(bytes.toByteArray()).getBytes(StandardCharsets.US_ASCII));
             final Properties state = new Properties();
+            state.setProperty(SOURCE, FROM_EXPORT);
             head.etag().ifPresent(etag -> state.setProperty(ETAG, etag));
             head.lastModified().ifPresent(modified -> state.setProperty(LAST_MODIFIED, modified));
             markChecked(state);
@@ -321,13 +392,5 @@ public final class DemozooExport implements CatalogueSource {
 
     private Path file(String name) throws IOException {
         return cache.file(SEGMENT, name);
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance(DIGEST).digest(bytes));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(DIGEST + " is missing from the runtime", e);
-        }
     }
 }
