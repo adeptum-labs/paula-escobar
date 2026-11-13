@@ -54,14 +54,31 @@ import java.util.zip.GZIPOutputStream;
 public final class CatalogueFormat {
 
     static final int MAGIC = 0x505A445A;
-    static final short VERSION = 1;
+    public static final short VERSION = 1;
 
     private static final int NO_STRING = -1;
     private static final int MAX_COUNT = 10_000_000;
     private static final int MAX_STRING_LENGTH = 1 << 20;
+    private static final String FILE_NAME = "demozoo-catalogue-v%d.bin.gz";
+    private static final String CHECKSUM_SUFFIX = ".sha256";
 
     private CatalogueFormat() {
         /* Empty on purpose */
+    }
+
+    /**
+     * The name a catalogue in this format is published under. It carries the version, so a Paula that reads an
+     * older format never fetches a catalogue it cannot read.
+     */
+    public static String fileName() {
+        return FILE_NAME.formatted(VERSION);
+    }
+
+    /**
+     * The name of the checksum published beside the catalogue, in the form {@code sha256sum} writes and checks.
+     */
+    public static String checksumName() {
+        return fileName() + CHECKSUM_SUFFIX;
     }
 
     public static void write(MusicCatalogue catalogue, OutputStream out) throws IOException {

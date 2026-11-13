@@ -36,6 +36,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.ExecutionException;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.ParameterException;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParseResult;
 import picocli.CommandLine.Spec;
@@ -54,7 +55,10 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
+import com.adeptum.paula.demozoo.export.CatalogueSource;
 import com.adeptum.paula.demozoo.export.DemozooExport;
+import com.adeptum.paula.demozoo.export.FileCatalogue;
+import com.adeptum.paula.demozoo.export.MusicCatalogue;
 import com.adeptum.paula.demozoo.CachedReleaseArt;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
@@ -130,6 +134,15 @@ public final class Paula implements Runnable {
     @Option(names = "--record", paramLabel = "FILE", description = "Keep a copy of everything played in this wave file.")
     private Path record;
 
+    @Option(names = "--demozoo-export", paramLabel = "FILE", description = "Read Demozoo's database export from this file instead of fetching it.")
+    private Path demozooExport;
+
+    @Option(names = "--demozoo-catalogue", paramLabel = "FILE", description = "Read the Demozoo music catalogue from this file instead of fetching it.")
+    private Path demozooCatalogue;
+
+    @Option(names = "--write-demozoo-catalogue", paramLabel = "DIR", description = "Write the Demozoo music catalogue and its checksum into this directory and exit; no terminal is needed then.")
+    private Path writeDemozooCatalogue;
+
     @Parameters(paramLabel = "FILE", arity = "0..*", description = "Module files to play, in order.")
     private List<Path> files = List.of();
 
@@ -158,6 +171,14 @@ public final class Paula implements Runnable {
 
     @Override
     public void run() {
+        if (demozooExport != null && demozooCatalogue != null) {
+            throw new ParameterException(spec.commandLine(),
+                    "--demozoo-export and --demozoo-catalogue cannot be used together");
+        }
+        if (writeDemozooCatalogue != null) {
+            writeCatalogue();
+            return;
+        }
         final Optional<Playlist> playlist = files.isEmpty() ? Optional.empty() : Optional.of(new Playlist(localTracks()));
         final TerminalUi ui;
         try {
@@ -178,7 +199,7 @@ public final class Paula implements Runnable {
                 TrackLoader loader = TrackLoader.background()) {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
-            final DemozooClient demozoo = new DemozooClient(new DemozooExport(http, cache, refreshingDemozoo));
+            final DemozooClient demozoo = new DemozooClient(source(cache, http, refreshingDemozoo));
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final UnplayableReleases unplayable = new UnplayableReleases(cache, loaders);
@@ -203,6 +224,39 @@ public final class Paula implements Runnable {
             fetchingArt.shutdownNow();
             refreshingDemozoo.shutdownNow();
         }
+    }
+
+    /**
+     * Writes the catalogue where it was asked for and names both files, taking it from the file named or, without
+     * one, from the cache or Demozoo itself; nothing of it needs a terminal.
+     */
+    private void writeCatalogue() {
+        final ExecutorService refreshingDemozoo = DaemonExecutors.singleThread(DEMOZOO_THREAD);
+        try {
+            final CatalogueSource chosen = source(CacheDirectory.resolve(), JdkHttpFetcher.paula(), refreshingDemozoo);
+            final MusicCatalogue catalogue = chosen.catalogue();
+            for (final Path written : FileCatalogue.write(catalogue, writeDemozooCatalogue)) {
+                spec.commandLine().getOut().println(written);
+            }
+        } catch (IOException e) {
+            throw new ExecutionException(spec.commandLine(), e.getMessage(), e);
+        } finally {
+            refreshingDemozoo.shutdownNow();
+        }
+    }
+
+    /**
+     * Where the Demozoo music comes from: the file named, or the catalogue published with Paula's latest release
+     * and, behind it, the export Demozoo publishes every night.
+     */
+    private CatalogueSource source(CacheDirectory cache, HttpFetcher http, ExecutorService refreshingDemozoo) {
+        if (demozooCatalogue != null) {
+            return FileCatalogue.catalogue(demozooCatalogue);
+        }
+        if (demozooExport != null) {
+            return FileCatalogue.export(demozooExport);
+        }
+        return new DemozooExport(http, cache, refreshingDemozoo);
     }
 
     /**
