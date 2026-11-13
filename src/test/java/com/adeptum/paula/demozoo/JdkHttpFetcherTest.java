@@ -23,6 +23,7 @@ package com.adeptum.paula.demozoo;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -31,6 +32,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class JdkHttpFetcherTest {
 
@@ -49,6 +53,8 @@ class JdkHttpFetcherTest {
     private static final int NOT_FOUND = 404;
     private static final int FOUND = 302;
     private static final String DISPOSITION = "Content-Disposition";
+    private static final String ETAG = "ETag";
+    private static final String LAST_MODIFIED = "Last-Modified";
     private static final int STALLED_LENGTH = 1_000_000;
 
     private final JdkHttpFetcher fetcher = new JdkHttpFetcher("paula-test");
@@ -153,6 +159,60 @@ class JdkHttpFetcherTest {
         assertTrue(thrown.getMessage().contains("404"), thrown.getMessage());
     }
 
+    /**
+     * The export is a couple of hundred megabytes, so whether it has changed is asked of the server rather than
+     * found out by fetching all of it again.
+     */
+    @Test
+    void saysWhatTheServerKeepsOfTheExportWithoutFetchingIt() throws IOException {
+        serveHead("/demozoo.sqlite.gz", "\"5f1c-ab12\"", "Wed, 12 Nov 2026 21:04:00 GMT", 300_000);
+
+        final HttpFetcher.Head head = fetcher.head(uri("/demozoo.sqlite.gz"));
+
+        assertEquals(Optional.of("\"5f1c-ab12\""), head.etag(), "the handle the export is known by");
+        assertEquals(Optional.of("Wed, 12 Nov 2026 21:04:00 GMT"), head.lastModified(), "and when it was last written");
+        assertEquals(300_000, head.length(), "how long it is, without any of it having arrived");
+    }
+
+    @Test
+    void reportsWhatTheServerRefusedToSayOfTheExport() {
+        serve("/missing", new byte[0], Optional.empty(), NOT_FOUND);
+
+        final IOException thrown = assertThrows(IOException.class, () -> fetcher.head(uri("/missing")));
+        assertTrue(thrown.getMessage().contains("404"), thrown.getMessage());
+    }
+
+    /**
+     * A body of this size is not held in memory; it goes to the file as it arrives, and the file is left holding
+     * exactly the bytes the server sent.
+     */
+    @Test
+    void writesTheDownloadStraightToTheFileAsItArrives(@TempDir Path dir) throws IOException {
+        final byte[] body = noise(300_000);
+        serve("/demozoo.sqlite.gz", body, Optional.empty());
+        final Path target = dir.resolve("demozoo.sqlite.gz");
+        final List<Long> reads = new ArrayList<>();
+
+        fetcher.download(uri("/demozoo.sqlite.gz"), target, (read, total) -> {
+            reads.add(read);
+            assertEquals(body.length, total, "the length the server promised");
+        });
+
+        assertArrayEquals(body, Files.readAllBytes(target), "the file holds exactly what was sent");
+        assertTrue(reads.size() > 1, "it was written in blocks, not gathered whole first");
+        assertEquals(body.length, reads.get(reads.size() - 1), "and the last count is the whole of it");
+        assertEquals(reads.stream().sorted().toList(), reads, "counting only ever goes up");
+    }
+
+    @Test
+    void leavesNoFileBehindWhenTheServerRefusesTheDownload(@TempDir Path dir) {
+        serve("/missing", new byte[0], Optional.empty(), NOT_FOUND);
+        final Path target = dir.resolve("demozoo.sqlite.gz");
+
+        assertThrows(IOException.class, () -> fetcher.download(uri("/missing"), target, HttpFetcher.Watcher.NONE));
+        assertFalse(Files.exists(target), "a half-written export looks whole to whatever opens it next");
+    }
+
     private void serve(String path, byte[] body, Optional<String> disposition) {
         serve(path, body, disposition, OK);
     }
@@ -162,6 +222,21 @@ class JdkHttpFetcherTest {
             disposition.ifPresent(value -> exchange.getResponseHeaders().add(DISPOSITION, value));
             exchange.sendResponseHeaders(status, body.length);
             exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+    }
+
+    /**
+     * Answers a HEAD the way a server that keeps an export does: what it knows the body by and how long it is,
+     * with none of the body itself sent.
+     */
+    private void serveHead(String path, String etag, String lastModified, int length) {
+        server.createContext(path, exchange -> {
+            exchange.getResponseHeaders().add(ETAG, etag);
+            exchange.getResponseHeaders().add(LAST_MODIFIED, lastModified);
+            // The server drops the length it is given for a HEAD answer, so it is set as a header instead.
+            exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
+            exchange.sendResponseHeaders(OK, -1);
             exchange.close();
         });
     }

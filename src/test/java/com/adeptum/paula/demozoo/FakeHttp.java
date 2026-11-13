@@ -22,8 +22,11 @@
 package com.adeptum.paula.demozoo;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -34,8 +37,10 @@ import java.util.Optional;
 public final class FakeHttp implements HttpFetcher {
 
     private static final int BLOCK = 16 * 1024;
+    private static final long UNKNOWN_LENGTH = -1;
 
     private final Map<URI, Response> responses = new HashMap<>();
+    private final Map<URI, Head> heads = new HashMap<>();
     private int requests;
     private boolean offline;
     private Runnable afterBlock = () -> { };
@@ -54,6 +59,13 @@ public final class FakeHttp implements HttpFetcher {
 
     public void put(String url, byte[] body, Optional<String> fileName) {
         responses.put(URI.create(url), new Response(body, fileName));
+    }
+
+    /**
+     * Registers what a HEAD of the URL is answered with; a head says nothing of how long the body is.
+     */
+    public void putHead(String url, String etag, String lastModified) {
+        heads.put(URI.create(url), new Head(Optional.of(etag), Optional.of(lastModified), UNKNOWN_LENGTH));
     }
 
     public void goOffline() {
@@ -92,5 +104,49 @@ public final class FakeHttp implements HttpFetcher {
             afterBlock.run();
         }
         return response;
+    }
+
+    /**
+     * A registered head answers as it was registered; otherwise a registered body says only how long it is, and
+     * an unknown URL fails the way the wire would.
+     */
+    @Override
+    public Head head(URI uri) throws IOException {
+        requests++;
+        if (offline) {
+            throw new IOException("offline");
+        }
+        final Head registered = heads.get(uri);
+        if (registered != null) {
+            return registered;
+        }
+        final Response response = responses.get(uri);
+        if (response == null) {
+            throw new IOException("HTTP 404 from " + uri.getHost());
+        }
+        return new Head(Optional.empty(), Optional.empty(), response.body().length);
+    }
+
+    /**
+     * Writes the body to the file the way a real fetcher does, in blocks and with someone watching, so that a
+     * test sees a long download arrive on disk rather than in memory.
+     */
+    @Override
+    public void download(URI uri, Path target, Watcher watcher) throws IOException {
+        requests++;
+        if (offline) {
+            throw new IOException("offline");
+        }
+        final Response response = responses.get(uri);
+        if (response == null) {
+            throw new IOException("HTTP 404 from " + uri.getHost());
+        }
+        try (OutputStream file = Files.newOutputStream(target)) {
+            for (int read = 0; read < response.body().length; read += BLOCK) {
+                file.write(response.body(), read, Math.min(BLOCK, response.body().length - read));
+                watcher.read(Math.min(read + BLOCK, response.body().length), response.body().length);
+                afterBlock.run();
+            }
+        }
     }
 }
