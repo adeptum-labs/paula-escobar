@@ -24,11 +24,16 @@ package com.adeptum.paula;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.adeptum.paula.demozoo.export.CatalogueFormat;
+import com.adeptum.paula.demozoo.export.FileCatalogue;
+import com.adeptum.paula.demozoo.export.MusicCatalogue;
 import com.adeptum.paula.testing.TestModules;
 import com.adeptum.paula.testing.TestSids;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -119,5 +124,24 @@ class PaulaTest {
     void infoOnUnsupportedFileFails() {
         assertEquals(1, cli.execute("info", "missing.xyz"));
         assertEquals("Error: Unsupported module format: missing.xyz", err.toString().strip());
+    }
+
+    @Test
+    void bothDemozooFilesAtOnceAreRejected() {
+        assertEquals(CommandLine.ExitCode.USAGE, cli.execute("--demozoo-export", "demozoo-export.sql.gz",
+                "--demozoo-catalogue", CatalogueFormat.fileName()));
+        assertTrue(err.toString().contains("--demozoo-export and --demozoo-catalogue cannot be used together"));
+    }
+
+    @Test
+    void writesTheDemozooCatalogueWithoutATerminal(@TempDir Path dir) throws Exception {
+        final MusicCatalogue empty = new MusicCatalogue(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        final Path catalogue = FileCatalogue.write(empty, dir).getFirst();
+        final Path written = dir.resolve("out");
+        assertEquals(0, cli.execute("--demozoo-catalogue", catalogue.toString(),
+                "--write-demozoo-catalogue", written.toString()));
+        assertTrue(Files.exists(written.resolve(CatalogueFormat.fileName())));
+        assertTrue(Files.exists(written.resolve(CatalogueFormat.checksumName())));
+        assertTrue(out.toString().contains(written.resolve(CatalogueFormat.fileName()).toString()));
     }
 }
