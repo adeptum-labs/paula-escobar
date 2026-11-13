@@ -54,6 +54,7 @@ import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.HttpFetcher;
 import com.adeptum.paula.demozoo.JdkHttpFetcher;
+import com.adeptum.paula.demozoo.export.DemozooExport;
 import com.adeptum.paula.demozoo.CachedReleaseArt;
 import com.adeptum.paula.demozoo.PartyArt;
 import com.adeptum.paula.demozoo.ReleaseArt;
@@ -100,6 +101,7 @@ public final class Paula implements Runnable {
     private static final Duration CAST_LOOKUP_STEP = Duration.ofMillis(100);
     private static final String BROWSER_THREAD = "paula-browser";
     private static final String ART_THREAD = "paula-art";
+    private static final String DEMOZOO_THREAD = "paula-demozoo";
 
     @Spec
     private CommandSpec spec;
@@ -169,13 +171,14 @@ public final class Paula implements Runnable {
         }
         final ExecutorService browsing = DaemonExecutors.singleThread(BROWSER_THREAD);
         final ExecutorService fetchingArt = DaemonExecutors.singleThread(ART_THREAD);
+        final ExecutorService refreshingDemozoo = DaemonExecutors.singleThread(DEMOZOO_THREAD);
         try (ui;
                 CastDiscovery discovery = CastDiscovery.start();
                 PlaybackEngine engine = new PlaybackEngine(outputSink(discovery), copies(), sampleRate, bufferFrames);
                 TrackLoader loader = TrackLoader.background()) {
             final CacheDirectory cache = CacheDirectory.resolve();
             final HttpFetcher http = JdkHttpFetcher.paula();
-            final DemozooClient demozoo = new DemozooClient(http, cache);
+            final DemozooClient demozoo = new DemozooClient(new DemozooExport(http, cache, refreshingDemozoo));
             final SongLengths sidLengths = new SongLengths(http, cache);
             final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(sidLengths);
             final UnplayableReleases unplayable = new UnplayableReleases(cache, loaders);
@@ -198,6 +201,7 @@ public final class Paula implements Runnable {
         } finally {
             browsing.shutdownNow();
             fetchingArt.shutdownNow();
+            refreshingDemozoo.shutdownNow();
         }
     }
 

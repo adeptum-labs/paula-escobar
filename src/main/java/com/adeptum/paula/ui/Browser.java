@@ -504,6 +504,7 @@ public final class Browser {
     private static final String NO_MUSICIAN = "No musician is named for this entry";
     private static final String NO_ARTIST = "No artist is registered for this module";
     private static final String LOADING = "Loading ";
+    private static final int PERCENT = 100;
     private static final String COMPO_SEPARATOR = " · ";
     private static final String CRUMB_SEPARATOR = " › ";
     private static final String CURSOR = "> ";
@@ -1483,7 +1484,10 @@ public final class Browser {
                     .append(COMPO_SEPARATOR).append(filling.title).append('…'));
         }
         if (pending != null) {
-            return Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(loadingTitle()).append('…'));
+            return demozoo.preparing()
+                    .map(step -> Screen.line(b -> b.style(Palette.ACCENT).append(step.text()).append(' ')
+                            .append(String.valueOf(Math.round(step.fraction() * PERCENT))).append("%…")))
+                    .orElseGet(() -> Screen.line(b -> b.style(Palette.ACCENT).append(LOADING).append(loadingTitle()).append('…')));
         }
         if (error != null) {
             return Screen.line(b -> b.style(Palette.ACCENT).append(error));

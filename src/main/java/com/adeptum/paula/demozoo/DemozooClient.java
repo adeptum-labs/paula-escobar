@@ -21,107 +21,64 @@
 
 package com.adeptum.paula.demozoo;
 
-import com.adeptum.paula.cache.CacheDirectory;
-import com.adeptum.paula.cache.CachedResource;
+import com.adeptum.paula.demozoo.export.CatalogueSource;
+import com.adeptum.paula.playback.Progress;
 import java.io.IOException;
-import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Clock;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
 
 /**
- * Reads the Demozoo API through an on-disk cache; a cached copy is refreshed after the time to live but still
- * served when the network is down.
+ * Answers questions about Demozoo's music from the catalogue converted out of Demozoo's nightly database export.
  */
-@Slf4j
 public final class DemozooClient {
 
-    private static final URI API = URI.create("https://demozoo.org/api/v1/");
-    private static final String JSON_FORMAT = "/?format=json";
-    private static final String JSON_SUFFIX = ".json";
-    private static final String CACHE_SEGMENT = "api";
-    private static final String SERIES = "party_series";
-    private static final String PARTIES = "parties";
-    private static final String PRODUCTIONS = "productions";
-    private static final String RELEASERS = "releasers";
-    private static final Duration DEFAULT_TTL = Duration.ofDays(7);
+    private final CatalogueSource source;
 
-    private final HttpFetcher http;
-    private final CacheDirectory cache;
-    private final CachedResource resource;
-
-    public DemozooClient(HttpFetcher http, CacheDirectory cache) {
-        this(http, cache, DEFAULT_TTL, Clock.systemUTC());
-    }
-
-    DemozooClient(HttpFetcher http, CacheDirectory cache, Duration ttl, Clock clock) {
-        this.http = http;
-        this.cache = cache;
-        this.resource = new CachedResource(cache, ttl, clock);
+    public DemozooClient(CatalogueSource source) {
+        this.source = source;
     }
 
     public PartySeries series(int id) throws IOException {
-        return fetch(SERIES, id, DemozooJson::series);
+        return source.catalogue().series(id).orElseThrow(() -> new IOException("Demozoo has no party series " + id));
     }
 
     public List<Competition> competitions(int partyId) throws IOException {
-        return fetch(PARTIES, partyId, DemozooJson::competitions);
+        return source.catalogue().competitions(partyId);
     }
 
     public Optional<String> sceneOrgFolder(int partyId) throws IOException {
-        return fetch(PARTIES, partyId, DemozooJson::sceneOrgFolder);
-    }
-
-    /**
-     * Drops the cached answer for a series or a party, so what is asked for next comes from Demozoo again.
-     */
-    public void forgetSeries(int id) {
-        forget(SERIES, id);
-    }
-
-    public void forgetParty(int partyId) {
-        forget(PARTIES, partyId);
+        return source.catalogue().sceneOrgFolder(partyId);
     }
 
     public Production production(int id) throws IOException {
-        return fetch(PRODUCTIONS, id, DemozooJson::production);
+        return source.catalogue().production(id).orElseThrow(() -> new IOException("Demozoo has no production " + id));
     }
 
     public List<Work> works(int releaserId) throws IOException {
-        return resource.read(worksFile(releaserId),
-                () -> http.get(API.resolve(RELEASERS + "/" + releaserId + "/" + PRODUCTIONS + JSON_FORMAT)).body(), DemozooJson::works);
+        return source.catalogue().works(releaserId);
+    }
+
+    /**
+     * Asking for fresh answers about a series, a party or a musician has Demozoo's export looked at again at the
+     * next chance, since every answer comes from the same converted catalogue.
+     */
+    public void forgetSeries(int id) {
+        source.checkSoon();
+    }
+
+    public void forgetParty(int partyId) {
+        source.checkSoon();
     }
 
     public void forgetWorks(int releaserId) {
-        forget(() -> worksFile(releaserId));
+        source.checkSoon();
     }
 
-    private Path worksFile(int releaserId) throws IOException {
-        return cache.file(CACHE_SEGMENT, RELEASERS, String.valueOf(releaserId), PRODUCTIONS + JSON_SUFFIX);
-    }
-
-    private void forget(String resource, int id) {
-        forget(() -> cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX));
-    }
-
-    private void forget(CachedFile file) {
-        try {
-            Files.deleteIfExists(file.path());
-        } catch (IOException e) {
-            log.warn("Could not forget a cached answer: {}", e.getMessage());
-        }
-    }
-
-    private interface CachedFile {
-        Path path() throws IOException;
-    }
-
-    private <T> T fetch(String resource, int id, CachedResource.Parser<T> parser) throws IOException {
-        return this.resource.read(cache.file(CACHE_SEGMENT, resource, id + JSON_SUFFIX),
-                () -> http.get(API.resolve(resource + "/" + id + JSON_FORMAT)).body(), parser);
+    /**
+     * What getting Demozoo's music ready is busy with, while it is: the first fetch and conversion of the export
+     * takes a while.
+     */
+    public Optional<Progress.Step> preparing() {
+        return source.preparing();
     }
 }

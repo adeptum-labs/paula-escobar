@@ -23,6 +23,7 @@ package com.adeptum.paula.demozoo;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Optional;
 
 /**
@@ -31,6 +32,13 @@ import java.util.Optional;
 public interface HttpFetcher {
 
     record Response(byte[] body, Optional<String> fileName) {
+    }
+
+    /**
+     * What a server says of a body without sending any of it: the handle it knows the body by and the date it was
+     * last written, where the server keeps them, and how long the body is; the length is -1 where it did not say.
+     */
+    record Head(Optional<String> etag, Optional<String> lastModified, long length) {
     }
 
     /**
@@ -53,4 +61,15 @@ public interface HttpFetcher {
     default Response get(URI uri, Watcher watcher) throws IOException {
         return get(uri);
     }
+
+    /**
+     * Asks after the body without fetching any of it, which tells whether what was fetched before has changed.
+     */
+    Head head(URI uri) throws IOException;
+
+    /**
+     * Fetches the body straight into the given file block by block, since an export of a couple of hundred
+     * megabytes is not to be held in memory; someone watching is told how much of it has arrived.
+     */
+    void download(URI uri, Path target, Watcher watcher) throws IOException;
 }
