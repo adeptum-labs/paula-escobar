@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -74,7 +75,9 @@ class DemozooExportTest {
         assertTrue(Files.exists(dir.resolve("demozoo/catalogue.bin.gz")));
         assertTrue(Files.exists(dir.resolve("demozoo/catalogue.sha256")));
         assertTrue(Files.exists(dir.resolve("demozoo/export.properties")));
-        assertFalse(Files.exists(dir.resolve("demozoo/export.sql.gz.part")), "the download is gone once converted");
+        try (Stream<Path> files = Files.list(dir.resolve("demozoo"))) {
+            assertFalse(files.anyMatch(file -> file.toString().endsWith(".part")), "the download is gone once converted");
+        }
     }
 
     @Test
@@ -142,6 +145,27 @@ class DemozooExportTest {
         clock.advance(MORE_THAN_A_WEEK);
 
         assertEquals(loaded, export.catalogue());
+        assertEquals(1, converter.calls());
+    }
+
+    @Test
+    void aFailedLookIsTriedAgainADayLaterRatherThanAtEveryQuestion(@TempDir Path dir) throws IOException {
+        serve(ETAG, "export one");
+        final StubConverter converter = new StubConverter(catalogue("Assembly 1995"));
+        final DemozooExport export = export(dir, converter);
+        final MusicCatalogue loaded = export.catalogue();
+        final int fetched = http.requests();
+
+        http.goOffline();
+        clock.advance(MORE_THAN_A_WEEK);
+        export.catalogue();
+        export.catalogue();
+        assertEquals(fetched + 1, http.requests(), "the failed look is not repeated at once");
+
+        http.goOnline();
+        clock.advance(Duration.ofHours(25));
+        assertEquals(loaded, export.catalogue());
+        assertEquals(fetched + 2, http.requests(), "a day later it is tried again");
         assertEquals(1, converter.calls());
     }
 

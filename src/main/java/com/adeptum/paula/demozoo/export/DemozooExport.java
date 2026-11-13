@@ -52,7 +52,7 @@ import lombok.extern.slf4j.Slf4j;
  * converted catalogue is read from the cache, and once a week the export is asked after: only when Demozoo's handle
  * for it has changed is it fetched and converted again, in the background, with the old catalogue served meanwhile.
  * A catalogue whose checksum no longer matches is converted afresh, and a network that is down leaves the old one
- * in use.
+ * in use and the export is asked after again a day later rather than at every look.
  */
 @Slf4j
 public final class DemozooExport implements CatalogueSource {
@@ -60,15 +60,18 @@ public final class DemozooExport implements CatalogueSource {
     public static final URI EXPORT = URI.create("https://data.demozoo.org/demozoo-export.sql.gz");
 
     private static final Duration CHECK_INTERVAL = Duration.ofDays(7);
+    private static final Duration RETRY_INTERVAL = Duration.ofDays(1);
     private static final String SEGMENT = "demozoo";
     private static final String CATALOGUE = "catalogue.bin.gz";
     private static final String CHECKSUM = "catalogue.sha256";
     private static final String STATE = "export.properties";
-    private static final String DOWNLOAD = "export.sql.gz.part";
+    private static final String DOWNLOAD_PREFIX = "export-";
+    private static final String DOWNLOAD_SUFFIX = ".sql.gz.part";
     private static final String ETAG = "etag";
     private static final String LAST_MODIFIED = "last-modified";
     private static final String CHECKED = "checked";
     private static final String CONVERTED = "converted";
+    private static final String NEXT_CHECK = "next-check";
     private static final String DIGEST = "SHA-256";
     private static final String FETCHING = "Fetching the Demozoo database";
     private static final String CONVERTING = "Reading the Demozoo database";
@@ -90,6 +93,7 @@ public final class DemozooExport implements CatalogueSource {
     private final AtomicBoolean refreshing = new AtomicBoolean();
     private volatile MusicCatalogue catalogue;
     private volatile boolean checkNow;
+    private volatile Instant nextCheck;
 
     public DemozooExport(HttpFetcher http, CacheDirectory cache, Executor background) {
         this(http, cache, Clock.systemUTC(), background, ExportConverter::convert);
@@ -169,14 +173,40 @@ public final class DemozooExport implements CatalogueSource {
     }
 
     private boolean checkDue() {
-        if (checkNow) {
-            return true;
+        return checkNow || !clock.instant().isBefore(nextCheck());
+    }
+
+    /**
+     * When the export is next to be asked after, read from the state once and kept in hand after that.
+     */
+    private Instant nextCheck() {
+        if (nextCheck == null) {
+            final Properties state = state();
+            try {
+                final String next = state.getProperty(NEXT_CHECK);
+                final String checked = state.getProperty(CHECKED);
+                nextCheck = next != null ? Instant.parse(next)
+                        : checked != null ? Instant.parse(checked).plus(CHECK_INTERVAL) : clock.instant();
+            } catch (RuntimeException e) {
+                nextCheck = clock.instant();
+            }
         }
-        final String checked = state().getProperty(CHECKED);
+        return nextCheck;
+    }
+
+    /**
+     * A failed look is tried again a day later: a network that is down, or a download that cannot finish, would
+     * otherwise be tried again at every question asked of the catalogue.
+     */
+    private void failed(Exception failure) {
+        log.warn("Could not refresh the Demozoo catalogue: {}", failure.getMessage());
+        nextCheck = clock.instant().plus(RETRY_INTERVAL);
+        final Properties state = state();
+        state.setProperty(NEXT_CHECK, nextCheck.toString());
         try {
-            return checked == null || Instant.parse(checked).plus(CHECK_INTERVAL).isBefore(clock.instant());
-        } catch (RuntimeException e) {
-            return true;
+            saveState(state);
+        } catch (IOException e) {
+            log.warn("Could not note when to look at the Demozoo export again: {}", e.getMessage());
         }
     }
 
@@ -189,7 +219,7 @@ public final class DemozooExport implements CatalogueSource {
             try {
                 refresh();
             } catch (IOException | RuntimeException e) {
-                log.warn("Could not refresh the Demozoo catalogue: {}", e.getMessage());
+                failed(e);
             } finally {
                 refreshing.set(false);
             }
@@ -200,7 +230,7 @@ public final class DemozooExport implements CatalogueSource {
         final HttpFetcher.Head head = http.head(EXPORT);
         final Properties state = state();
         if (head.etag().isPresent() && head.etag().get().equals(state.getProperty(ETAG))) {
-            state.setProperty(CHECKED, clock.instant().toString());
+            markChecked(state);
             saveState(state);
             return;
         }
@@ -212,7 +242,8 @@ public final class DemozooExport implements CatalogueSource {
      * the export they came from, so an interrupted conversion is simply done again.
      */
     private MusicCatalogue fetchAndConvert(HttpFetcher.Head head) throws IOException {
-        final Path download = file(DOWNLOAD);
+        // A file of its own, so two players starting on the same cache do not write over each other's download.
+        final Path download = Files.createTempFile(file(CATALOGUE).getParent(), DOWNLOAD_PREFIX, DOWNLOAD_SUFFIX);
         try {
             progress.measured(FETCHING, 0);
             http.download(EXPORT, download, (read, total) -> progress.measured(FETCHING, fraction(read, total)));
@@ -225,7 +256,7 @@ public final class DemozooExport implements CatalogueSource {
             final Properties state = new Properties();
             head.etag().ifPresent(etag -> state.setProperty(ETAG, etag));
             head.lastModified().ifPresent(modified -> state.setProperty(LAST_MODIFIED, modified));
-            state.setProperty(CHECKED, clock.instant().toString());
+            markChecked(state);
             state.setProperty(CONVERTED, clock.instant().toString());
             saveState(state);
             return converted;
@@ -233,6 +264,13 @@ public final class DemozooExport implements CatalogueSource {
             progress.clear();
             Files.deleteIfExists(download);
         }
+    }
+
+    private void markChecked(Properties state) {
+        final Instant now = clock.instant();
+        nextCheck = now.plus(CHECK_INTERVAL);
+        state.setProperty(CHECKED, now.toString());
+        state.setProperty(NEXT_CHECK, nextCheck.toString());
     }
 
     private static double fraction(long read, long total) {
