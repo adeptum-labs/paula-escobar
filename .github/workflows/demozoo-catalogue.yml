@@ -1,0 +1,86 @@
+name: Demozoo catalogue
+
+on:
+  schedule:
+    - cron: '30 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  catalogue:
+    name: Refresh the catalogue the latest release carries
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Find the latest release
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "The latest release is $tag"
+
+      - name: Take the executable from it
+        id: executable
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # The archive holds a directory of its own, named after the version and the target.
+          mkdir -p paula
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'paula-*-linux-x86_64.tar.gz'
+          tar -C paula --strip-components=1 -xzf paula-*.tar.gz
+          # A release cut before the option existed cannot build a catalogue; the next one will.
+          # Read whole first, since grep stopping early would fail the pipe under pipefail.
+          help="$(paula/paula --help)"
+          if grep -q -- --write-demozoo-catalogue <<< "$help"; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::The latest release ($TAG) predates --write-demozoo-catalogue; the catalogue is left as it is."
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch Demozoo's export
+        if: steps.executable.outputs.supported == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o demozoo-export.sql.gz https://data.demozoo.org/demozoo-export.sql.gz
+
+      - name: Convert it to the catalogue
+        if: steps.executable.outputs.supported == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          paula/paula --demozoo-export demozoo-export.sql.gz --write-demozoo-catalogue out/
+
+      - name: Take the checksum the release carries now
+        if: steps.executable.outputs.supported == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p current
+          # The first release to carry a catalogue has none before it, and this finds nothing then.
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'demozoo-catalogue-v*.bin.gz.sha256' --dir current/ || true
+
+      - name: Publish the catalogue when it has changed
+        if: steps.executable.outputs.supported == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          current="$(cat current/*.sha256 2>/dev/null || true)"
+          if [ -n "$current" ] && [ "$current" = "$(cat out/*.sha256)" ]; then
+            echo "The Demozoo catalogue is unchanged."
+          else
+            gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
+          fi
+          ls -l out/*

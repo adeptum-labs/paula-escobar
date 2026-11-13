@@ -106,6 +106,18 @@ jobs:
           cp "$jar" assets/
           ls -l assets/
 
+      - name: Build the Demozoo catalogue
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The catalogue is built by the executable this release carries, from the export
+          # Demozoo published that morning, and travels with the release.
+          dir="$(mktemp -d)"
+          tar -C "$dir" --strip-components=1 -xzf assets/paula-*-linux-x86_64.tar.gz
+          curl -fsSL --retry 3 -o demozoo-export.sql.gz https://data.demozoo.org/demozoo-export.sql.gz
+          "$dir/paula" --demozoo-export demozoo-export.sql.gz --write-demozoo-catalogue assets/
+          ls -l assets/
+
       - name: Draft it
         shell: bash
         env:
