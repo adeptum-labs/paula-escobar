@@ -22,123 +22,122 @@
 package com.adeptum.paula.demozoo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.adeptum.paula.cache.CacheDirectory;
+import com.adeptum.paula.demozoo.export.CatalogueSource;
+import com.adeptum.paula.demozoo.export.MusicCatalogue;
+import com.adeptum.paula.playback.Progress;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 class DemozooClientTest {
 
-    private static final String SERIES_URL = "https://demozoo.org/api/v1/party_series/2/?format=json";
-    private static final String PARTY_URL = "https://demozoo.org/api/v1/parties/103/?format=json";
-    private static final String PRODUCTION_URL = "https://demozoo.org/api/v1/productions/7/?format=json";
-    private static final String WORKS_URL = "https://demozoo.org/api/v1/releasers/5887/productions/?format=json";
-    private static final Duration TTL = Duration.ofDays(7);
+    private static final int SERIES_ID = 2;
+    private static final int PARTY_ID = 103;
+    private static final int PRODUCTION_ID = 7;
+    private static final int RELEASER_ID = 5887;
+    private static final String FOLDER = "https://files.scene.org/browse/parties/1995/asm95/";
+    private static final Nick NICK = new Nick("Theseus", RELEASER_ID, false);
+    private static final CompoEntry ENTRY = new CompoEntry(1, "1", PRODUCTION_ID, "Funkyeeh", List.of(NICK), Set.of(29));
+    private static final Competition COMPETITION = new Competition(9, "4 Channel Music", 29, "Tracked Music", List.of(ENTRY));
+    private static final PartySeries SERIES = new PartySeries(SERIES_ID, "Assembly",
+            List.of(new Party(PARTY_ID, "Assembly 1995", "1995-08-10")));
+    private static final Production PRODUCTION = new Production(PRODUCTION_ID, "Funkyeeh",
+            List.of(new Link("SceneOrgFile", "https://files.scene.org/view/funky.mod")), List.of(), null);
+    private static final Work WORK = new Work(ENTRY, "1995", "Amiga");
+    private static final MusicCatalogue CATALOGUE = new MusicCatalogue(Map.of(SERIES_ID, SERIES),
+            Map.of(PARTY_ID, List.of(COMPETITION)), Map.of(PARTY_ID, FOLDER), Map.of(PRODUCTION_ID, PRODUCTION),
+            Map.of(RELEASER_ID, List.of(WORK)));
 
-    private final FakeHttp http = new FakeHttp();
-    private Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+    @Test
+    void passesEveryLookupThroughTheCatalogue() throws IOException {
+        final DemozooClient client = new DemozooClient(CatalogueSource.fixed(CATALOGUE));
 
-    private DemozooClient client(Path dir) {
-        return new DemozooClient(http, new CacheDirectory(dir), TTL, clock);
+        assertEquals(SERIES, client.series(SERIES_ID));
+        assertEquals(List.of(COMPETITION), client.competitions(PARTY_ID));
+        assertEquals(Optional.of(FOLDER), client.sceneOrgFolder(PARTY_ID));
+        assertEquals(PRODUCTION, client.production(PRODUCTION_ID));
+        assertEquals(List.of(WORK), client.works(RELEASER_ID));
     }
 
     @Test
-    void fetchesEveryResourceKind(@TempDir Path dir) throws IOException {
-        http.put(SERIES_URL, DemozooJsonTest.SERIES);
-        http.put(PARTY_URL, DemozooJsonTest.PARTY);
-        http.put(PRODUCTION_URL, DemozooJsonTest.PRODUCTION);
-        assertEquals("Assembly", client(dir).series(2).name());
-        assertEquals("4 Channel Music", client(dir).competitions(103).get(0).name());
-        assertEquals("Funkyeeh", client(dir).production(7).title());
+    void anUnknownSeriesOrProductionIsAnIoException() {
+        final DemozooClient client = new DemozooClient(CatalogueSource.fixed(CATALOGUE));
+
+        final IOException series = assertThrows(IOException.class, () -> client.series(99));
+        final IOException production = assertThrows(IOException.class, () -> client.production(99));
+
+        assertEquals("Demozoo has no party series 99", series.getMessage());
+        assertEquals("Demozoo has no production 99", production.getMessage());
     }
 
     @Test
-    void servesFromCacheAfterTheFirstFetch(@TempDir Path dir) throws IOException {
-        http.put(SERIES_URL, DemozooJsonTest.SERIES);
-        client(dir).series(2);
-        client(dir).series(2);
-        assertEquals(1, http.requests());
-        assertTrue(Files.exists(dir.resolve("api/party_series/2.json")));
+    void anUnknownPartyHasNoCompetitionsOrSceneOrgFolder() throws IOException {
+        final DemozooClient client = new DemozooClient(CatalogueSource.fixed(CATALOGUE));
+
+        assertEquals(List.of(), client.competitions(99));
+        assertEquals(Optional.empty(), client.sceneOrgFolder(99));
     }
 
     @Test
-    void refetchesAfterTheTtl(@TempDir Path dir) throws IOException {
-        http.put(SERIES_URL, DemozooJsonTest.SERIES);
-        client(dir).series(2);
-        clock = Clock.offset(clock, TTL.plusDays(1));
-        client(dir).series(2);
-        assertEquals(2, http.requests());
+    void forgettingASeriesAPartyOrMusicianAsksForAFreshLook() {
+        final CountingSource source = new CountingSource(CATALOGUE);
+        final DemozooClient client = new DemozooClient(source);
+
+        client.forgetSeries(SERIES_ID);
+        client.forgetParty(PARTY_ID);
+        client.forgetWorks(RELEASER_ID);
+
+        assertEquals(3, source.checks());
     }
 
     @Test
-    void servesStaleCacheWhenTheFetchFails(@TempDir Path dir) throws IOException {
-        http.put(SERIES_URL, DemozooJsonTest.SERIES);
-        client(dir).series(2);
-        clock = Clock.offset(clock, TTL.plusDays(1));
-        http.goOffline();
-        assertEquals("Assembly", client(dir).series(2).name());
+    void preparingPassesThrough() {
+        final Progress.Step step = new Progress.Step("Reading the Demozoo database", 0.5, 0);
+        final CountingSource source = new CountingSource(CATALOGUE);
+        source.show(step);
+        final DemozooClient client = new DemozooClient(source);
+
+        assertEquals(Optional.of(step), client.preparing());
+        assertTrue(new DemozooClient(CatalogueSource.fixed(CATALOGUE)).preparing().isEmpty());
     }
 
-    @Test
-    void discardsAndRefetchesAnUnreadableCacheFile(@TempDir Path dir) throws IOException {
-        http.put(SERIES_URL, DemozooJsonTest.SERIES);
-        client(dir).series(2);
-        Files.writeString(dir.resolve("api/party_series/2.json"), "{");
+    private static final class CountingSource implements CatalogueSource {
 
-        assertEquals("Assembly", client(dir).series(2).name());
-        assertEquals(2, http.requests());
-        assertEquals(DemozooJsonTest.SERIES, Files.readString(dir.resolve("api/party_series/2.json")));
-    }
+        private final MusicCatalogue catalogue;
+        private int checks;
+        private Optional<Progress.Step> step = Optional.empty();
 
-    @Test
-    void doesNotCacheAMalformedResponse(@TempDir Path dir) {
-        http.put(SERIES_URL, "{");
-        assertThrows(IOException.class, () -> client(dir).series(2));
-        assertFalse(Files.exists(dir.resolve("api/party_series/2.json")));
-    }
+        private CountingSource(MusicCatalogue catalogue) {
+            this.catalogue = catalogue;
+        }
 
-    @Test
-    void failsWithoutCacheWhenOffline(@TempDir Path dir) {
-        http.goOffline();
-        assertThrows(IOException.class, () -> client(dir).series(2));
-        assertFalse(Files.exists(dir.resolve("api/party_series/2.json")), "failures are never cached");
-    }
+        private void show(Progress.Step step) {
+            this.step = Optional.of(step);
+        }
 
-    @Test
-    void fetchesAndCachesTheWorksOfAReleaser(@TempDir Path dir) throws IOException {
-        http.put(WORKS_URL, DemozooJsonTest.WORKS);
-        assertEquals(2, client(dir).works(5887).size());
-        client(dir).works(5887);
-        assertEquals(1, http.requests());
-        assertTrue(Files.exists(dir.resolve("api/releasers/5887/productions.json")));
-    }
+        private int checks() {
+            return checks;
+        }
 
-    @Test
-    void servesStaleWorksWhenTheFetchFails(@TempDir Path dir) throws IOException {
-        http.put(WORKS_URL, DemozooJsonTest.WORKS);
-        client(dir).works(5887);
-        clock = Clock.offset(clock, TTL.plusDays(1));
-        http.goOffline();
-        assertEquals(2, client(dir).works(5887).size());
-    }
+        @Override
+        public MusicCatalogue catalogue() {
+            return catalogue;
+        }
 
-    @Test
-    void forgetsWorksThenRefetches(@TempDir Path dir) throws IOException {
-        http.put(WORKS_URL, DemozooJsonTest.WORKS);
-        final DemozooClient client = client(dir);
-        client.works(5887);
-        client.forgetWorks(5887);
-        client.works(5887);
-        assertEquals(2, http.requests());
+        @Override
+        public void checkSoon() {
+            checks++;
+        }
+
+        @Override
+        public Optional<Progress.Step> preparing() {
+            return step;
+        }
     }
 }

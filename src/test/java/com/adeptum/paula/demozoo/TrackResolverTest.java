@@ -74,7 +74,7 @@ class TrackResolverTest {
 
     private TrackResolver resolver(Path dir, ModuleLoaderRegistry loaders) {
         final CacheDirectory cache = new CacheDirectory(dir);
-        return new TrackResolver(new DemozooClient(http, cache), http, cache, loaders, new Progress());
+        return new TrackResolver(ApiCatalogue.client(http), http, cache, loaders, new Progress());
     }
 
     /**
@@ -86,14 +86,14 @@ class TrackResolverTest {
 
     private TrackResolver resolver(Path dir, Progress progress) {
         final CacheDirectory cache = new CacheDirectory(dir);
-        return new TrackResolver(new DemozooClient(http, cache), http, cache,
+        return new TrackResolver(ApiCatalogue.client(http), http, cache,
                 ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
     }
 
     private TrackResolver resolver(Path dir, PreferredFormats preferred) {
         final CacheDirectory cache = new CacheDirectory(dir);
         final ModuleLoaderRegistry loaders = ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache);
-        return new TrackResolver(new DemozooClient(http, cache), http, cache, loaders, new Progress(),
+        return new TrackResolver(ApiCatalogue.client(http), http, cache, loaders, new Progress(),
                 new UnplayableReleases(cache, loaders), preferred);
     }
 
@@ -155,7 +155,7 @@ class TrackResolverTest {
         http.put(MODLAND_FILE, TestModules.proTracker(), Optional.empty());
 
         assertEquals(downloaded(dir, MODLAND_FILE).resolve("funkyeeh.mod"), resolver(dir).resolve(ENTRY));
-        assertEquals(2, http.requests(), "the production, then the one link that reads");
+        assertEquals(1, http.requests(), "only the one link that reads");
     }
 
     @Test
@@ -387,7 +387,7 @@ class TrackResolverTest {
         http.put(SCENE_ORG_FILE, TestArchives.zip(entries), Optional.empty());
         final Progress progress = new Progress();
         final CacheDirectory cache = new CacheDirectory(dir);
-        final TrackResolver resolver = new TrackResolver(new DemozooClient(http, cache), http, cache,
+        final TrackResolver resolver = new TrackResolver(ApiCatalogue.client(http), http, cache,
                 ModuleLoaderRegistry.withBuiltInLoaders(SongLengths.none(), cache), progress);
 
         resolver.resolve(ENTRY);
@@ -664,7 +664,7 @@ class TrackResolverTest {
 
         assertEquals("theseus.mod", first.getFileName().toString());
         assertEquals("rival.mod", second.getFileName().toString());
-        assertEquals(3, http.requests(), "two productions looked up, one archive fetched");
+        assertEquals(1, http.requests(), "one archive fetched for both");
     }
 
     @Test
@@ -678,7 +678,7 @@ class TrackResolverTest {
         final IOException error = assertThrows(IOException.class, () -> resolver(dir).resolve(rival));
 
         assertTrue(error.getMessage().startsWith("No playable file in funkyeeh.zip"), error.getMessage());
-        assertEquals(3, http.requests(), "the archive was brought down once");
+        assertEquals(1, http.requests(), "the archive was brought down once");
     }
 
     @Test

@@ -57,7 +57,7 @@ import org.eclipse.parsson.JsonProviderImpl;
 /**
  * A favourite is written back as the {@link Track} it is, so it plays with no conversion once read again.
  * The provider is instantiated directly rather than looked up through the service loader so the native
- * image needs no reflection metadata, the same way {@code DemozooJson} reads Demozoo's own payloads.
+ * image needs no reflection metadata, the same way Demozoo's own payloads were once read.
  */
 public final class FavouritesJson {
 

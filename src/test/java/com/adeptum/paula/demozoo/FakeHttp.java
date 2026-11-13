@@ -80,6 +80,23 @@ public final class FakeHttp implements HttpFetcher {
         return requests;
     }
 
+    /**
+     * The bodies registered under an address prefix, for a stand-in that reads them without counting requests.
+     */
+    public Map<URI, byte[]> bodiesUnder(String prefix) {
+        final Map<URI, byte[]> bodies = new HashMap<>();
+        responses.forEach((uri, response) -> {
+            if (uri.toString().startsWith(prefix)) {
+                bodies.put(uri, response.body());
+            }
+        });
+        return bodies;
+    }
+
+    public boolean isOffline() {
+        return offline;
+    }
+
     @Override
     public Response get(URI uri) throws IOException {
         return get(uri, Watcher.NONE);

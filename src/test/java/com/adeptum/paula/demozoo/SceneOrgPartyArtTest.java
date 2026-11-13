@@ -59,7 +59,7 @@ class SceneOrgPartyArtTest {
 
     private SceneOrgPartyArt art(Path dir) {
         final CacheDirectory cache = new CacheDirectory(dir);
-        return new SceneOrgPartyArt(new DemozooClient(http, cache), http, cache, Runnable::run);
+        return new SceneOrgPartyArt(ApiCatalogue.client(http), http, cache, Runnable::run);
     }
 
     private void serveTheParty() {

@@ -29,6 +29,7 @@ import com.adeptum.paula.cache.CacheDirectory;
 import com.adeptum.paula.demozoo.CompoEntry;
 import com.adeptum.paula.demozoo.Competition;
 import com.adeptum.paula.demozoo.CuratedSeries;
+import com.adeptum.paula.demozoo.ApiCatalogue;
 import com.adeptum.paula.demozoo.DemozooClient;
 import com.adeptum.paula.demozoo.Nick;
 import com.adeptum.paula.demozoo.Party;
@@ -167,6 +168,7 @@ class BrowserTest {
     }
 
     private final FakeHttp http = new FakeHttp();
+    private final ApiCatalogue demozoo = new ApiCatalogue(http);
     private final MutableClock clock = new MutableClock();
     private Browser browser;
     private CacheDirectory cache;
@@ -178,19 +180,19 @@ class BrowserTest {
     }
 
     private Browser browser(ReleaseArt art, PartyArt partyArt) {
-        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+        return new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
                 art, partyArt, DWELL, clock);
     }
 
     private Browser browser(Favourites favourites) {
-        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+        return new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
                 ReleaseArt.NONE, PartyArt.NONE, favourites, DWELL, clock);
     }
 
     @Test
     void fetchesTheArtOfAnEntryTheCursorComesToRestOn() {
         final List<CompoEntry> fetched = new ArrayList<>();
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -227,7 +229,7 @@ class BrowserTest {
     @Test
     void leavesABareRecordingAloneRatherThanFetchItForArtItCannotHold() {
         final List<CompoEntry> fetched = new ArrayList<>();
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -259,7 +261,7 @@ class BrowserTest {
         final List<CompoEntry> fetched = new ArrayList<>();
         http.put(productionUrl(11), PRODUCTION_WITH_DOWNLOAD);
         http.put(productionUrl(12), PRODUCTION_WITH_DOWNLOAD);
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -288,7 +290,7 @@ class BrowserTest {
     void fetchesTheArtOfACompetitionAsItOpensAndShowsItForEveryEntry() {
         final List<CompoEntry> fetched = new ArrayList<>();
         final List<String> banner = List.of("== ICING ==", "== 1997  ==");
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -315,7 +317,7 @@ class BrowserTest {
     @Test
     void showsTheArtTheEntryWasPackedWith() {
         final List<String> banner = List.of(".------------------.", "|  I.C.I.N.G 9.7   |", "`------------------'");
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner));
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -332,19 +334,19 @@ class BrowserTest {
     @Test
     void reloadingACompetitionListFetchesItAgain() {
         openParty();
-        final int requests = http.requests();
+        final int checks = demozoo.checks();
 
         press('r');
         browser.tick();
 
-        assertTrue(http.requests() > requests, "the party is asked for again");
+        assertTrue(demozoo.checks() > checks, "Demozoo is asked for fresh answers");
         assertTrue(render().stream().anyMatch(line -> line.contains("Multichannel Music")), "and the list comes back");
     }
 
     @Test
     void reloadingACompetitionStepsBackIntoItAndForgetsItsLogo() {
         final List<Integer> forgotten = new ArrayList<>();
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, new PartyArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, new PartyArt() {
 
             @Override
             public Optional<List<String>> of(int partyId) {
@@ -384,7 +386,7 @@ class BrowserTest {
     @Test
     void showsThePartyLogoWhereTheReleasesCarryNoneOfTheirOwn() {
         final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(logo, false));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -398,7 +400,7 @@ class BrowserTest {
     void theArtOfAnEntryComesBeforeTheLogoOfTheParty() {
         final List<String> logo = List.of(".---------------.", "|   I C I N G   |", "`---------------'");
         final List<String> banner = List.of(".------------------.", "|  R E L E A S E   |", "`------------------'");
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner), partyArt(logo, false));
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, production -> Optional.of(banner), partyArt(logo, false));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -411,7 +413,7 @@ class BrowserTest {
 
     @Test
     void tickerRunsBesideTheEntryWhoseFilesAreOnTheirWayDown() {
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -439,7 +441,7 @@ class BrowserTest {
      */
     @Test
     void theTickerKeepsTheHighlightOnTheLineItRestsOn() {
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, new ReleaseArt() {
 
             @Override
             public Optional<List<String>> of(int productionId) {
@@ -463,7 +465,7 @@ class BrowserTest {
 
     @Test
     void tickerRunsOnTheCompetitionWhileItsLogoIsFetched() {
-        browser = new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
+        browser = new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run, ReleaseArt.NONE, partyArt(List.of(), true));
         openParty();
         press(Key.Special.ENTER);
         browser.tick();
@@ -1028,12 +1030,12 @@ class BrowserTest {
         press('m');
         browser.tick();
         http.put(WORKS_URL, WORKS.replace("Oldskool", "Newskool"));
-        final int requests = http.requests();
+        final int checks = demozoo.checks();
 
         press('r');
         browser.tick();
 
-        assertTrue(http.requests() > requests, "the works are asked for again");
+        assertTrue(demozoo.checks() > checks, "Demozoo is asked for fresh answers");
         assertEquals(List.of("Cyberpunk", "Newskool"), labels(), "and the list comes back afresh");
     }
 
@@ -1219,7 +1221,7 @@ class BrowserTest {
     void dropsAFetchThatLandsAfterBackingOut(@TempDir Path dir) {
         final Deque<Runnable> queued = new ArrayDeque<>();
         final CacheDirectory deferredCache = new CacheDirectory(dir);
-        final Browser deferred = new Browser(new DemozooClient(http, deferredCache),
+        final Browser deferred = new Browser(new DemozooClient(demozoo),
                 new ModArchiveClient(http, deferredCache), LOADERS, queued::add);
         http.put(SERIES_URL, SERIES);
         http.put(PARTY_URL, PARTY);
@@ -1299,7 +1301,7 @@ class BrowserTest {
     }
 
     private Browser browserWith(ReleaseFormats formats) {
-        return new Browser(new DemozooClient(http, cache), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
+        return new Browser(new DemozooClient(demozoo), new ModArchiveClient(http, cache), LOADERS, Runnable::run,
                 ReleaseArt.NONE, PartyArt.NONE, Favourites.NONE, formats, DWELL, clock);
     }
 
@@ -1592,7 +1594,7 @@ class BrowserTest {
     @Test
     void ignoresEnterWhileLoading(@TempDir Path dir) {
         final CacheDirectory stalledCache = new CacheDirectory(dir);
-        final Browser stalled = new Browser(new DemozooClient(http, stalledCache),
+        final Browser stalled = new Browser(new DemozooClient(demozoo),
                 new ModArchiveClient(http, stalledCache), LOADERS, runnable -> { });
         http.put(SERIES_URL, SERIES);
         final String first = CuratedSeries.ALL.stream().sorted(CuratedSeries.BY_NAME).findFirst().orElseThrow().name();

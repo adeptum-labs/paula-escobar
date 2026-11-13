@@ -105,13 +105,18 @@ the next from the start. The choice is remembered, and a format that will not
 play is skipped.
 
 Party data comes from [Demozoo](https://demozoo.org) and the files from
-scene.org, ModArchive or Modland. Archives, crunched modules and disk images
-are unpacked as deep as they go, and the file named after the entry is
-played, with the art of its `file_id.diz` or the party's logo above the list.
-Everything fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`):
-Demozoo answers for a week and chart pages for a day, both still used
-offline, downloaded files for good. `r` fetches the list in view afresh;
-delete the directory to start over. Favourites and format choices are kept
+scene.org, ModArchive or Modland. Demozoo's data is read from the database
+export it publishes every night: the first visit fetches it (about 200 MB)
+and turns it into a music catalogue of a few megabytes, which takes a minute
+or so; after that the export is looked at once a week and fetched again only
+when it has changed. Archives, crunched modules and disk images are unpacked
+as deep as they go, and the file named after the entry is played, with the
+art of its `file_id.diz` or the party's logo above the list. Everything
+fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): the
+Demozoo catalogue until a newer export replaces it and chart pages for a day,
+both still used offline, downloaded files for good. `r` fetches the list in
+view afresh, or has the Demozoo export looked at again; delete the directory
+to start over. Favourites and format choices are kept
 apart, under `~/.local/share/paula` (or `$XDG_DATA_HOME/paula`), and survive
 that.
 
