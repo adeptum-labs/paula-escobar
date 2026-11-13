@@ -176,10 +176,29 @@ class DemozooExportTest {
         final DemozooExport export = export(dir, converter);
         export.catalogue();
 
+        clock.advance(Duration.ofHours(25));
         export.checkSoon();
         export.catalogue();
 
         assertEquals(3, http.requests(), "one HEAD, as asked for");
+        assertEquals(1, converter.calls());
+    }
+
+    @Test
+    void checkSoonIsIgnoredWithinADayOfTheLastLook(@TempDir Path dir) throws IOException {
+        serve(ETAG, "export one");
+        final StubConverter converter = new StubConverter(catalogue("Assembly 1995"));
+        export(dir, converter).catalogue();
+        final int fetched = http.requests();
+
+        final DemozooExport restarted = export(dir, converter);
+        clock.advance(Duration.ofHours(23));
+        restarted.checkSoon();
+        restarted.catalogue();
+        restarted.checkSoon();
+        restarted.catalogue();
+
+        assertEquals(fetched, http.requests(), "the export was looked at less than a day ago, even before a restart");
         assertEquals(1, converter.calls());
     }
 

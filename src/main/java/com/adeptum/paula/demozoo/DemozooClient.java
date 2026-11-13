@@ -60,7 +60,7 @@ public final class DemozooClient {
 
     /**
      * Asking for fresh answers about a series, a party or a musician has Demozoo's export looked at again at the
-     * next chance, since every answer comes from the same converted catalogue.
+     * next chance, at most once a day, since every answer comes from the same converted catalogue.
      */
     public void forgetSeries(int id) {
         source.checkSoon();

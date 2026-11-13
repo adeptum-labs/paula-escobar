@@ -61,6 +61,7 @@ public final class DemozooExport implements CatalogueSource {
 
     private static final Duration CHECK_INTERVAL = Duration.ofDays(7);
     private static final Duration RETRY_INTERVAL = Duration.ofDays(1);
+    private static final Duration ASKED_INTERVAL = Duration.ofDays(1);
     private static final String SEGMENT = "demozoo";
     private static final String CATALOGUE = "catalogue.bin.gz";
     private static final String CHECKSUM = "catalogue.sha256";
@@ -72,6 +73,7 @@ public final class DemozooExport implements CatalogueSource {
     private static final String CHECKED = "checked";
     private static final String CONVERTED = "converted";
     private static final String NEXT_CHECK = "next-check";
+    private static final String LOOKED = "looked";
     private static final String DIGEST = "SHA-256";
     private static final String FETCHING = "Fetching the Demozoo database";
     private static final String CONVERTING = "Reading the Demozoo database";
@@ -94,6 +96,7 @@ public final class DemozooExport implements CatalogueSource {
     private volatile MusicCatalogue catalogue;
     private volatile boolean checkNow;
     private volatile Instant nextCheck;
+    private volatile Instant looked;
 
     public DemozooExport(HttpFetcher http, CacheDirectory cache, Executor background) {
         this(http, cache, Clock.systemUTC(), background, ExportConverter::convert);
@@ -125,7 +128,8 @@ public final class DemozooExport implements CatalogueSource {
 
     /**
      * Asks after the export at the next look rather than waiting out the week, for when the listener asked for
-     * fresh answers.
+     * fresh answers. Demozoo exports anew every night, so a look already made within the day is not repeated:
+     * each one that finds a new export fetches a couple of hundred megabytes.
      */
     @Override
     public void checkSoon() {
@@ -173,7 +177,23 @@ public final class DemozooExport implements CatalogueSource {
     }
 
     private boolean checkDue() {
+        if (checkNow && lookedWithinADay()) {
+            checkNow = false;
+        }
         return checkNow || !clock.instant().isBefore(nextCheck());
+    }
+
+    private boolean lookedWithinADay() {
+        if (looked == null) {
+            final Properties state = state();
+            try {
+                final String last = state.getProperty(LOOKED, state.getProperty(CHECKED));
+                looked = last == null ? Instant.MIN : Instant.parse(last);
+            } catch (RuntimeException e) {
+                looked = Instant.MIN;
+            }
+        }
+        return clock.instant().isBefore(looked.plus(ASKED_INTERVAL));
     }
 
     /**
@@ -200,9 +220,11 @@ public final class DemozooExport implements CatalogueSource {
      */
     private void failed(Exception failure) {
         log.warn("Could not refresh the Demozoo catalogue: {}", failure.getMessage());
-        nextCheck = clock.instant().plus(RETRY_INTERVAL);
+        looked = clock.instant();
+        nextCheck = looked.plus(RETRY_INTERVAL);
         final Properties state = state();
         state.setProperty(NEXT_CHECK, nextCheck.toString());
+        state.setProperty(LOOKED, looked.toString());
         try {
             saveState(state);
         } catch (IOException e) {
@@ -268,8 +290,10 @@ public final class DemozooExport implements CatalogueSource {
 
     private void markChecked(Properties state) {
         final Instant now = clock.instant();
+        looked = now;
         nextCheck = now.plus(CHECK_INTERVAL);
         state.setProperty(CHECKED, now.toString());
+        state.setProperty(LOOKED, now.toString());
         state.setProperty(NEXT_CHECK, nextCheck.toString());
     }
 

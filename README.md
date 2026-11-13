@@ -115,8 +115,8 @@ art of its `file_id.diz` or the party's logo above the list. Everything
 fetched is kept under `~/.cache/paula` (or `$XDG_CACHE_HOME/paula`): the
 Demozoo catalogue until a newer export replaces it and chart pages for a day,
 both still used offline, downloaded files for good. `r` fetches the list in
-view afresh, or has the Demozoo export looked at again; delete the directory
-to start over. Favourites and format choices are kept
+view afresh, or has the Demozoo export looked at again, at most once a day;
+delete the directory to start over. Favourites and format choices are kept
 apart, under `~/.local/share/paula` (or `$XDG_DATA_HOME/paula`), and survive
 that.
 
